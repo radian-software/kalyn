@@ -35,7 +35,7 @@ elfHeader elfHeaderLength programHeaderLength =
       entryPoint  = fromIntegral totalLength + virtualAddressOffset
   in  toLazyByteString
         $  lazyByteString elfIdent
-        <> word16LE 2 -- file type, executable
+        <> word16LE 3 -- file type, relocatable executable (called "shared object file")
         <> word16LE 3 -- architecture, Intel
         <> word32LE 1 -- object file version
         <> word32LE entryPoint -- entry point in virtual memory
