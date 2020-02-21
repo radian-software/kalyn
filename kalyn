@@ -1,0 +1,4 @@
+#!/bin/sh
+
+cabal v2-build kalyn
+exec cabal v2-exec kalyn -- "$@"

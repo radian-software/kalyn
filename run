@@ -1,3 +1,0 @@
-#!/bin/sh
-
-exec cabal v2-run kalyn -- "$@"
