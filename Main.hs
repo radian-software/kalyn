@@ -69,5 +69,5 @@ helloWorld = B.pack
 
 main :: IO ()
 main = do
-  B.writeFile "main" (ELF.elfData $ toLazyByteString $ stringUtf8 "HELLOWORLD")
+  B.writeFile "main" (ELF.elfData helloWorld)
   setFileMode "main" 0o777
