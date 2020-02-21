@@ -9,17 +9,17 @@ import qualified ELF
 
 helloWorld :: A.Program
 helloWorld = A.Program
-  [ A.Label $ A.LName "main"
-  , A.Text
+  [ A.Text
     [ A.MOV_IR 1 A.RAX
     , A.MOV_IR 1 A.RDI
-    , A.LEA_LR (A.LName "main") A.RSI
+    , A.LEA_LR (A.LName "message") A.RSI
     , A.MOV_IR 14 A.RDX
     , A.SYSCALL
     , A.MOV_IR 60 A.RAX
     , A.MOV_IR 0 A.RDI
     , A.SYSCALL
     ]
+  , A.Label $ A.LName "message"
   , A.Data (toLazyByteString $ stringUtf8 "Hello, world!\n")
   ]
 
