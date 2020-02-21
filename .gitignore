@@ -1,3 +1,4 @@
-*.hi
-*.o
+/.ghc.environment.*
+/dist-newstyle
 /kalyn
+/main
