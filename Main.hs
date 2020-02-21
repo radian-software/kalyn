@@ -1,6 +1,5 @@
 module Main where
 
-import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy          as B
 import           System.Posix.Files
 
