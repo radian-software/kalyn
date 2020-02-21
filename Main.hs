@@ -1,12 +1,30 @@
 module Main where
 
+import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy          as B
 import           System.Posix.Files
 
+import qualified Assembly                      as A
 import qualified ELF
 
-helloWorld :: B.ByteString
-helloWorld = B.pack
+helloWorld :: A.Program
+helloWorld = A.Program
+  [ A.Label $ A.LName "main"
+  , A.Text
+    [ A.MOV_IR 1 A.RAX
+    , A.MOV_IR 1 A.RDI
+    , A.LEA_LR (A.LName "main") A.RSI
+    , A.MOV_IR 14 A.RDX
+    , A.SYSCALL
+    , A.MOV_IR 60 A.RAX
+    , A.MOV_IR 0 A.RDI
+    , A.SYSCALL
+    ]
+  , A.Data (toLazyByteString $ stringUtf8 "Hello, world!\n")
+  ]
+
+helloWorld' :: B.ByteString
+helloWorld' = B.pack
   [ 0x48 -- mov $0x1, %rax
   , 0xc7
   , 0xc0
@@ -63,10 +81,10 @@ helloWorld = B.pack
   , 0x64
   , 0x21
   , 0x0a
-  , 0x00
   ]
 
 main :: IO ()
 main = do
-  B.writeFile "main" (ELF.elfData helloWorld)
+  print $ toLazyByteString $ lazyByteStringHex $ A.compile helloWorld
+  B.writeFile "main" (ELF.elfData $ A.compile helloWorld)
   setFileMode "main" 0o777
