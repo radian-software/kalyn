@@ -1,5 +1,5 @@
-module ELF
-  ( elfData
+module Linker
+  ( link
   )
 where
 
@@ -7,10 +7,9 @@ import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy          as B
 import           Data.Word
 
--- https://refspecs.linuxfoundation.org/elf/elf.pdf
+import           Util
 
-fixedPoint :: Eq a => a -> (a -> a) -> a
-fixedPoint x f = let fx = f x in if x == fx then x else fixedPoint fx f
+-- https://refspecs.linuxfoundation.org/elf/elf.pdf
 
 -- see page 20
 elfIdent :: B.ByteString
@@ -23,14 +22,14 @@ elfIdent =
     <> word8 1 -- version of ELF specification
     <> mconcat (replicate 9 $ word8 0)
 
--- see page 18
+-- see page 18; for architecture codes see
+-- <https://opensource.apple.com/source/dtrace/dtrace-90/sys/elf.h>
 elfHeader :: Word16 -> Word16 -> B.ByteString
 elfHeader elfHeaderLength programHeaderLength =
   let totalLength = elfHeaderLength + programHeaderLength
   in  toLazyByteString
         $  lazyByteString elfIdent
         <> word16LE 3 -- file type, relocatable executable (called "shared object file")
-                    -- see https://opensource.apple.com/source/dtrace/dtrace-90/sys/elf.h
         <> word16LE 62 -- architecture, x86_64
         <> word32LE 1 -- object file version
         <> word64LE (fromIntegral totalLength) -- entry point in virtual memory
@@ -59,8 +58,8 @@ programHeader elfHeaderLength programHeaderLength imageSize =
         <> word64LE 0 -- alignment, none required
 
 -- see page 15
-elfData :: B.ByteString -> B.ByteString
-elfData code =
+link :: B.ByteString -> B.ByteString
+link code =
   let (ehdr', phdr') = fixedPoint (B.empty, B.empty) $ \(ehdr, phdr) ->
         let elen      = fromIntegral $ B.length ehdr
             plen      = fromIntegral $ B.length phdr
