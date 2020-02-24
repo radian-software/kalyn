@@ -10,18 +10,18 @@ import           Linker                         ( link )
 
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 
-helloWorld :: A.AllocatedProgram
-helloWorld = A.AllocatedProgram
+helloWorld :: A.Program A.Register
+helloWorld = A.Program
   [ map
       (\instr -> (Nothing, instr))
       [ A.MOV_IR 1 A.RAX
       , A.MOV_IR 1 A.RDI
       , A.LEA_LR (A.LName "message") A.RSI
       , A.MOV_IR 14 A.RDX
-      , A.SYSCALL
+      , A.SYSCALL 3
       , A.MOV_IR 60 A.RAX
       , A.MOV_IR 0 A.RDI
-      , A.SYSCALL
+      , A.SYSCALL 1
       ]
   ]
   [(A.LName "message", toLazyByteString $ stringUtf8 "Hello, world!\n")]

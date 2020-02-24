@@ -15,8 +15,8 @@ data Fragment = Text (Instruction Register)
               | Data B.ByteString
               | Label LName
 
-getFragments :: AllocatedProgram -> [Fragment]
-getFragments (AllocatedProgram fns datums) =
+getFragments :: Program Register -> [Fragment]
+getFragments (Program fns datums) =
   concat
       (flip map fns $ \fn -> concat
         (flip map fn $ \(maybeLabel, instr) -> case maybeLabel of
@@ -68,14 +68,14 @@ compileInstr labels pc instr = case instr of
               <> word8 0x8d
               <> word8 regcode
               <> int32LE (fromIntegral labelOffset - fromIntegral pc)
-  SYSCALL -> toLazyByteString $ word8 0x0f <> word8 0x05
+  SYSCALL _ -> toLazyByteString $ word8 0x0f <> word8 0x05
 
 compileFrag :: Map.Map LName Word32 -> Word32 -> Fragment -> B.ByteString
 compileFrag labels pc (Text  instr) = compileInstr labels pc instr
 compileFrag _      _  (Data  bs   ) = bs
 compileFrag _      _  (Label _    ) = B.empty
 
-compile :: AllocatedProgram -> B.ByteString
+compile :: Program Register -> B.ByteString
 compile program =
   let frags = getFragments program
   in  B.concat $ fixedPoint (replicate (length frags) B.empty) $ \binFrags ->
