@@ -1,3 +1,4 @@
 /.ghc.environment.*
 /dist-newstyle
 /main
+/main.S

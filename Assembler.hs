@@ -3,9 +3,11 @@ module Assembler
   )
 where
 
+import           Data.Bits
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy          as B
 import qualified Data.Map.Strict               as Map
+import           Data.Maybe
 import           Data.Word
 
 import           Assembly
@@ -13,40 +15,66 @@ import           Util
 
 data Fragment = Text (Instruction Register)
               | Data B.ByteString
-              | Label LName
+              | FLabel Label
 
 getFragments :: Program Register -> [Fragment]
 getFragments (Program fns datums) =
   concat
       (flip map fns $ \fn -> concat
-        (flip map fn $ \(maybeLabel, instr) -> case maybeLabel of
-          Nothing   -> [Text instr]
-          Just name -> [Label name, Text instr]
+        (flip map fn $ \(instr, maybeLabel) -> case maybeLabel of
+          Nothing    -> [Text instr]
+          Just label -> [FLabel label, Text instr]
         )
       )
-    ++ concat (flip map datums $ \(name, bs) -> [Label name, Data bs])
+    ++ concat (flip map datums $ \(name, bs) -> [FLabel name, Data bs])
+
+isRegExt :: Register -> Bool
+isRegExt = (`elem` [R8, R9, R10, R11, R12, R13, R14, R15])
+
+rexByte :: Maybe Register -> Maybe Register -> Word8
+rexByte src dst =
+  0x48
+    .|. (if isRegExt (fromMaybe RAX src) then 0x04 else 0x00)
+    .|. (if isRegExt (fromMaybe RAX dst) then 0x01 else 0x00)
+
+regBits :: Register -> Word8
+regBits reg
+  | reg `elem` [RAX, R8]  = 0x00
+  | reg `elem` [RCX, R9]  = 0x01
+  | reg `elem` [RDX, R10] = 0x02
+  | reg `elem` [RBX, R11] = 0x03
+  | reg `elem` [RSP, R12] = 0x04
+  | reg `elem` [RBP, R13] = 0x05
+  | reg `elem` [RSI, R14] = 0x06
+  | reg `elem` [RDI, R15] = 0x07
+  | otherwise = error ("regBits got to unreachable code: " ++ show reg)
+
+modBits :: Register -> Register -> Word8
+modBits src dst = (regBits src `shiftL` 3) .|. regBits dst
+
+moveByteRR :: Register -> Register -> Word8
+moveByteRR src dst = 0xc0 .|. modBits src dst
+
+moveByteIR :: Register -> Word8
+moveByteIR = moveByteRR RAX
+
+_moveByteIR64 :: Register -> Word8
+_moveByteIR64 dst = 0x80 .|. modBits RDI dst
 
 compileInstr
-  :: Map.Map LName Word32 -> Word32 -> Instruction Register -> B.ByteString
+  :: Map.Map Label Word32 -> Word32 -> Instruction Register -> B.ByteString
 compileInstr labels pc instr = case instr of
-  MOV_IR val reg ->
-    let
-      regcode = case reg of
-        RAX -> 0xc0
-        RCX -> 0xc1
-        RDX -> 0xc2
-        RBX -> 0xc3
-        RSP -> 0xc4
-        RBP -> 0xc5
-        RSI -> 0xc6
-        RDI -> 0xc7
-        _ ->
-          error $ "don't know how to move immediate to register " ++ show reg
-    in  toLazyByteString
-          $  word8 0x48
-          <> word8 0xc7
-          <> word8 regcode
-          <> word32LE val
+  MOV_IR val dst ->
+    toLazyByteString
+      $  word8 (rexByte Nothing (Just dst))
+      <> word8 0xc7
+      <> word8 (moveByteIR dst)
+      <> int32LE val
+  MOV_RR src dst ->
+    toLazyByteString
+      $  word8 (rexByte (Just src) (Just dst))
+      <> word8 0x89
+      <> word8 (moveByteRR src dst)
   LEA_LR name reg ->
     let
       regcode = case reg of
@@ -70,10 +98,10 @@ compileInstr labels pc instr = case instr of
               <> int32LE (fromIntegral labelOffset - fromIntegral pc)
   SYSCALL _ -> toLazyByteString $ word8 0x0f <> word8 0x05
 
-compileFrag :: Map.Map LName Word32 -> Word32 -> Fragment -> B.ByteString
-compileFrag labels pc (Text  instr) = compileInstr labels pc instr
-compileFrag _      _  (Data  bs   ) = bs
-compileFrag _      _  (Label _    ) = B.empty
+compileFrag :: Map.Map Label Word32 -> Word32 -> Fragment -> B.ByteString
+compileFrag labels pc (Text   instr) = compileInstr labels pc instr
+compileFrag _      _  (Data   bs   ) = bs
+compileFrag _      _  (FLabel _    ) = B.empty
 
 compile :: Program Register -> B.ByteString
 compile program =
@@ -83,8 +111,8 @@ compile program =
             labels =
                 foldr
                     (\(frag, offset) ls -> case frag of
-                      Label name -> Map.insert name offset ls
-                      _          -> ls
+                      FLabel name -> Map.insert name offset ls
+                      _           -> ls
                     )
                     Map.empty
                   $ zip frags offsets
