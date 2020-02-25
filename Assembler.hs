@@ -75,7 +75,48 @@ compileInstr labels pc instr = case instr of
       $  word8 (rexByte (Just src) (Just dst))
       <> word8 0x89
       <> word8 (moveByteRR src dst)
-  LEA_LR name reg ->
+  ADD_RR src dst ->
+    toLazyByteString
+      $  word8 (rexByte (Just src) (Just dst))
+      <> word8 0x01
+      <> word8 (moveByteRR src dst)
+  SUB_RR src dst ->
+    toLazyByteString
+      $  word8 (rexByte (Just src) (Just dst))
+      <> word8 0x29
+      <> word8 (moveByteRR src dst)
+  CQTO -> toLazyByteString $ word8 0x48 <> word8 0x99
+  AND_RR src dst ->
+    toLazyByteString
+      $  word8 (rexByte (Just src) (Just dst))
+      <> word8 0x21
+      <> word8 (moveByteRR src dst)
+  OR_RR src dst ->
+    toLazyByteString
+      $  word8 (rexByte (Just src) (Just dst))
+      <> word8 0x09
+      <> word8 (moveByteRR src dst)
+  XOR_RR src dst ->
+    toLazyByteString
+      $  word8 (rexByte (Just src) (Just dst))
+      <> word8 0x31
+      <> word8 (moveByteRR src dst)
+  CMP_RR src dst ->
+    toLazyByteString
+      $  word8 (rexByte (Just src) (Just dst))
+      <> word8 0x39
+      <> word8 (moveByteRR src dst)
+  JE  _ -> toLazyByteString $ word8 0x48 <> word8 0xe3
+  JNE _ -> toLazyByteString $ word8 0x48 <> word8 0xe1
+  JL  _ -> toLazyByteString $ word8 0x48 <> word8 0xdf
+  JLE _ -> toLazyByteString $ word8 0x48 <> word8 0xdd
+  JG  _ -> toLazyByteString $ word8 0x48 <> word8 0xdb
+  JGE _ -> toLazyByteString $ word8 0x48 <> word8 0xd9
+  JB  _ -> toLazyByteString $ word8 0x48 <> word8 0xd7
+  JBE _ -> toLazyByteString $ word8 0x48 <> word8 0xd5
+  JA  _ -> toLazyByteString $ word8 0x48 <> word8 0xd3
+  JAE _ -> toLazyByteString $ word8 0x48 <> word8 0xd1
+  LEA_LR label reg ->
     let
       regcode = case reg of
         RAX -> 0x05
@@ -88,15 +129,20 @@ compileInstr labels pc instr = case instr of
         RDI -> 0x3d
         _ ->
           error $ "don't know how to calculate address to register " ++ show reg
-    in  case Map.lookup name labels of
-          Nothing -> error $ "no such label " ++ show name
+    in  case Map.lookup label labels of
+          Nothing -> error $ "no such label " ++ show label
           Just labelOffset ->
             toLazyByteString
               $  word8 0x48
               <> word8 0x8d
               <> word8 regcode
               <> int32LE (fromIntegral labelOffset - fromIntegral pc)
-  SYSCALL _ -> toLazyByteString $ word8 0x0f <> word8 0x05
+  SYSCALL _    -> toLazyByteString $ word8 0x0f <> word8 0x05
+  CALL _ label -> case Map.lookup label labels of
+    Nothing          -> error $ "no such label " ++ show label
+    Just labelOffset -> toLazyByteString $ word8 0xff <> word8 0x15 <> int32LE
+      (fromIntegral labelOffset - fromIntegral pc)
+  RET -> toLazyByteString $ word8 0xc3
 
 compileFrag :: Map.Map Label Word32 -> Word32 -> Fragment -> B.ByteString
 compileFrag labels pc (Text   instr) = compileInstr labels pc instr

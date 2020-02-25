@@ -2,7 +2,6 @@ module Assembly where
 
 import qualified Data.ByteString.Lazy          as B
 import           Data.Int
-import           Data.Word
 import           Numeric
 
 {-# ANN module "HLint: ignore Use lambda-case" #-}
