@@ -1,0 +1,16 @@
+(import "Stdlib.kalyn")
+
+(public defn fixedPoint (with ((Eq a))
+                          (Func a (Func a a) a))
+  (x f)
+  (let ((fx (f x)))
+    (case (== x fx)
+      (True x)
+      (False (fixedPoint fx f)))))
+
+(public defn collectMaybes (Func (List (Maybe a)) (List a))
+  (maybes)
+  (case maybes
+    (Null Null)
+    ((Cons Nothing rst)              (collectMaybes rst))
+    ((Cons (Just elt) rst) (Cons elt (collectMaybes rst)))))

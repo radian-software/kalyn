@@ -1,0 +1,185 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Data types
+
+(public data Empty
+  Empty)
+
+(derive
+  (Eq Empty)
+  (Ord Empty))
+
+(public data Bool
+  False True)
+
+(derive
+  (Eq Bool)
+  (Ord Bool))
+
+(public data (Maybe a)
+  Nothing (Just a))
+
+(derive
+  (Eq Maybe)
+  (Ord Maybe))
+
+(public data (Pair a b)
+  (Pair a b))
+
+(derive
+  (Eq Pair)
+  (Ord Pair))
+
+(public data (List a)
+  Null (Cons a (List a)))
+
+(derive
+  (Eq List)
+  (Ord List))
+
+(public alias String (List Int))
+
+(public data Ordering
+  LT EQ GT)
+
+(derive
+  (Eq Ordering)
+  (Ord Ordering))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Typeclasses
+
+(public class (Eq a)
+  (== (Func a a Bool)))
+
+(public class (with (Eq a)
+                (Ord a))
+  (< (Func a a Bool)))
+
+(public class (Monad m)
+  (pure (Func a (m a)))
+  (>>= (Func (m a) (Func a (m b)) (m b))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Functions
+
+(public defn const (Func a (Func b a))
+  (a _)
+  a)
+
+(public defn flip (Func (Func a b c) (Func b a c))
+  (f b a)
+  f a b)
+
+(public defn compose (Func (Func b c) (Func a b) (Func a c))
+  (f g a)
+  (f (g a)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Booleans
+
+(public defn not (Func Bool Bool)
+  (b)
+  (case b
+    (False True)
+    (True False)))
+
+(public defn and (Func Bool Bool Bool)
+  (left right)
+  (case left
+    (False False)
+    (True right)))
+
+(public defn or (Func Bool Bool Bool)
+  (left right)
+  (case left
+    (False right)
+    (True True)))
+
+(public def xor (Func Bool Bool Bool)
+  ==)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Lists
+
+(public defn foldr (Func (Func a b b) b (List a) b)
+  (func init elts)
+  (case elts
+    (Null init)
+    ((Cons fst rst)
+     (func fst (foldr func init rst)))))
+
+(public defn foldl (Func (Func b a b) b (List a) b)
+  (func init elts)
+  (case elts
+    (Null init)
+    ((Cons fst rst)
+     (foldl func (func init fst) rst))))
+
+(public defn map (Func (Func a b) (List a) (List b))
+  (func)
+  (foldr (lambda (elt rst)
+           (Cons (func elt) rst))
+         Null))
+
+(public defn filter (Func (Func a Bool) (List a) (List a))
+  (pred)
+  (foldr (lambda (elt rst)
+           (case (pred elt)
+             (False rst)
+             (True (Cons elt rst))))
+         Null))
+
+(public def length (Func (List a) Int)
+  (foldr (const (+ 1)) 0))
+
+(public defn join (Func (List a) (List a) (List a))
+  (left right)
+  (foldr Cons right left))
+
+(public defn replicate (Func Int a (List a))
+  (n elt)
+  (case (<= n 0)
+    (False (Cons elt (replicate (- n 1) elt)))
+    (True Null)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Typeclass utilities
+
+(public defn /= (with ((Eq a))
+                  (Func a a Bool))
+  (left right)
+  (not (== left right)))
+
+(public defn <= (with ((Ord a))
+                  (Func a a Bool))
+  (left right)
+  (or (== left right) (< left right)))
+
+(public defn > (with ((Ord a))
+                 (Func a a Bool))
+  (left right)
+  (not (<= left right)))
+
+(public defn >= (with ((Ord a))
+                  (Func a a Bool))
+  (left right)
+  (not (< left right)))
+
+(public defn compare (Func a a Ordering)
+  (left right)
+  (case (== left right)
+    (True EQ)
+    (False (case (< left right)
+             (True LT)
+             (False GT)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Instances
+
+(instance (Monad Maybe)
+  (pure Just)
+  (>>=
+   (lambda (m f)
+     (case m
+       (Nothing Nothing)
+       ((Just a) (Just (f a)))))))
