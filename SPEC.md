@@ -10,8 +10,23 @@
 ## Syntax
 
 * Integer literals: `42`, `0x2a`, `0o52`
-* Function calls: `()`
+* (Virtual) function calls: `()`
 * List literals: `[]`
+
+## Indentation
+
+Align all code to column 0. All but the first elements of
+round-parenthesis lists are indented two additional spaces from the
+opening parenthesis. The first elements of round-parenthesis lists and
+all elements of square-bracket lists are indented one space from the
+opening parenthesis, unless they are on the same line as the opening
+parenthesis in which case manually inserted whitespace is preserved.
+Exceptions:
+
+* The pattern-matching lists of `case` forms are indented as if they
+  used square brackets.
+* The binding lists of `let` forms are indented as if they used square
+  brackets.
 
 ## Built-ins
 
@@ -25,6 +40,7 @@ Declarations:
 * `derive`
 * `instance`
 * `public`
+* `with`
 
 Special forms:
 
