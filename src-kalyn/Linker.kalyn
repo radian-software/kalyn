@@ -9,8 +9,8 @@
 
 (defn bytes16 (Func Int String)
   (v)
-  [    v
-  (>>> v 8)]
+  [     v
+   (>>> v 8)])
 
 (defn bytes32 (Func Int String)
   (v)

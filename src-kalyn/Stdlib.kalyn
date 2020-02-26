@@ -119,7 +119,7 @@
   (func)
   (foldr (lambda (elt rst)
            (Cons (func elt) rst))
-         Null))
+    Null))
 
 (public defn filter (Func (Func a Bool) (List a) (List a))
   (pred)
@@ -127,7 +127,7 @@
            (case (pred elt)
              (False rst)
              (True (Cons elt rst))))
-         Null))
+    Null))
 
 (public def length (Func (List a) Int)
   (foldr (const (+ 1)) 0))
@@ -179,7 +179,7 @@
 (instance (Monad Maybe)
   (pure Just)
   (>>=
-   (lambda (m f)
-     (case m
-       (Nothing Nothing)
-       ((Just a) (Just (f a)))))))
+    (lambda (m f)
+      (case m
+        (Nothing Nothing)
+        ((Just a) (Just (f a)))))))
