@@ -1,7 +1,9 @@
 module Main where
 
+import           Control.Exception
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy          as B
+import           System.IO.Error
 import           System.Posix.Files
 
 import           Assembler                      ( compile )
@@ -86,10 +88,17 @@ printInt = Program
   , (Label "newline", toLazyByteString (charUtf8 '\n'))
   ]
 
+ignoringDoesNotExist :: IO () -> IO ()
+ignoringDoesNotExist m = do
+  res <- try m
+  case res of
+    Left err | not . isDoesNotExistError $ err -> ioError err
+    _ -> return ()
+
 main :: IO ()
 main = do
-  removeLink "main.S"
-  removeLink "main"
+  ignoringDoesNotExist $ removeLink "main.S"
+  ignoringDoesNotExist $ removeLink "main"
   writeFile "main.S" $ ".globl main\nmain:\n" ++ show printInt
   B.writeFile "main" (link $ compile helloWorld)
   setFileMode "main" 0o755

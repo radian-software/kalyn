@@ -48,6 +48,7 @@
   (setq-local indent-line-function #'lisp-indent-line)
   (setq-local lisp-indent-function #'kalyn-indent-function))
 
+;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.kalyn\\'" . kalyn-mode))
 
 (provide 'kalyn-mode)

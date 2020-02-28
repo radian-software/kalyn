@@ -1,0 +1,23 @@
+name: kalyn
+version: 0
+author: "Radon Rosborough"
+maintainer: "radon.neon@gmail.com"
+
+dependencies:
+  - base
+  - bytestring
+  - containers
+  - regex-tdfa
+  - unix
+
+library:
+  source-dirs: src
+
+executables:
+  kalyn:
+    main: Main.hs
+    source-dirs: app
+    ghc-options:
+      - -Wall
+    dependencies:
+      - kalyn

@@ -1,4 +1,4 @@
-/.ghc.environment.*
-/dist-newstyle
+/.stack-work
+/kalyn.cabal
 /main
 /main.S

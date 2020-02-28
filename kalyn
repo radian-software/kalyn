@@ -2,5 +2,5 @@
 
 set -e
 
-cabal v2-build kalyn
-exec cabal v2-exec kalyn -- "$@"
+make build
+stack exec kalyn -- "$@"
