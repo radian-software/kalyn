@@ -4,14 +4,19 @@ author: "Radon Rosborough"
 maintainer: "radon.neon@gmail.com"
 
 dependencies:
+  - array
   - base
   - bytestring
   - containers
+  - regex-base
   - regex-tdfa
   - unix
+  - utf8-string
 
 library:
   source-dirs: src
+  ghc-options:
+    - -Wall
 
 executables:
   kalyn:

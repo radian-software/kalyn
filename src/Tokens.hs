@@ -6,6 +6,7 @@ data Token = LPAREN
            | RPAREN
            | LBRACKET
            | RBRACKET
-           | SYMBOL
+           | SYMBOL String
            | INTEGER Int64
            | STRING String
+  deriving (Show)
