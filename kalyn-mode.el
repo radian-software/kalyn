@@ -24,10 +24,11 @@
   (append kalyn-declaration-builtins kalyn-special-form-builtins))
 
 (defun kalyn-font-lock-keywords ()
-  (list (list (mapconcat
-               #'regexp-quote
-               (kalyn-builtins)
-               "\\|")
+  (list (list (format "\\_<\\(%s\\)\\_>"
+                      (mapconcat
+                       #'regexp-quote
+                       (kalyn-builtins)
+                       "\\|"))
               (list 0 'font-lock-keyword-face))
         (list "\\_<[A-Z].*?\\_>"
               (list 0 'font-lock-type-face))))
@@ -43,6 +44,10 @@
 
 (define-derived-mode kalyn-mode prog-mode "Kalyn"
   "Major mode for editing Kalyn code."
+  (modify-syntax-entry ?\; "<" (syntax-table))
+  (modify-syntax-entry ?\n ">" (syntax-table))
+  (setq-local comment-start ";;")
+  (setq-local comment-use-syntax t)
   (setq-local font-lock-defaults
               (list #'kalyn-font-lock-keywords))
   (setq-local indent-line-function #'lisp-indent-line)
