@@ -4,46 +4,40 @@
 (public data Empty
   Empty)
 
-(derive
-  (Eq Empty)
-  (Ord Empty))
+(derive (Eq Empty))
+(derive (Ord Empty))
 
 (public data Bool
   False True)
 
-(derive
-  (Eq Bool)
-  (Ord Bool))
+(derive (Eq Bool))
+(derive (Ord Bool))
 
 (public data (Maybe a)
   Nothing (Just a))
 
-(derive
-  (Eq Maybe)
-  (Ord Maybe))
+(derive (Eq Maybe))
+(derive (Ord Maybe))
 
 (public data (Pair a b)
   (Pair a b))
 
-(derive
-  (Eq Pair)
-  (Ord Pair))
+(derive (Eq Pair))
+(derive (Ord Pair))
 
 (public data (List a)
   Null (Cons a (List a)))
 
-(derive
-  (Eq List)
-  (Ord List))
+(derive (Eq List))
+(derive (Ord List))
 
 (public alias String (List Int))
 
 (public data Ordering
   LT EQ GT)
 
-(derive
-  (Eq Ordering)
-  (Ord Ordering))
+(derive (Eq Ordering))
+(derive (Ord Ordering))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Typeclasses
