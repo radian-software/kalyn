@@ -12,6 +12,11 @@ import           Text.Regex.TDFA.String         ( )
 import           Tokens
 import           Util
 
+-- Chars that cannot appear in a symbol, for use inside character
+-- class. We have to put the brackets first for regex syntax reasons.
+nonSymbol :: String
+nonSymbol = "][()\";[:space:]"
+
 patterns :: [(String, String -> Maybe Token)]
 patterns =
   [ ("[[:space:]]+"            , const Nothing)
@@ -21,7 +26,7 @@ patterns =
   , ("\\["                     , const $ Just LBRACKET)
   , ("\\]"                     , const $ Just RBRACKET)
   , ("[0-9]+|0[xX][0-9a-fA-F]+", Just . INTEGER . read)
-  , ("[^][0-9();[:space:]\"][^][();[:space:]\"]*", Just . SYMBOL)
+  , ("[^" ++ nonSymbol ++ "0-9][^" ++ nonSymbol ++ "]*", Just . SYMBOL)
   , ( "\"([^\\\\\"]|\\\\[\\\\\"0abfnrtv]|\\\\x[0-9a-zA-Z]{2})*\""
     , Just . STRING . readString
     )
