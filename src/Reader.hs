@@ -1,5 +1,5 @@
 module Reader
-  ( readForms
+  ( readModule
   )
 where
 
@@ -8,7 +8,7 @@ import           Tokens
 -- Simple recursive descent parser for Lisp syntax.
 
 parseForm :: [Token] -> (Form, [Token])
-parseForm (SYMBOL  s : rest) = (SymbolAtom s, rest)
+parseForm (SYMBOL  s : rest) = (Symbol s, rest)
 parseForm (INTEGER i : rest) = (IntAtom i, rest)
 parseForm (STRING  s : rest) = (StrAtom s, rest)
 parseForm (LPAREN : rest) =
@@ -31,8 +31,8 @@ parseForms tokens =
       (forms, rest') = parseForms rest
   in  (form : forms, rest')
 
-readForms :: [Token] -> [Form]
-readForms tokens =
+readModule :: [Token] -> [Form]
+readModule tokens =
   let (forms, rest) = parseForms tokens
   in  if null rest
         then forms

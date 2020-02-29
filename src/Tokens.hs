@@ -13,13 +13,13 @@ data Token = LPAREN
 
 data Form = RoundList [Form]
           | SquareList [Form]
-          | SymbolAtom String
+          | Symbol String
           | IntAtom Int64
           | StrAtom String
 
 instance (Show Form) where
   show (RoundList  forms) = "(" ++ unwords (map show forms) ++ ")"
   show (SquareList forms) = "[" ++ unwords (map show forms) ++ "]"
-  show (SymbolAtom s    ) = s
+  show (Symbol     s    ) = s
   show (IntAtom    i    ) = show i
   show (StrAtom    s    ) = show s
