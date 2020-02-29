@@ -38,6 +38,7 @@ Declarations:
 * `def`
 * `defn`
 * `derive`
+* `import`
 * `instance`
 * `public`
 * `with`
