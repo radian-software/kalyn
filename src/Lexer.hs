@@ -1,5 +1,5 @@
 module Lexer
-  ( getTokens
+  ( tokenize
   )
 where
 
@@ -66,8 +66,8 @@ getToken s =
         Nothing            -> error $ "failed to read token at: " ++ take 10 s
         Just (text, token) -> (drop (length text) s, token)
 
-getTokens :: B.ByteString -> [Token]
-getTokens bs = collectMaybes $ getTokens' (decode $ B.unpack bs)
+tokenize :: B.ByteString -> [Token]
+tokenize bs = collectMaybes $ getTokens (decode $ B.unpack bs)
  where
-  getTokens' [] = []
-  getTokens' s  = let (s', t) = getToken s in t : getTokens' s'
+  getTokens [] = []
+  getTokens s  = let (s', t) = getToken s in t : getTokens s'
