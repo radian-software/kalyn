@@ -69,6 +69,10 @@ Primitives (IO):
 * `writeFile :: Func String String (IO Empty)`
 * `setFileMode :: Func String Int (IO Empty)`
 
+Primitives (misc):
+
+* `error :: Func String a`
+
 Instances:
 
 * `Eq Int`
