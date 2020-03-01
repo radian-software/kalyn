@@ -6,9 +6,15 @@ import qualified Data.ByteString.Lazy          as B
 import           System.IO.Error
 import           System.Posix.Files
 
-import           Assembler                      ( compile )
+import           AST
 import           Assembly
-import           Linker                         ( link )
+
+-- import in stack order
+import           Lexer
+import           Reader
+import           Parser
+import           Assembler
+import           Linker
 
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 
@@ -94,6 +100,11 @@ ignoringDoesNotExist m = do
   case res of
     Left err | not . isDoesNotExistError $ err -> ioError err
     _ -> return ()
+
+testStack :: String -> IO [Decl]
+testStack fname = do
+  str <- readFile fname
+  pure $ parseModule $ readModule $ tokenize str
 
 main :: IO ()
 main = do

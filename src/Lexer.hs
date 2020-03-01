@@ -3,9 +3,7 @@ module Lexer
   )
 where
 
-import           Codec.Binary.UTF8.String
 import           Control.Applicative
-import qualified Data.ByteString.Lazy          as B
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.String         ( )
 
@@ -66,8 +64,8 @@ getToken s =
         Nothing            -> error $ "failed to read token at: " ++ take 10 s
         Just (text, token) -> (drop (length text) s, token)
 
-tokenize :: B.ByteString -> [Token]
-tokenize bs = collectMaybes $ getTokens (decode $ B.unpack bs)
+tokenize :: String -> [Token]
+tokenize str = collectMaybes $ getTokens str
  where
   getTokens [] = []
   getTokens s  = let (s', t) = getToken s in t : getTokens s'

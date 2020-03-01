@@ -1,6 +1,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data types
 
+(public data Never)
+
 (public data Empty
   Empty)
 
@@ -45,7 +47,7 @@
 (public class (Eq a)
   (== (Func a a Bool)))
 
-(public class (with (Eq a)
+(public class (with ((Eq a))
                 (Ord a))
   (< (Func a a Bool)))
 

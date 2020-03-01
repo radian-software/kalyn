@@ -4,22 +4,50 @@ module Parser
 where
 
 import           AST
+import           Codec.Binary.UTF8.String
 import           Tokens
 
+withConstraints :: (Form -> a) -> Form -> ([ClassSpec], a)
+withConstraints parseBody (RoundList [Symbol "with", RoundList specs, body]) =
+  (map parseClassSpec specs, parseBody body)
+withConstraints _ form =
+  error $ "failed to parse constraint list: " ++ show form
+
 parseTypeSpec :: Form -> TypeSpec
-parseTypeSpec = undefined
+parseTypeSpec (RoundList ((Symbol name) : args)) = TypeSpec
+  (TypeName name)
+  (flip map args $ \arg -> case arg of
+    Symbol argName -> TypeName argName
+    _              -> error $ "failed to parse type spec argument: " ++ show arg
+  )
+parseTypeSpec (Symbol name) = TypeSpec (TypeName name) []
+parseTypeSpec form          = error $ "failed to parse type spec: " ++ show form
 
 parseType :: Form -> Type
-parseType = undefined
+parseType form@(RoundList (Symbol "with" : _)) =
+  let (specs, Type moreSpecs name args) = withConstraints parseType form
+  in  Type (specs ++ moreSpecs) name args
+parseType (RoundList (Symbol name : args)) =
+  Type [] (TypeName name) (map parseType args)
+parseType (Symbol name) = Type [] (TypeName name) []
+parseType form          = error $ "failed to parse type: " ++ show form
 
 parseClassSpec :: Form -> ClassSpec
-parseClassSpec = undefined
+parseClassSpec (RoundList [Symbol name, Symbol typ]) =
+  ClassSpec (ClassName name) (TypeName typ)
+parseClassSpec form = error $ "failed to parse class spec: " ++ show form
 
 parseExpr :: Form -> Expr
-parseExpr = undefined
-
-withConstraints :: (Form -> a) -> Form -> ([ClassSpec], a)
-withConstraints = undefined
+parseExpr (RoundList  []  ) = error "round list can't be empty"
+parseExpr (RoundList  elts) = foldl1 Call (map parseExpr elts)
+parseExpr (SquareList elts) = parseExpr $ foldr
+  (\rest char -> RoundList [Symbol "Cons", char, rest])
+  (Symbol "Null")
+  elts
+parseExpr (Symbol  name) = Variable name
+parseExpr (IntAtom i   ) = Const i
+parseExpr (StrAtom s) =
+  parseExpr $ SquareList (map (IntAtom . fromIntegral) $ encode s)
 
 parseDecl :: Form -> Decl
 parseDecl form = case form of

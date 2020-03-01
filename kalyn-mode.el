@@ -42,6 +42,7 @@
     (goto-char (nth 1 state))
     (+ 2 (current-column))))
 
+;;;###autoload
 (define-derived-mode kalyn-mode prog-mode "Kalyn"
   "Major mode for editing Kalyn code."
   (modify-syntax-entry ?\; "<" (syntax-table))

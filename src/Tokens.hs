@@ -17,7 +17,7 @@ data Form = RoundList [Form]
           | IntAtom Int64
           | StrAtom String
 
-instance (Show Form) where
+instance Show Form where
   show (RoundList  forms) = "(" ++ unwords (map show forms) ++ ")"
   show (SquareList forms) = "[" ++ unwords (map show forms) ++ "]"
   show (Symbol     s    ) = s
