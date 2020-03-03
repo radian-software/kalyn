@@ -10,6 +10,7 @@ import           Tokens
 parseForm :: [Token] -> (Form, [Token])
 parseForm (SYMBOL  s : rest) = (Symbol s, rest)
 parseForm (INTEGER i : rest) = (IntAtom i, rest)
+parseForm (CHAR    c : rest) = (CharAtom c, rest)
 parseForm (STRING  s : rest) = (StrAtom s, rest)
 parseForm (LPAREN : rest) =
   let (forms, rest') = parseForms rest

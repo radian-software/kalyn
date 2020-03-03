@@ -13,7 +13,7 @@ import           Util
 -- Chars that cannot appear in a symbol, for use inside character
 -- class. We have to put the brackets first for regex syntax reasons.
 nonSymbol :: String
-nonSymbol = "][()\";[:space:]"
+nonSymbol = "][()\"';[:space:]"
 
 patterns :: [(String, String -> Maybe Token)]
 patterns =
@@ -27,6 +27,17 @@ patterns =
   , ("[^" ++ nonSymbol ++ "0-9][^" ++ nonSymbol ++ "]*", Just . SYMBOL)
   , ( "\"([^\\\\\"]|\\\\[\\\\\"0abfnrtv]|\\\\x[0-9a-zA-Z]{2})*\""
     , Just . STRING . readString
+    )
+  , ( "'([^\\\\\']|\\\\[\\\\\'0abfnrtv]|\\\\x[0-9a-zA-Z]{2})'"
+    , (\s ->
+        let s' = readString s
+        in  if length s' == 1
+              then Just . CHAR $ head s'
+              else
+                error
+                $  error "character literal had more than one character: "
+                ++ show s
+      )
     )
   ]
 

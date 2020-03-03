@@ -33,7 +33,9 @@
 (derive (Eq List))
 (derive (Ord List))
 
-(public alias String (List Int))
+(public data Char (Char Int))
+
+(public alias String (List Char))
 
 (public data Ordering
   LT EQ GT)
@@ -64,7 +66,7 @@
 
 (public defn flip (Func (Func a b c) (Func b a c))
   (f b a)
-  f a b)
+  (f a b))
 
 (public defn compose (Func (Func b c) (Func a b) (Func a c))
   (f g a)

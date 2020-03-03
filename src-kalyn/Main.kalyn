@@ -1,7 +1,7 @@
 (import "Stdlib.kalyn")
 (import "Linker.kalyn")
 
-(public defn main (IO Empty)
+(public def main (IO Empty)
   (>>= (writeFile "main" (link ""))
        (lambda (_)
          (setFileMode "main" 0x755))))

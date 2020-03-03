@@ -1,5 +1,6 @@
 module AST where
 
+import           Codec.Binary.UTF8.String
 import           Data.Int
 
 newtype ClassName = ClassName String
@@ -10,7 +11,7 @@ data ClassSpec = ClassSpec ClassName TypeName
 data TypeSpec = TypeSpec TypeName [TypeName]
 data Type = Type [ClassSpec] TypeName [Type]
 
-data Expr = Variable String
+data Expr = Variable VarName
           | Const Int64
           | Call Expr Expr
           | Case Expr [(Expr, Expr)]
@@ -19,7 +20,7 @@ data Expr = Variable String
 
 data Decl = Alias Bool TypeSpec Type
           | Class Bool [ClassSpec] ClassSpec [(VarName, Type)]
-          | Data Bool TypeSpec [(VarName, [TypeName])]
+          | Data Bool TypeSpec [(VarName, [Type])]
           | Def Bool VarName Type Expr
           | Derive ClassSpec
           | Import String
@@ -52,12 +53,26 @@ instance Show Type where
           else "(with " ++ unwords (map show constraints) ++ " " ++ inner ++ ")"
 
 instance Show Expr where
-  show (  Variable name) = name
-  show (  Const    i   ) = show i
-  show f@(Call _ _     ) = "(" ++ unwords (map show $ uncurryExpr f) ++ ")"
+  show (Variable name) = show name
+  show (Const    i   ) = show i
+  show (Call (Variable (VarName "Char")) (Const c)) =
+    show (toEnum $ fromIntegral c :: Char)
+  show form@(Call _ _) = case unstringExpr form of
+    Just bytes@(_ : _) -> show $ decode (map fromIntegral bytes)
+    _                  -> case unlistExpr form of
+      Just forms -> "[" ++ unwords (map show forms) ++ "]"
+      _ -> "(" ++ unwords (map show $ reverse $ uncurryExpr form) ++ ")"
    where
-    uncurryExpr (Call lhs rhs) = lhs : uncurryExpr rhs
-    uncurryExpr form           = [form]
+    unstringExpr (Variable (VarName "Null")) = Just []
+    unstringExpr (Call (Call (Variable (VarName "Cons")) (Call (Variable (VarName "Char")) (Const first))) rest)
+      = unstringExpr rest >>= (Just . (first :))
+    unstringExpr _ = Nothing
+    unlistExpr (Variable (VarName "Null")) = Just []
+    unlistExpr (Call (Call (Variable (VarName "Cons")) first) rest) =
+      unlistExpr rest >>= (Just . (first :))
+    unlistExpr _ = Nothing
+    uncurryExpr (Call lhs rhs) = rhs : uncurryExpr lhs
+    uncurryExpr f              = [f]
   show (Case expr branches) =
     "(case "
       ++ show expr
@@ -83,7 +98,7 @@ instance Show Expr where
 
 showPub :: Bool -> String
 showPub False = ""
-showPub True  = "pub "
+showPub True  = "public "
 
 instance Show Decl where
   show form = case form of

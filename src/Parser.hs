@@ -10,8 +10,9 @@ import           Tokens
 withConstraints :: (Form -> a) -> Form -> ([ClassSpec], a)
 withConstraints parseBody (RoundList [Symbol "with", RoundList specs, body]) =
   (map parseClassSpec specs, parseBody body)
-withConstraints _ form =
+withConstraints _ form@(RoundList (Symbol "with" : _)) =
   error $ "failed to parse constraint list: " ++ show form
+withConstraints parseBody form = ([], parseBody form)
 
 parseTypeSpec :: Form -> TypeSpec
 parseTypeSpec (RoundList ((Symbol name) : args)) = TypeSpec
@@ -38,16 +39,35 @@ parseClassSpec (RoundList [Symbol name, Symbol typ]) =
 parseClassSpec form = error $ "failed to parse class spec: " ++ show form
 
 parseExpr :: Form -> Expr
-parseExpr (RoundList  []  ) = error "round list can't be empty"
+parseExpr (RoundList []) = error "round list can't be empty"
+parseExpr (RoundList (Symbol "case" : expr : branches)) = Case
+  (parseExpr expr)
+  (flip map branches $ \br -> case br of
+    RoundList [pat, res] -> (parseExpr pat, parseExpr res)
+    _                    -> error $ "failed to parse case branch: " ++ show br
+  )
+parseExpr (RoundList [Symbol "lambda", RoundList args, body]) = Lambda
+  (flip map args $ \arg -> case arg of
+    Symbol name -> VarName name
+    _           -> error $ "failed to parse lambda argument: " ++ show arg
+  )
+  (parseExpr body)
+parseExpr (RoundList [Symbol "let", RoundList bindings, body]) = Let
+  (flip map bindings $ \binding -> case binding of
+    RoundList [Symbol name, val] -> (VarName name, parseExpr val)
+    _ -> error $ "failed to parse let binding: " ++ show binding
+  )
+  (parseExpr body)
 parseExpr (RoundList  elts) = foldl1 Call (map parseExpr elts)
 parseExpr (SquareList elts) = parseExpr $ foldr
-  (\rest char -> RoundList [Symbol "Cons", char, rest])
+  (\char rest -> RoundList [Symbol "Cons", char, rest])
   (Symbol "Null")
   elts
-parseExpr (Symbol  name) = Variable name
-parseExpr (IntAtom i   ) = Const i
-parseExpr (StrAtom s) =
-  parseExpr $ SquareList (map (IntAtom . fromIntegral) $ encode s)
+parseExpr (Symbol   name) = Variable $ VarName name
+parseExpr (IntAtom  i   ) = Const i
+parseExpr (CharAtom c   ) = parseExpr $ StrAtom [c]
+parseExpr (StrAtom  s   ) = parseExpr $ SquareList
+  (map (\c -> RoundList [Symbol "Char", IntAtom (fromIntegral c)]) $ encode s)
 
 parseDecl :: Form -> Decl
 parseDecl form = case form of
@@ -71,12 +91,7 @@ parseDecl form = case form of
     (parseTypeSpec spec)
     (flip map members $ \m -> case m of
       Symbol name -> (VarName name, [])
-      RoundList (Symbol name : args) ->
-        ( VarName name
-        , flip map args $ \a -> case a of
-          Symbol argName -> TypeName argName
-          _ -> error $ "failed to parse data constructor argument: " ++ show a
-        )
+      RoundList (Symbol name : args) -> (VarName name, map parseType args)
       _ -> error $ "failed to parse data constructor: " ++ show m
     )
   parseDecl' pub (RoundList [Symbol "def", Symbol name, typ, expr]) =
