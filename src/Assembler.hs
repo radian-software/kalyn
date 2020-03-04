@@ -58,8 +58,11 @@ moveByteRR src dst = 0xc0 .|. modBits src dst
 moveByteIR :: Register -> Word8
 moveByteIR = moveByteRR RAX
 
-_moveByteIR64 :: Register -> Word8
-_moveByteIR64 dst = 0x80 .|. modBits RDI dst
+opextByte :: Word8 -> Register -> Word8
+opextByte ext dst = 0xc0 .|. (ext `shiftL` 3) .|. regBits dst
+
+moveByteIR64 :: Register -> Word8
+moveByteIR64 dst = 0x80 .|. modBits RDI dst
 
 compileInstr
   :: Map.Map Label Word32 -> Word32 -> Instruction Register -> B.ByteString
@@ -70,16 +73,33 @@ compileInstr labels pc instr = case instr of
       <> word8 0xc7
       <> word8 (moveByteIR dst)
       <> int32LE val
+  MOV_IR64 val dst ->
+    toLazyByteString
+      $  word8 (rexByte Nothing (Just dst))
+      <> word8 (moveByteIR64 dst)
+      <> int64LE val
   MOV_RR src dst ->
     toLazyByteString
       $  word8 (rexByte (Just src) (Just dst))
       <> word8 0x89
       <> word8 (moveByteRR src dst)
+  ADD_IR val dst ->
+    toLazyByteString
+      $  word8 (rexByte Nothing (Just dst))
+      <> word8 0x81
+      <> word8 (opextByte 0 dst)
+      <> int32LE val
   ADD_RR src dst ->
     toLazyByteString
       $  word8 (rexByte (Just src) (Just dst))
       <> word8 0x01
       <> word8 (moveByteRR src dst)
+  SUB_IR val dst ->
+    toLazyByteString
+      $  word8 (rexByte Nothing (Just dst))
+      <> word8 0x81
+      <> word8 (opextByte 5 dst)
+      <> int32LE val
   SUB_RR src dst ->
     toLazyByteString
       $  word8 (rexByte (Just src) (Just dst))

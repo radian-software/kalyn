@@ -58,6 +58,7 @@ instance Show Label where
 
 -- reg is either Register or VisualRegister. We use AT&T syntax.
 data Instruction reg = MOV_IR Int32 reg
+                     | MOV_IR64 Int64 reg
                      | MOV_RR reg reg
                      | ADD_IR Int32 reg
                      | ADD_RR reg reg
