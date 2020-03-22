@@ -1,3 +1,9 @@
+# Kalyn
+
+An attempt to write a compiler from a Haskell-like Lisp directly to
+x86-64 without using any pre-existing components such as GCC or the C
+standard library.
+
 **Specification for the Kalyn programming language.**
 
 ## Data types
