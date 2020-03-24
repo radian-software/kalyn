@@ -3,9 +3,11 @@ module Assembler
   )
 where
 
+import           Control.Applicative
 import           Data.Bits
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy          as B
+import           Data.Int
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe
 import           Data.Word
@@ -28,141 +30,257 @@ getFragments (Program fns datums) =
       )
     ++ concat (flip map datums $ \(name, bs) -> [FLabel name, Data bs])
 
-isRegExt :: Register -> Bool
-isRegExt = (`elem` [R8, R9, R10, R11, R12, R13, R14, R15])
+-- https://wiki.osdev.org/X86-64_Instruction_Encoding
+-- http://ref.x86asm.net/index.html
 
-rexByte :: Maybe Register -> Maybe Register -> Word8
-rexByte src dst =
-  0x48
-    .|. (if isRegExt (fromMaybe RAX src) then 0x04 else 0x00)
-    .|. (if isRegExt (fromMaybe RAX dst) then 0x01 else 0x00)
+data Mod = ModReg | ModMem | ModPC
+data Reg = Reg Register | RegExt Word8
+data RM = RMReg Register | RMSIB
 
-regBits :: Register -> Word8
-regBits reg
-  | reg `elem` [RAX, R8]  = 0x00
-  | reg `elem` [RCX, R9]  = 0x01
-  | reg `elem` [RDX, R10] = 0x02
-  | reg `elem` [RBX, R11] = 0x03
-  | reg `elem` [RSP, R12] = 0x04
-  | reg `elem` [RBP, R13] = 0x05
-  | reg `elem` [RSI, R14] = 0x06
-  | reg `elem` [RDI, R15] = 0x07
-  | otherwise = error ("regBits got to unreachable code: " ++ show reg)
+regCode :: Register -> (Bool, Word8)
+regCode RAX = (False, 0x0)
+regCode RCX = (False, 0x1)
+regCode RDX = (False, 0x2)
+regCode RBX = (False, 0x3)
+regCode RSP = (False, 0x4)
+regCode RBP = (False, 0x5)
+regCode RSI = (False, 0x6)
+regCode RDI = (False, 0x7)
+regCode R8  = (True, 0x0)
+regCode R9  = (True, 0x1)
+regCode R10 = (True, 0x2)
+regCode R11 = (True, 0x3)
+regCode R12 = (True, 0x4)
+regCode R13 = (True, 0x5)
+regCode R14 = (True, 0x6)
+regCode R15 = (True, 0x7)
 
-modBits :: Register -> Register -> Word8
-modBits src dst = (regBits src `shiftL` 3) .|. regBits dst
+rex :: Maybe Register -> Maybe Register -> Maybe Register -> Word8
+rex reg rm index =
+  0x48  -- REX.W
+    .|. (case fst . regCode <$> reg of
+          Just True -> 0x4  -- REX.R
+          _         -> 0
+        )
+    .|. (case fst . regCode <$> rm of
+          Just True -> 0x1  -- REX.B
+          _         -> 0
+        )
+    .|. (case fst . regCode <$> index of
+          Just True -> 0x2  -- REX.X
+          _         -> 0
+        )
 
-moveByteRR :: Register -> Register -> Word8
-moveByteRR src dst = 0xc0 .|. modBits src dst
+modRM :: Mod -> Reg -> RM -> Word8
+modRM modOpt reg rm =
+  let modBits =
+          (case modOpt of
+            ModReg -> 0x3
+            ModMem -> 0x2
+            ModPC  -> 0x0
+          )
+      regBits =
+          (case reg of
+            Reg    r -> snd . regCode $ r
+            RegExt b -> b
+          )
+      rmBits =
+          (case rm of
+            RMReg r -> snd . regCode $ r
+            RMSIB   -> 0x4
+          )
+  in  (modBits `shiftL` 6) .|. (regBits `shiftL` 3) .|. rmBits
 
-moveByteIR :: Register -> Word8
-moveByteIR = moveByteRR RAX
+sib :: Register -> Maybe (Scale, Register) -> Word8
+sib base msi =
+  let scaleBits =
+          (case fst <$> msi of
+            Just Scale1 -> 0x0
+            Just Scale2 -> 0x1
+            Just Scale4 -> 0x2
+            Just Scale8 -> 0x3
+            Nothing     -> 0x0
+          )
+      indexBits =
+          (case snd <$> msi of
+            Just r  -> snd . regCode $ r
+            Nothing -> snd . regCode $ RSP
+          )
+      baseBits = snd . regCode $ base
+  in  (scaleBits `shiftL` 6) .|. (indexBits `shiftL` 3) .|. baseBits
 
-opextByte :: Word8 -> Register -> Word8
-opextByte ext dst = 0xc0 .|. (ext `shiftL` 3) .|. regBits dst
+memInstr
+  :: [Word8]
+  -> Register
+  -> Maybe (Scale, Register)
+  -> Int32
+  -> Either (Word8, Int32) Register
+  -> B.ByteString
+memInstr opcode base msi disp other =
+  let rexBits = rex
+        (case other of
+          Right r -> Just r
+          _       -> Nothing
+        )
+        (Just base)
+        ((snd <$> msi) <|> Just RSP)
+      modRMBits = modRM
+        ModMem
+        (case other of
+          Right r        -> Reg r
+          Left  (ext, _) -> RegExt ext
+        )
+        RMSIB
+      sibBits = sib base msi
+  in  toLazyByteString
+        $  word8 rexBits
+        <> mconcat (map word8 opcode)
+        <> word8 modRMBits
+        <> word8 sibBits
+        <> int32LE disp
+        <> (case other of
+             Left (_, imm) -> int32LE imm
+             _             -> mempty
+           )
 
-moveByteIR64 :: Register -> Word8
-moveByteIR64 dst = 0x80 .|. modBits RDI dst
+pcInstr :: [Word8] -> Int32 -> Register -> B.ByteString
+pcInstr opcode disp other =
+  let rexBits   = rex (Just other) Nothing Nothing
+      modRMBits = modRM ModPC (RegExt 0) (RMReg other)
+  in  toLazyByteString
+        $  word8 rexBits
+        <> mconcat (map word8 opcode)
+        <> word8 modRMBits
+        <> int32LE disp
+
+opInstr'
+  :: (imm -> Builder)
+  -> [Word8]
+  -> Either (Either Register Word8, Maybe imm) Register
+  -> Register
+  -> B.ByteString
+opInstr' getBuilder opcode src dst =
+  let rexBits = rex
+        (case src of
+          Right r -> Just r
+          _       -> Nothing
+        )
+        (Just dst)
+        Nothing
+      modRMBits = modRM
+        ModReg
+        (case src of
+          Right r              -> Reg r
+          Left  (Right ext, _) -> RegExt ext
+          Left  (Left  r  , _) -> Reg r
+        )
+        (RMReg dst)
+  in  toLazyByteString
+        $  word8 rexBits
+        <> mconcat (map word8 opcode)
+        <> word8 modRMBits
+        <> (case src of
+             Left (_, Just imm) -> getBuilder imm
+             _                  -> mempty
+           )
+
+opInstr
+  :: [Word8]
+  -> Either (Either Register Word8, Maybe Int32) Register
+  -> Register
+  -> B.ByteString
+opInstr = opInstr' int32LE
+
+opInstr64
+  :: [Word8]
+  -> Either (Either Register Word8, Maybe Int64) Register
+  -> Register
+  -> B.ByteString
+opInstr64 = opInstr' int64LE
+
+plainInstr :: [Word8] -> B.ByteString
+plainInstr opcode =
+  toLazyByteString $ word8 (rex Nothing Nothing Nothing) <> mconcat
+    (map word8 opcode)
+
+relInstr :: [Word8] -> Int32 -> B.ByteString
+relInstr opcode rel =
+  toLazyByteString $ mconcat (map word8 opcode) <> int32LE rel
+
+regInstr :: [Word8] -> Register -> B.ByteString
+regInstr opcode reg =
+  toLazyByteString $ word8 (rex Nothing (Just reg) Nothing) <> mconcat
+    (map word8 opcode)
 
 compileInstr
   :: Map.Map Label Word32 -> Word32 -> Instruction Register -> B.ByteString
-compileInstr labels pc instr = case instr of
-  MOV_IR val dst ->
-    toLazyByteString
-      $  word8 (rexByte Nothing (Just dst))
-      <> word8 0xc7
-      <> word8 (moveByteIR dst)
-      <> int32LE val
-  MOV_IR64 val dst ->
-    toLazyByteString
-      $  word8 (rexByte Nothing (Just dst))
-      <> word8 (moveByteIR64 dst)
-      <> int64LE val
-  MOV_RR src dst ->
-    toLazyByteString
-      $  word8 (rexByte (Just src) (Just dst))
-      <> word8 0x89
-      <> word8 (moveByteRR src dst)
-  ADD_IR val dst ->
-    toLazyByteString
-      $  word8 (rexByte Nothing (Just dst))
-      <> word8 0x81
-      <> word8 (opextByte 0 dst)
-      <> int32LE val
-  ADD_RR src dst ->
-    toLazyByteString
-      $  word8 (rexByte (Just src) (Just dst))
-      <> word8 0x01
-      <> word8 (moveByteRR src dst)
-  SUB_IR val dst ->
-    toLazyByteString
-      $  word8 (rexByte Nothing (Just dst))
-      <> word8 0x81
-      <> word8 (opextByte 5 dst)
-      <> int32LE val
-  SUB_RR src dst ->
-    toLazyByteString
-      $  word8 (rexByte (Just src) (Just dst))
-      <> word8 0x29
-      <> word8 (moveByteRR src dst)
-  CQTO -> toLazyByteString $ word8 0x48 <> word8 0x99
-  AND_RR src dst ->
-    toLazyByteString
-      $  word8 (rexByte (Just src) (Just dst))
-      <> word8 0x21
-      <> word8 (moveByteRR src dst)
-  OR_RR src dst ->
-    toLazyByteString
-      $  word8 (rexByte (Just src) (Just dst))
-      <> word8 0x09
-      <> word8 (moveByteRR src dst)
-  XOR_RR src dst ->
-    toLazyByteString
-      $  word8 (rexByte (Just src) (Just dst))
-      <> word8 0x31
-      <> word8 (moveByteRR src dst)
-  CMP_RR src dst ->
-    toLazyByteString
-      $  word8 (rexByte (Just src) (Just dst))
-      <> word8 0x39
-      <> word8 (moveByteRR src dst)
-  JE  _ -> toLazyByteString $ word8 0x48 <> word8 0xe3
-  JNE _ -> toLazyByteString $ word8 0x48 <> word8 0xe1
-  JL  _ -> toLazyByteString $ word8 0x48 <> word8 0xdf
-  JLE _ -> toLazyByteString $ word8 0x48 <> word8 0xdd
-  JG  _ -> toLazyByteString $ word8 0x48 <> word8 0xdb
-  JGE _ -> toLazyByteString $ word8 0x48 <> word8 0xd9
-  JB  _ -> toLazyByteString $ word8 0x48 <> word8 0xd7
-  JBE _ -> toLazyByteString $ word8 0x48 <> word8 0xd5
-  JA  _ -> toLazyByteString $ word8 0x48 <> word8 0xd3
-  JAE _ -> toLazyByteString $ word8 0x48 <> word8 0xd1
-  LEA_LR label reg ->
-    let
-      regcode = case reg of
-        RAX -> 0x05
-        RCX -> 0x0d
-        RDX -> 0x15
-        RBX -> 0x1d
-        RSP -> 0x25
-        RBP -> 0x2d
-        RSI -> 0x35
-        RDI -> 0x3d
-        _ ->
-          error $ "don't know how to calculate address to register " ++ show reg
-    in  case Map.lookup label labels of
-          Nothing -> error $ "no such label " ++ show label
-          Just labelOffset ->
-            toLazyByteString
-              $  word8 0x48
-              <> word8 0x8d
-              <> word8 regcode
-              <> int32LE (fromIntegral labelOffset - fromIntegral pc)
-  SYSCALL _    -> toLazyByteString $ word8 0x0f <> word8 0x05
-  CALL _ label -> case Map.lookup label labels of
-    Nothing          -> error $ "no such label " ++ show label
-    Just labelOffset -> toLazyByteString $ word8 0xff <> word8 0x15 <> int32LE
-      (fromIntegral labelOffset - fromIntegral pc)
-  RET -> toLazyByteString $ word8 0xc3
+compileInstr labels pc instr =
+  let getOffset label = case Map.lookup label labels of
+        Nothing          -> error $ "no such label " ++ show label
+        Just labelOffset -> fromIntegral labelOffset - fromIntegral pc
+  in
+    case instr of
+      OP op args ->
+        let errorMemDisallowed =
+                error $ "cannot " ++ show op ++ " into memory address"
+            (immOp, immExt, stdOp, memOp) = case op of
+              MOV  -> ([0xc7], Just 0, [0x8b], [0x89])
+              ADD  -> ([0x81], Just 0, [0x03], [0x01])
+              SUB  -> ([0x81], Just 5, [0x2b], [0x29])
+              IMUL -> ([0x69], Nothing, [0x0f, 0xaf], undefined)
+              AND  -> ([0x81], Just 4, [0x23], [0x21])
+              OR   -> ([0x81], Just 1, [0x0b], [0x09])
+              XOR  -> ([0x81], Just 6, [0x33], [0x31])
+              CMP  -> ([0x81], Just 7, [0x3b], [0x39])
+        in  case args of
+              IR imm dst -> opInstr
+                immOp
+                (Left
+                  ( case immExt of
+                    Nothing  -> Left dst
+                    Just ext -> Right ext
+                  , Just imm
+                  )
+                )
+                dst
+              IM imm (Mem disp base msr) -> memInstr
+                immOp
+                base
+                msr
+                disp
+                (Left (fromMaybe errorMemDisallowed immExt, imm))
+              RR src dst -> opInstr stdOp (Right src) dst
+              MR (Mem disp base msr) dst ->
+                memInstr stdOp base msr disp (Right dst)
+              RM src (Mem disp base msr) -> case immExt of
+                Just _  -> memInstr memOp base msr disp (Right src)
+                Nothing -> errorMemDisallowed
+              LR label dst -> pcInstr stdOp (getOffset label) dst
+      LEA  (Mem disp base msr) dst -> memInstr [0x8d] base msr disp (Right dst)
+      LEAL label               dst -> pcInstr [0x8d] (getOffset label) dst
+      MOV64 imm dst ->
+        opInstr64 [0xb8 + (snd . regCode $ dst)] (Left (Right 0, Just imm)) dst
+      CQTO          -> plainInstr [0x99]
+      IDIV    src   -> opInstr [0xf7] (Left (Right 7, Nothing)) src
+      JE      label -> relInstr [0x0f, 0x84] (getOffset label)
+      JNE     label -> relInstr [0x0f, 0x85] (getOffset label)
+      JL      label -> relInstr [0x0f, 0x8c] (getOffset label)
+      JLE     label -> relInstr [0x0f, 0x8e] (getOffset label)
+      JG      label -> relInstr [0x0f, 0x8f] (getOffset label)
+      JGE     label -> relInstr [0x0f, 0x8d] (getOffset label)
+      JB      label -> relInstr [0x0f, 0x82] (getOffset label)
+      JBE     label -> relInstr [0x0f, 0x86] (getOffset label)
+      JA      label -> relInstr [0x0f, 0x87] (getOffset label)
+      JAE     label -> relInstr [0x0f, 0x83] (getOffset label)
+      PUSH    reg   -> regInstr [0x50 + (snd . regCode $ reg)] reg
+      POP     reg   -> regInstr [0x58 + (snd . regCode $ reg)] reg
+      SYSCALL _     -> toLazyByteString $ word8 0x0f <> word8 0x05
+      CALL _ label  -> case Map.lookup label labels of
+        Nothing -> error $ "no such label " ++ show label
+        Just labelOffset ->
+          toLazyByteString $ word8 0xff <> word8 0x15 <> int32LE
+            (fromIntegral labelOffset - fromIntegral pc)
+      RET -> toLazyByteString $ word8 0xc3
 
 compileFrag :: Map.Map Label Word32 -> Word32 -> Fragment -> B.ByteString
 compileFrag labels pc (Text   instr) = compileInstr labels pc instr

@@ -1,7 +1,7 @@
 .PHONY: build
 build:
-	stack build
+	@stack build
 
 .PHONY: clean
 clean:
-	git clean -ffdX
+	@git clean -ffdX
