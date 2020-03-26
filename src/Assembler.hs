@@ -157,44 +157,46 @@ pcInstr opcode disp other =
 opInstr'
   :: (imm -> Builder)
   -> [Word8]
-  -> Either Word8 Register
   -> Register
+  -> Either Word8 Register
   -> Maybe imm
   -> B.ByteString
-opInstr' getBuilder opcode src dst mimm =
+opInstr' getBuilder opcode main other mimm =
   let rexBits = rex
-        (case src of
+        (case other of
           Right r -> Just r
           _       -> Nothing
         )
-        (Just dst)
+        (Just main)
         Nothing
       modRMBits = modRM
         ModReg
-        (case src of
+        (case other of
           Left  ext -> RegExt ext
           Right r   -> Reg r
         )
-        (RMReg dst)
+        (RMReg main)
   in  toLazyByteString
         $  word8 rexBits
         <> mconcat (map word8 opcode)
         <> word8 modRMBits
-        <> (case mimm of
-             Just imm -> getBuilder imm
-             Nothing  -> mempty
-           )
+        <> maybe mempty getBuilder mimm
 
 opInstr
-  :: [Word8] -> Either Word8 Register -> Register -> Maybe Int32 -> B.ByteString
+  :: [Word8] -> Register -> Either Word8 Register -> Maybe Int32 -> B.ByteString
 opInstr = opInstr' int32LE
 
 opInstr64
-  :: [Word8] -> Either Word8 Register -> Register -> Maybe Int64 -> B.ByteString
+  :: [Word8] -> Register -> Either Word8 Register -> Maybe Int64 -> B.ByteString
 opInstr64 = opInstr' int64LE
 
 plainInstr :: [Word8] -> B.ByteString
 plainInstr opcode = toLazyByteString $ mconcat (map word8 opcode)
+
+plainInstr64 :: [Word8] -> B.ByteString
+plainInstr64 opcode =
+  toLazyByteString $ word8 (rex Nothing Nothing Nothing) <> mconcat
+    (map word8 opcode)
 
 relInstr :: [Word8] -> Int32 -> B.ByteString
 relInstr opcode rel =
@@ -228,11 +230,11 @@ compileInstr labels pc instr =
         in  case args of
               IR imm dst -> opInstr
                 immOp
+                dst
                 (case immExt of
                   Nothing  -> Right dst
                   Just ext -> Left ext
                 )
-                dst
                 (Just imm)
               IM imm (Mem disp base msr) -> memInstr
                 immOp
@@ -240,7 +242,7 @@ compileInstr labels pc instr =
                 msr
                 disp
                 (Left (fromMaybe errorMemDisallowed immExt, imm))
-              RR src dst -> opInstr stdOp (Right src) dst Nothing
+              RR src dst -> opInstr stdOp src (Right dst) Nothing
               MR (Mem disp base msr) dst ->
                 memInstr stdOp base msr disp (Right dst)
               RM src (Mem disp base msr) -> case immExt of
@@ -250,9 +252,9 @@ compileInstr labels pc instr =
       LEA  (Mem disp base msr) dst -> memInstr [0x8d] base msr disp (Right dst)
       LEAL label               dst -> pcInstr [0x8d] (getOffset label) dst
       MOV64 imm dst ->
-        opInstr64 [0xb8 + (snd . regCode $ dst)] (Left 0) dst (Just imm)
-      CQTO          -> plainInstr [0x99]
-      IDIV    src   -> opInstr [0xf7] (Left 7) src Nothing
+        opInstr64 [0xb8 + (snd . regCode $ dst)] dst (Left 0) (Just imm)
+      CQTO          -> plainInstr64 [0x99]
+      IDIV    src   -> opInstr [0xf7] src (Left 7) Nothing
       JE      label -> relInstr [0x0f, 0x84] (getOffset label)
       JNE     label -> relInstr [0x0f, 0x85] (getOffset label)
       JL      label -> relInstr [0x0f, 0x8c] (getOffset label)
