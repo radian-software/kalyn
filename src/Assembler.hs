@@ -11,24 +11,22 @@ import           Data.Int
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe
 import           Data.Word
+import           Prelude                 hiding ( lines )
 
 import           Assembly
 import           Util
 
-data Fragment = Text (Instruction Register)
-              | Data B.ByteString
-              | FLabel Label
+data Line = Instruction (Instruction Register)
+          | LLabel Label
 
-getFragments :: Program Register -> [Fragment]
-getFragments (Program fns datums) =
-  concat
-      (flip map fns $ \fn -> concat
-        (flip map fn $ \(instr, maybeLabel) -> case maybeLabel of
-          Nothing    -> [Text instr]
-          Just label -> [FLabel label, Text instr]
-        )
-      )
-    ++ concat (flip map datums $ \(name, bs) -> [FLabel name, Data bs])
+getLines :: [Function Register] -> [Line]
+getLines fns = concat
+  (flip map fns $ \fn -> concat
+    (flip map fn $ \(instr, maybeLabel) -> case maybeLabel of
+      Nothing    -> [Instruction instr]
+      Just label -> [LLabel label, Instruction instr]
+    )
+  )
 
 -- https://wiki.osdev.org/X86-64_Instruction_Encoding
 -- http://ref.x86asm.net/index.html
@@ -271,22 +269,29 @@ compileInstr labels pc instr =
       CALL _ label  -> relInstr [0xff, 0x15] (getOffset label)
       RET           -> plainInstr [0xc3]
 
-compileFrag :: Map.Map Label Word32 -> Word32 -> Fragment -> B.ByteString
-compileFrag labels pc (Text   instr) = compileInstr labels pc instr
-compileFrag _      _  (Data   bs   ) = bs
-compileFrag _      _  (FLabel _    ) = B.empty
+compileLine :: Map.Map Label Word32 -> Word32 -> Line -> B.ByteString
+compileLine labels pc (Instruction instr) = compileInstr labels pc instr
+compileLine _      _  (LLabel      _    ) = B.empty
 
-compile :: Program Register -> B.ByteString
-compile program =
-  let frags = getFragments program
-  in  B.concat $ fixedPoint (replicate (length frags) B.empty) $ \binFrags ->
-        let offsets = scanl (+) 0 $ map (fromIntegral . B.length) binFrags
+compile :: Program Register -> (B.ByteString, B.ByteString)
+compile (Program fns datums) =
+  let lines = getLines fns
+  in  ( B.concat $ fixedPoint (replicate (length lines) B.empty) $ \binLines ->
+        let codeOffsets = scanl (+) 0 $ map (fromIntegral . B.length) binLines
+            dataOffsets = scanl (+) (last codeOffsets)
+              $ map (fromIntegral . B.length . snd) datums
             labels =
                 foldr
-                    (\(frag, offset) ls -> case frag of
-                      FLabel name -> Map.insert name offset ls
-                      _           -> ls
+                    (\(label, offset) ls -> Map.insert label offset ls)
+                    ( foldr
+                        (\(line, offset) ls -> case line of
+                          LLabel name -> Map.insert name offset ls
+                          _           -> ls
+                        )
+                        Map.empty
+                    $ zip lines codeOffsets
                     )
-                    Map.empty
-                  $ zip frags offsets
-        in  zipWith (compileFrag labels) (tail offsets) frags
+                  $ zip (map fst datums) dataOffsets
+        in  zipWith (compileLine labels) (tail codeOffsets) lines
+      , B.concat $ map snd datums
+      )
