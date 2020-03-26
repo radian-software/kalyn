@@ -24,7 +24,7 @@ helloWorld = Program
       (\instr -> (instr, Nothing))
       [ OP MOV (IR 1 RAX)
       , OP MOV (IR 1 RDI)
-      , LEAL (Label "message") RSI
+      , LEAL (Label "message") RSI  -- broken
       , OP MOV (IR 14 RDX)
       , SYSCALL 3
       , OP MOV (IR 60 RAX)

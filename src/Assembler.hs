@@ -35,7 +35,7 @@ getFragments (Program fns datums) =
 
 data Mod = ModReg | ModMem | ModPC
 data Reg = Reg Register | RegExt Word8
-data RM = RMReg Register | RMSIB
+data RM = RMReg Register | RMSIB | RMPC
 
 regCode :: Register -> (Bool, Word8)
 regCode RAX = (False, 0x0)
@@ -88,6 +88,7 @@ modRM modOpt reg rm =
           (case rm of
             RMReg r -> snd . regCode $ r
             RMSIB   -> 0x4
+            RMPC    -> 0x5
           )
   in  (modBits `shiftL` 6) .|. (regBits `shiftL` 3) .|. rmBits
 
@@ -146,7 +147,7 @@ memInstr opcode base msi disp other =
 pcInstr :: [Word8] -> Int32 -> Register -> B.ByteString
 pcInstr opcode disp other =
   let rexBits   = rex (Just other) Nothing Nothing
-      modRMBits = modRM ModPC (RegExt 0) (RMReg other)
+      modRMBits = modRM ModPC (Reg other) RMPC
   in  toLazyByteString
         $  word8 rexBits
         <> mconcat (map word8 opcode)
@@ -274,13 +275,9 @@ compileInstr labels pc instr =
       JAE     label -> relInstr [0x0f, 0x83] (getOffset label)
       PUSH    reg   -> regInstr [0x50 + (snd . regCode $ reg)] reg
       POP     reg   -> regInstr [0x58 + (snd . regCode $ reg)] reg
-      SYSCALL _     -> toLazyByteString $ word8 0x0f <> word8 0x05
-      CALL _ label  -> case Map.lookup label labels of
-        Nothing -> error $ "no such label " ++ show label
-        Just labelOffset ->
-          toLazyByteString $ word8 0xff <> word8 0x15 <> int32LE
-            (fromIntegral labelOffset - fromIntegral pc)
-      RET -> toLazyByteString $ word8 0xc3
+      SYSCALL _     -> plainInstr [0x0f, 0x05]
+      CALL _ label  -> relInstr [0xff, 0x15] (getOffset label)
+      RET           -> plainInstr [0xc3]
 
 compileFrag :: Map.Map Label Word32 -> Word32 -> Fragment -> B.ByteString
 compileFrag labels pc (Text   instr) = compileInstr labels pc instr
