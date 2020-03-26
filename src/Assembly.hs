@@ -143,7 +143,7 @@ instance Show Op where
 instance Show reg => Show (Instruction reg) where
   show (OP    op    args) = show op ++ " " ++ show args
   show (LEA   src   dst ) = "leaq " ++ show src ++ ", " ++ show dst
-  show (LEAL  label dst ) = "leaq " ++ show label ++ ", " ++ show dst
+  show (LEAL  label dst ) = "leaq " ++ show label ++ "(%rip), " ++ show dst
   show (MOV64 imm   dst ) = "movq $" ++ show imm ++ ", " ++ show dst
   show CQTO               = "cqto"
   show (IDIV src    )     = "idivq " ++ show src
