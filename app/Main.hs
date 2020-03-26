@@ -6,7 +6,6 @@ import qualified Data.ByteString.Lazy          as B
 import           System.IO.Error
 import           System.Posix.Files
 
-import           AST
 import           Assembly
 
 -- import in stack order
@@ -101,17 +100,37 @@ ignoringDoesNotExist m = do
     Left err | not . isDoesNotExistError $ err -> ioError err
     _ -> return ()
 
-testStack :: String -> IO [Decl]
-testStack fname = do
-  str <- readFile fname
-  pure $ parseModule $ readModule $ tokenize str
+compileIncrementally :: Program Register -> String -> IO ()
+compileIncrementally prog fname = do
+  let path = "out/" ++ fname
+  mapM_ (ignoringDoesNotExist . removeLink) [path, path ++ ".S", path ++ ".o"]
+  writeFile (path ++ ".S") $ ".globl main\nmain:\n" ++ show prog
+  let obj = compile prog
+  B.writeFile (path ++ ".o") obj
+  let exec = link obj
+  B.writeFile path exec
+  setFileMode path 0o755
+
+parseIncrementally :: String -> IO ()
+parseIncrementally fname = do
+  let inpath  = "src-kalyn/" ++ fname ++ ".kalyn"
+  let outpath = "out-kalyn/" ++ fname
+  str <- readFile inpath
+  mapM_
+    (ignoringDoesNotExist . removeLink)
+    [outpath ++ "Tokens", outpath ++ "Forms.kalyn", outpath ++ "AST.kalyn"]
+  let tokens = tokenize str
+  writeFile (outpath ++ "Tokens") $ concatMap (\t -> show t ++ "\n") tokens
+  let forms = readModule tokens
+  writeFile (outpath ++ "Forms.kalyn") $ concatMap (\f -> show f ++ "\n") forms
+  let decls = parseModule forms
+  writeFile (outpath ++ "AST.kalyn") $ concatMap (\d -> show d ++ "\n") decls
 
 main :: IO ()
 main = do
-  ignoringDoesNotExist $ removeLink "main.S"
-  ignoringDoesNotExist $ removeLink "main"
-  writeFile "main.S" $ ".globl main\nmain:\n" ++ show printInt
-  let helloWorldObj = compile helloWorld
-  B.writeFile "main.o" helloWorldObj
-  B.writeFile "main" (link helloWorldObj)
-  setFileMode "main" 0o755
+  compileIncrementally helloWorld "hello"
+  compileIncrementally printInt   "print"
+  parseIncrementally "Linker"
+  parseIncrementally "Main"
+  parseIncrementally "Stdlib"
+  parseIncrementally "Util"

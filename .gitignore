@@ -1,5 +1,4 @@
 /.stack-work
 /kalyn.cabal
-/main
-/main.o
-/main.S
+/out
+/out-kalyn

@@ -3,4 +3,5 @@
 set -e
 
 make build
+mkdir -p out out-kalyn
 stack exec kalyn -- "$@"
