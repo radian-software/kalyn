@@ -14,6 +14,7 @@ import           Data.Word
 import           Prelude                 hiding ( lines )
 
 import           Assembly
+import           OS
 import           Util
 
 data Line = Instruction (Instruction Register)
@@ -276,22 +277,27 @@ compileLine _      _  (LLabel      _    ) = B.empty
 compile :: Program Register -> (B.ByteString, B.ByteString)
 compile (Program fns datums) =
   let lines = getLines fns
-  in  ( B.concat $ fixedPoint (replicate (length lines) B.empty) $ \binLines ->
-        let codeOffsets = scanl (+) 0 $ map (fromIntegral . B.length) binLines
-            dataOffsets = scanl (+) (last codeOffsets)
-              $ map (fromIntegral . B.length . snd) datums
-            labels =
-                foldr
-                    (\(label, offset) ls -> Map.insert label offset ls)
-                    ( foldr
-                        (\(line, offset) ls -> case line of
-                          LLabel name -> Map.insert name offset ls
-                          _           -> ls
+      codeB =
+          B.concat $ fixedPoint (replicate (length lines) B.empty) $ \binLines ->
+            let codeOffsets =
+                    scanl (+) 0 $ map (fromIntegral . B.length) binLines
+                dataOffsets =
+                    scanl (+) (roundUp (fromIntegral pageSize) $ last codeOffsets)
+                      $ map (fromIntegral . B.length . snd) datums
+                labels =
+                    foldr
+                        (\(label, offset) ls -> Map.insert label offset ls)
+                        ( foldr
+                            (\(line, offset) ls -> case line of
+                              LLabel name -> Map.insert name offset ls
+                              _           -> ls
+                            )
+                            Map.empty
+                        $ zip lines codeOffsets
                         )
-                        Map.empty
-                    $ zip lines codeOffsets
-                    )
-                  $ zip (map fst datums) dataOffsets
-        in  zipWith (compileLine labels) (tail codeOffsets) lines
+                      $ zip (map fst datums) dataOffsets
+            in  zipWith (compileLine labels) (tail codeOffsets) lines
+  in  ( codeB <> B.pack
+        (replicate (leftover pageSize (fromIntegral $ B.length codeB)) 0)
       , B.concat $ map snd datums
       )

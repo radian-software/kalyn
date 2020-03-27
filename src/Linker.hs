@@ -7,6 +7,7 @@ import           Control.Exception
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy          as B
 
+import           OS
 import           Util
 
 -- https://refspecs.linuxfoundation.org/elf/elf.pdf
@@ -17,17 +18,14 @@ import           Util
 -- is important to note that some of the fields have become 64-bit
 -- instead of 32-bit in the headers.
 
-pageSize :: Int
-pageSize = 0x1000
-
 data HeaderInfo = HeaderInfo
   { elfHeaderLen :: Int
   , phEntryLen :: Int
   , phNumEntries :: Int
   , shEntryLen :: Int
   , shNumEntries :: Int
+  , headerPadding :: Int
   , codeLen :: Int
-  , codePadding :: Int
   , dataLen :: Int
   } deriving (Show)
 
@@ -38,10 +36,11 @@ shOffset :: HeaderInfo -> Int
 shOffset info = phOffset info + (phEntryLen info * phNumEntries info)
 
 codeOffset :: HeaderInfo -> Int
-codeOffset info = shOffset info + (shEntryLen info * shNumEntries info)
+codeOffset info =
+  shOffset info + (shEntryLen info * shNumEntries info) + headerPadding info
 
 dataOffset :: HeaderInfo -> Int
-dataOffset info = codeOffset info + codeLen info + codePadding info
+dataOffset info = codeOffset info + codeLen info
 
 -- see page 20
 elfIdent :: B.ByteString
@@ -139,25 +138,24 @@ sectionHeader info =
 -- see page 15
 link :: (B.ByteString, B.ByteString) -> B.ByteString
 link (codeB, dataB) =
-  let (ehdr', phdr', shdr', cpad') =
+  let (ehdr', phdr', shdr', hpad') =
           fixedPoint (B.empty, [B.empty], [B.empty], B.empty)
             $ \(ehdr, phdr, shdr, _) ->
                 let phelen = B.length $ head phdr
                     shelen = B.length $ head shdr
-                    beforeDataLen =
+                    headerLen =
                         fromIntegral (B.length ehdr)
                           + (fromIntegral phelen * length phdr)
                           + (fromIntegral shelen * length shdr)
-                          + fromIntegral (B.length codeB)
                     info = HeaderInfo
-                      { elfHeaderLen = fromIntegral $ B.length ehdr
-                      , phEntryLen   = fromIntegral phelen
-                      , phNumEntries = length phdr
-                      , shEntryLen   = fromIntegral shelen
-                      , shNumEntries = length shdr
-                      , codeLen      = fromIntegral $ B.length codeB
-                      , codePadding  = (-beforeDataLen) `mod` pageSize
-                      , dataLen      = fromIntegral $ B.length dataB
+                      { elfHeaderLen  = fromIntegral $ B.length ehdr
+                      , phEntryLen    = fromIntegral phelen
+                      , phNumEntries  = length phdr
+                      , shEntryLen    = fromIntegral shelen
+                      , shNumEntries  = length shdr
+                      , headerPadding = leftover pageSize headerLen
+                      , codeLen       = fromIntegral $ B.length codeB
+                      , dataLen       = fromIntegral $ B.length dataB
                       }
                 in  assert -- sanity check that all entries are same length
                       (  all (\phe -> B.length phe == phelen) phdr
@@ -166,12 +164,14 @@ link (codeB, dataB) =
                       ( elfHeader info
                       , programHeader info
                       , sectionHeader info
-                      , B.pack $ replicate (codePadding info) 0
+                      , B.pack $ replicate (headerPadding info) 0
                       )
+  -- assume the assembler already put the appropriate padding between
+  -- code and data so they don't share a page
   in  toLazyByteString
         $  lazyByteString ehdr'
         <> lazyByteString (mconcat phdr')
         <> lazyByteString (mconcat shdr')
+        <> lazyByteString hpad'
         <> lazyByteString codeB
-        <> lazyByteString cpad'
         <> lazyByteString dataB
