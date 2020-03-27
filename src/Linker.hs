@@ -18,7 +18,7 @@ import           Util
 -- instead of 32-bit in the headers.
 
 pageSize :: Int
-pageSize = 4096
+pageSize = 0x1000
 
 data HeaderInfo = HeaderInfo
   { elfHeaderLen :: Int
