@@ -17,6 +17,9 @@ import           Util
 -- is important to note that some of the fields have become 64-bit
 -- instead of 32-bit in the headers.
 
+pageSize :: Int
+pageSize = 4096
+
 data HeaderInfo = HeaderInfo
   { elfHeaderLen :: Int
   , phEntryLen :: Int
@@ -24,6 +27,7 @@ data HeaderInfo = HeaderInfo
   , shEntryLen :: Int
   , shNumEntries :: Int
   , codeLen :: Int
+  , codePadding :: Int
   , dataLen :: Int
   } deriving (Show)
 
@@ -37,7 +41,7 @@ codeOffset :: HeaderInfo -> Int
 codeOffset info = shOffset info + (shEntryLen info * shNumEntries info)
 
 dataOffset :: HeaderInfo -> Int
-dataOffset info = codeOffset info + codeLen info
+dataOffset info = codeOffset info + codeLen info + codePadding info
 
 -- see page 20
 elfIdent :: B.ByteString
@@ -135,26 +139,39 @@ sectionHeader info =
 -- see page 15
 link :: (B.ByteString, B.ByteString) -> B.ByteString
 link (codeB, dataB) =
-  let (ehdr', phdr', shdr') =
-          fixedPoint (B.empty, [B.empty], [B.empty]) $ \(ehdr, phdr, shdr) ->
-            let phelen = B.length $ head phdr
-                shelen = B.length $ head shdr
-                info = HeaderInfo { elfHeaderLen = fromIntegral $ B.length ehdr
-                                  , phEntryLen   = fromIntegral phelen
-                                  , phNumEntries = length phdr
-                                  , shEntryLen   = fromIntegral shelen
-                                  , shNumEntries = length shdr
-                                  , codeLen      = fromIntegral $ B.length codeB
-                                  , dataLen      = fromIntegral $ B.length dataB
-                                  }
-            in  assert -- sanity check that all entries are same length
-                  (  all (\phe -> B.length phe == phelen) phdr
-                  && all (\she -> B.length she == shelen) shdr
-                  )
-                  (elfHeader info, programHeader info, sectionHeader info)
+  let (ehdr', phdr', shdr', cpad') =
+          fixedPoint (B.empty, [B.empty], [B.empty], B.empty)
+            $ \(ehdr, phdr, shdr, _) ->
+                let phelen = B.length $ head phdr
+                    shelen = B.length $ head shdr
+                    beforeDataLen =
+                        fromIntegral (B.length ehdr)
+                          + (fromIntegral phelen * length phdr)
+                          + (fromIntegral shelen * length shdr)
+                          + fromIntegral (B.length codeB)
+                    info = HeaderInfo
+                      { elfHeaderLen = fromIntegral $ B.length ehdr
+                      , phEntryLen   = fromIntegral phelen
+                      , phNumEntries = length phdr
+                      , shEntryLen   = fromIntegral shelen
+                      , shNumEntries = length shdr
+                      , codeLen      = fromIntegral $ B.length codeB
+                      , codePadding  = (-beforeDataLen) `mod` pageSize
+                      , dataLen      = fromIntegral $ B.length dataB
+                      }
+                in  assert -- sanity check that all entries are same length
+                      (  all (\phe -> B.length phe == phelen) phdr
+                      && all (\she -> B.length she == shelen) shdr
+                      )
+                      ( elfHeader info
+                      , programHeader info
+                      , sectionHeader info
+                      , B.pack $ replicate (codePadding info) 0
+                      )
   in  toLazyByteString
         $  lazyByteString ehdr'
         <> lazyByteString (mconcat phdr')
         <> lazyByteString (mconcat shdr')
         <> lazyByteString codeB
+        <> lazyByteString cpad'
         <> lazyByteString dataB
