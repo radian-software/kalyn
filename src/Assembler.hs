@@ -70,6 +70,11 @@ rex reg rm index =
           _         -> 0
         )
 
+rexMaybe :: Maybe Register -> Maybe Register -> Maybe Register -> Builder
+rexMaybe reg rm index = case rex reg rm index of
+  0x48 -> mempty
+  byte -> word8 byte
+
 modRM :: Mod -> Reg -> RM -> Word8
 modRM modOpt reg rm =
   let modBits =
@@ -203,7 +208,7 @@ relInstr opcode rel =
 
 regInstr :: [Word8] -> Register -> B.ByteString
 regInstr opcode reg =
-  toLazyByteString $ word8 (rex Nothing (Just reg) Nothing) <> mconcat
+  toLazyByteString $ rexMaybe Nothing (Just reg) Nothing <> mconcat
     (map word8 opcode)
 
 compileInstr

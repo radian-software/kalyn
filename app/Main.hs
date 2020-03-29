@@ -104,7 +104,7 @@ compileIncrementally :: Program Register -> String -> IO ()
 compileIncrementally prog fname = do
   let path = "out/" ++ fname
   mapM_ (ignoringDoesNotExist . removeLink) [path, path ++ ".S", path ++ ".o"]
-  writeFile (path ++ ".S") $ ".globl main\nmain:\n" ++ show prog
+  writeFile (path ++ ".S") $ show prog
   let obj@(codeB, dataB) = compile prog
   B.writeFile (path ++ ".o") (codeB <> dataB)
   let exec = link obj

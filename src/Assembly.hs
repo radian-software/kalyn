@@ -223,18 +223,20 @@ data Program reg = Program [Function reg] [Datum]
 
 instance Show reg => Show (Program reg) where
   show (Program fns datums) =
-    concat
-        (flip map fns $ \fn -> concat
-          (flip map fn $ \(instr, mlabel) ->
-            (case mlabel of
-                Nothing    -> ""
-                Just label -> show label ++ ":\n"
-              )
-              ++ "\t"
-              ++ show instr
-              ++ "\n"
-          )
-        )
+    ".text\n.globl main\nmain:\n"
+      ++ concat
+           (flip map fns $ \fn -> concat
+             (flip map fn $ \(instr, mlabel) ->
+               (case mlabel of
+                   Nothing    -> ""
+                   Just label -> show label ++ ":\n"
+                 )
+                 ++ "\t"
+                 ++ show instr
+                 ++ "\n"
+             )
+           )
+      ++ ".data\n"
       ++ concat
            (flip map datums $ \(label, datum) -> show label ++ ":\n" ++ concat
              ( flip map (B.unpack datum)
