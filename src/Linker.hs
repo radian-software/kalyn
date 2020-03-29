@@ -6,6 +6,9 @@ where
 import           Control.Exception
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy          as B
+import           Data.List
+import qualified Data.Map.Strict               as Map
+import           Data.Maybe
 
 import           OS
 import           Util
@@ -24,6 +27,8 @@ data HeaderInfo = HeaderInfo
   , phNumEntries :: Int
   , shEntryLen :: Int
   , shNumEntries :: Int
+  , strtabIndices :: Map.Map String Int
+  , strtabLen :: Int
   , headerPadding :: Int
   , codeLen :: Int
   , dataLen :: Int
@@ -35,9 +40,11 @@ phOffset = elfHeaderLen
 shOffset :: HeaderInfo -> Int
 shOffset info = phOffset info + (phEntryLen info * phNumEntries info)
 
+strtabOffset :: HeaderInfo -> Int
+strtabOffset info = shOffset info + (shEntryLen info * shNumEntries info)
+
 codeOffset :: HeaderInfo -> Int
-codeOffset info =
-  shOffset info + (shEntryLen info * shNumEntries info) + headerPadding info
+codeOffset info = strtabOffset info + strtabLen info + headerPadding info
 
 dataOffset :: HeaderInfo -> Int
 dataOffset info = codeOffset info + codeLen info
@@ -72,7 +79,7 @@ elfHeader info =
     <> word16LE (fromIntegral $ phNumEntries info) -- program header entry count
     <> word16LE (fromIntegral $ shEntryLen info) -- section header entry size
     <> word16LE (fromIntegral $ shNumEntries info) -- section header entry count
-    <> word16LE 0 -- index of string table in section header
+    <> word16LE 1 -- index of string table in section header
 
 -- see page 40
 programHeader :: HeaderInfo -> [B.ByteString]
@@ -98,72 +105,111 @@ programHeader info =
   ]
 
 -- see page 24
-sectionHeader :: HeaderInfo -> [B.ByteString]
+sectionHeader :: HeaderInfo -> [(B.ByteString, Maybe String)]
 sectionHeader info =
-  [ toLazyByteString -- index 0 (see page 27)
-    $  word32LE 0
-    <> word32LE 0
-    <> word64LE 0
-    <> word64LE 0
-    <> word64LE 0
-    <> word64LE 0
-    <> word32LE 0
-    <> word32LE 0
-    <> word64LE 0
-    <> word64LE 0
-  , toLazyByteString
-    $  word32LE 0 -- section name, none given
-    <> word32LE 1 -- section type, program information
-    <> word64LE 0x6 -- section attribute flags, executable memory
-    <> word64LE (fromIntegral $ codeOffset info) -- memory address
-    <> word64LE (fromIntegral $ codeOffset info) -- file address
-    <> word64LE (fromIntegral $ codeLen info) -- segment length
-    <> word32LE 0 -- section header table index link, unused
-    <> word32LE 0 -- additional information, unused
-    <> word64LE 0 -- alignment, none required
-    <> word64LE 0 -- table entry size, unused
-  , toLazyByteString
-    $  word32LE 0 -- section name, none given
-    <> word32LE 1 -- section type, program information
-    <> word64LE 0x3 -- section attribute flags, writeable memory
-    <> word64LE (fromIntegral $ dataOffset info) -- memory address
-    <> word64LE (fromIntegral $ dataOffset info) -- file address
-    <> word64LE (fromIntegral $ dataLen info) -- segment length
-    <> word32LE 0 -- section header table index link, unused
-    <> word32LE 0 -- additional information, unused
-    <> word64LE 0 -- alignment, none required
-    <> word64LE 0 -- table entry size, unused
-  ]
+  let getIdx name =
+          fromIntegral $ Map.findWithDefault 0 name (strtabIndices info)
+  in  [ ( toLazyByteString -- index 0 (see page 27)
+          $  word32LE 0
+          <> word32LE 0
+          <> word64LE 0
+          <> word64LE 0
+          <> word64LE 0
+          <> word64LE 0
+          <> word32LE 0
+          <> word32LE 0
+          <> word64LE 0
+          <> word64LE 0
+        , Nothing
+        )
+      , ( toLazyByteString
+          $  word32LE (getIdx ".shstrtab") -- section name in shstrtab
+          <> word32LE 3 -- section type, string table
+          <> word64LE 0 -- section attribute flags, none needed
+          <> word64LE 0 -- memory address, none needed
+          <> word64LE (fromIntegral $ strtabOffset info) -- file address
+          <> word64LE (fromIntegral $ strtabLen info) -- segment length
+          <> word32LE 0 -- section header table index link, unused
+          <> word32LE 0 -- additional information, unused
+          <> word64LE 0 -- alignment, none required
+          <> word64LE 0 -- table entry size, unused
+        , Just ".shstrtab"
+        )
+      , ( toLazyByteString
+          $  word32LE (getIdx ".text") -- section name in shstrtab
+          <> word32LE 1 -- section type, program information
+          <> word64LE 0x6 -- section attribute flags, executable memory
+          <> word64LE (fromIntegral $ codeOffset info) -- memory address
+          <> word64LE (fromIntegral $ codeOffset info) -- file address
+          <> word64LE (fromIntegral $ codeLen info) -- segment length
+          <> word32LE 0 -- section header table index link, unused
+          <> word32LE 0 -- additional information, unused
+          <> word64LE 0 -- alignment, none required
+          <> word64LE 0 -- table entry size, unused
+        , Just ".text"
+        )
+      , ( toLazyByteString
+          $  word32LE (getIdx ".data") -- section name i n shstrtab
+          <> word32LE 1 -- section type, program information
+          <> word64LE 0x3 -- section attribute flags, writeable memory
+          <> word64LE (fromIntegral $ dataOffset info) -- memory address
+          <> word64LE (fromIntegral $ dataOffset info) -- file address
+          <> word64LE (fromIntegral $ dataLen info) -- segment length
+          <> word32LE 0 -- section header table index link, unused
+          <> word32LE 0 -- additional information, unused
+          <> word64LE 0 -- alignment, none required
+          <> word64LE 0 -- table entry size, unused
+        , Just ".data"
+        )
+      ]
+
+-- see page 31
+strtab :: [String] -> (B.ByteString, Map.Map String Int)
+strtab strs =
+  let uniqStrs = nub strs
+      indices  = scanl (+) 1 $ map ((+ 1) . length) uniqStrs
+      table    = toLazyByteString $ word8 0 <> mconcat
+        (map (\s -> stringUtf8 s <> word8 0) uniqStrs)
+      tableM = foldr (uncurry Map.insert) Map.empty $ zip uniqStrs indices
+  in  (table, tableM)
 
 -- see page 15
 link :: (B.ByteString, B.ByteString) -> B.ByteString
 link (codeB, dataB) =
-  let (ehdr', phdr', shdr', hpad') =
-          fixedPoint (B.empty, [B.empty], [B.empty], B.empty)
-            $ \(ehdr, phdr, shdr, _) ->
-                let phelen = B.length $ head phdr
-                    shelen = B.length $ head shdr
+  let (ehdr', phdr', shdr', strtabB', _, hpad') =
+          fixedPoint (B.empty, [], [], B.empty, Map.empty, B.empty)
+            $ \(ehdr, phdr, shdr, strtabB, strtabIndicesM, _) ->
+                let phelen = maybe 0 B.length $ listToMaybe phdr
+                    shelen = maybe 0 B.length $ listToMaybe shdr
                     headerLen =
                         fromIntegral (B.length ehdr)
                           + (fromIntegral phelen * length phdr)
                           + (fromIntegral shelen * length shdr)
+                          + fromIntegral (B.length strtabB)
                     info = HeaderInfo
                       { elfHeaderLen  = fromIntegral $ B.length ehdr
                       , phEntryLen    = fromIntegral phelen
                       , phNumEntries  = length phdr
                       , shEntryLen    = fromIntegral shelen
                       , shNumEntries  = length shdr
+                      , strtabIndices = strtabIndicesM
+                      , strtabLen     = fromIntegral $ B.length strtabB
                       , headerPadding = leftover pageSize headerLen
                       , codeLen       = fromIntegral $ B.length codeB
                       , dataLen       = fromIntegral $ B.length dataB
                       }
+                    shdrData   = sectionHeader info
+                    stringList = collectMaybes (map snd shdrData)
+                    strtabData = strtab stringList
                 in  assert -- sanity check that all entries are same length
                       (  all (\phe -> B.length phe == phelen) phdr
                       && all (\she -> B.length she == shelen) shdr
                       )
                       ( elfHeader info
                       , programHeader info
-                      , sectionHeader info
+                      , map fst shdrData
+                      , fst strtabData
+                      , snd strtabData
                       , B.pack $ replicate (headerPadding info) 0
                       )
   -- assume the assembler already put the appropriate padding between
@@ -172,6 +218,7 @@ link (codeB, dataB) =
         $  lazyByteString ehdr'
         <> lazyByteString (mconcat phdr')
         <> lazyByteString (mconcat shdr')
+        <> lazyByteString strtabB'
         <> lazyByteString hpad'
         <> lazyByteString codeB
         <> lazyByteString dataB
