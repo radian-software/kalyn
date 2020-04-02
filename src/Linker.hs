@@ -228,7 +228,7 @@ symtab info =
     <> word64LE 0
   , toLazyByteString -- main
     $  word32LE 1 -- symbol name in symstrtab
-    <> word8 0 -- symbol type and binding, local only
+    <> word8 2 -- symbol type and binding, locally bound function
     <> word8 0 -- unused field
     <> word16LE 4 -- index of relevant section from section header
     <> word64LE (fromIntegral $ codeOffset info) -- symbol value, virtual address
