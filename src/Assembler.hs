@@ -29,6 +29,7 @@ getLines fns = concat
     )
   )
 
+-- https://www.codeproject.com/Articles/662301/x86-Instruction-Encoding-Revealed-Bit-Twiddling-fo
 -- https://wiki.osdev.org/X86-64_Instruction_Encoding
 -- http://ref.x86asm.net/index.html
 
@@ -272,7 +273,7 @@ compileInstr labels pc instr =
       PUSH    reg   -> regInstr [0x50 + (snd . regCode $ reg)] reg
       POP     reg   -> regInstr [0x58 + (snd . regCode $ reg)] reg
       SYSCALL _     -> plainInstr [0x0f, 0x05]
-      CALL _ label  -> relInstr [0xff, 0x15] (getOffset label)
+      CALL _ label  -> relInstr [0xe8] (getOffset label)
       RET           -> plainInstr [0xc3]
 
 compileLine :: Map.Map Label Word32 -> Word32 -> Line -> B.ByteString
