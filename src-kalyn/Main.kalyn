@@ -2,6 +2,5 @@
 (import "Linker.kalyn")
 
 (public def main (IO Empty)
-  (>>= (writeFile "main" (link ""))
-       (lambda (_)
-         (setFileMode "main" 0x755))))
+  (>> (writeFile "main" (link ""))
+      (setFileMode "main" 0x755)))
