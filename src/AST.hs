@@ -126,7 +126,7 @@ instance Show Decl where
         ++ show spec
         ++ (if null members
              then ""
-             else unwords
+             else " " ++ unwords
                (flip map members $ \(name, args) -> if null args
                  then show name
                  else show name ++ " " ++ unwords (map show args)
