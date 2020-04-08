@@ -4,22 +4,21 @@ An attempt to write a compiler from a Haskell-like Lisp directly to
 x86-64 without using any pre-existing components such as GCC or the C
 standard library.
 
-**Specification for the Kalyn programming language.**
-
-## Data types
+## Language specification
+### Data types
 
 * Integer (signed, 64-bit): `Int`
 * Function: `Func a b`, automatically curried in type signatures
 * User-defined ADTs
 * Input/output monad: `IO a`
 
-## Syntax
+### Syntax
 
 * Integer literals: `42`, `0x2a`, `0o52`
 * (Virtual) function calls: `()`
 * List literals: `[]`
 
-## Indentation
+### Indentation
 
 Align all code to column 0. All but the first elements of
 round-parenthesis lists are indented two additional spaces from the
@@ -34,7 +33,7 @@ Exceptions:
 * The binding lists of `let` forms are indented as if they used square
   brackets.
 
-## Built-ins
+### Built-ins
 
 Declarations:
 
@@ -89,3 +88,37 @@ Instances:
 * `Monad IO`
     * `pure :: IO a`
     * `>>= :: Func (IO a) (Func a (IO b)) (IO b)`
+
+## Data representation
+
+All data types use a "boxed" representation in memory. This means that
+every data type is stored as a single word. (As Kalyn supports only
+64-bit systems, the term "word" means 64 bits or equivalently eight
+bytes.) If a data type fits into a single word, objects of that type
+are stored as is. Otherwise, an object is stored as a pointer to a
+heap-allocated region of memory containing the object's data. Each
+field in the object's data is one word; if a field contains an object
+that does not fit into a single word, then that object is again stored
+as a pointer.
+
+* Integers are stored as a single word.
+* Functions start with a pointer to the absolute address in memory of
+  the code for the function. Then they have one word for each lexical
+  variable in the closure of the function, preceded by a word
+  indicating the number of these fields. All functions are
+  single-argument in the runtime; a multiple-argument lambdas is
+  really just a single-argument lambda whose closure has N variables
+  and whose code returns a new single-argument lambda whose closure
+  has N+1 variables.
+* User-defined ADTs have a header word whose value as an integer
+  indicates which of the data constructors is in use, indexed from
+  zero. If there is only one data constructor then this word is
+  omitted. After the header comes one word for each field for the
+  relevant data constructor. Note that this means that wrapping an
+  integer in a single-constructor ADT will not incur any overhead.
+* The IO monad is just a pointer to a function that performs the IO
+  action and then returns a value of the type parameterizing the
+  monad.
+
+Note that knowing the compile-time type of an object guarantees that
+you know its size and memory layout.
