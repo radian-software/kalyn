@@ -10,25 +10,25 @@
 (defn bytes16 (Func Int String)
   (v)
   [     v
-   (>>> v 8)])
+   (srl v 8)])
 
 (defn bytes32 (Func Int String)
   (v)
   [     v
-   (>>> v 8)
-   (>>> v 16)
-   (>>> v 24)])
+   (srl v 8)
+   (srl v 16)
+   (srl v 24)])
 
 (defn bytes64 (Func Int String)
   (v)
   [     v
-   (>>> v 8)
-   (>>> v 16)
-   (>>> v 24)
-   (>>> v 32)
-   (>>> v 40)
-   (>>> v 48)
-   (>>> v 56)])
+   (srl v 8)
+   (srl v 16)
+   (srl v 24)
+   (srl v 32)
+   (srl v 40)
+   (srl v 48)
+   (srl v 56)])
 
 ;; see page 20
 (def elfIdent String

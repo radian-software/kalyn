@@ -65,9 +65,9 @@ Primitives (math):
 * `| :: Func Int Int Int`
 * `^ :: Func Int Int Int`
 * `~ :: Func Int Int`
-* `<< :: Func Int Int Int`
-* `>> :: Func Int Int Int`
-* `>>> :: Func Int Int Int`
+* `sll :: Func Int Int Int`
+* `sra :: Func Int Int Int`
+* `srl :: Func Int Int Int`
 
 Primitives (IO):
 
