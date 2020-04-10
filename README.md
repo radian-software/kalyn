@@ -106,10 +106,10 @@ as a pointer.
   the code for the function. Then they have one word for each lexical
   variable in the closure of the function, preceded by a word
   indicating the number of these fields. All functions are
-  single-argument in the runtime; a multiple-argument lambdas is
-  really just a single-argument lambda whose closure has N variables
-  and whose code returns a new single-argument lambda whose closure
-  has N+1 variables.
+  single-argument in the runtime; a multiple-argument lambda is really
+  just a single-argument lambda whose closure has N variables and
+  whose code returns a new single-argument lambda whose closure has
+  N+1 variables.
 * User-defined ADTs have a header word whose value as an integer
   indicates which of the data constructors is in use, indexed from
   zero. If there is only one data constructor then this word is
