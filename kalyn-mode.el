@@ -15,7 +15,7 @@
 ;;; Code:
 
 (defvar kalyn-declaration-builtins
-  '("alias" "class" "data" "defn" "def" "derive" "instance" "public" "with"))
+  '("alias" "class" "data" "defn" "def" "derive" "import" "instance" "public" "with"))
 
 (defvar kalyn-special-form-builtins
   '("case" "lambda" "let"))
