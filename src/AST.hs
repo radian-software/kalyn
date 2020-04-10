@@ -2,6 +2,9 @@ module AST where
 
 import           Codec.Binary.UTF8.String
 import           Data.Int
+import           Data.List
+
+{-# ANN module "HLint: ignore Redundant flip" #-}
 
 newtype ClassName = ClassName String
 newtype TypeName = TypeName String
@@ -25,6 +28,8 @@ data Decl = Alias Bool TypeSpec Type
           | Derive ClassSpec
           | Import String
           | Instance [ClassSpec] ClassSpec [(VarName, Expr)]
+
+newtype Bundle = Bundle [(String, [Decl], [String])]
 
 instance Show ClassName where
   show (ClassName name) = name
@@ -96,10 +101,6 @@ instance Show Expr where
       ++ show body
       ++ ")"
 
-showPub :: Bool -> String
-showPub False = ""
-showPub True  = "public "
-
 instance Show Decl where
   show form = case form of
     Alias pub spec typ ->
@@ -170,3 +171,25 @@ instance Show Decl where
              $ \(name, expr) -> "(" ++ show name ++ " " ++ show expr ++ ")"
              )
         ++ ")"
+   where
+    showPub False = ""
+    showPub True  = "public "
+
+instance Show Bundle where
+  show (Bundle modules) =
+    let text = intercalate "\n" $ flip map modules $ \(name, decls, deps) ->
+          replicate 80 ';'
+            ++ "\n;; module "
+            ++ show name
+            ++ "\n"
+            ++ (if null deps
+                 then ""
+                 else "\n" ++ flip concatMap
+                                   deps
+                                   (\d -> "(import " ++ show d ++ ")\n")
+               )
+            ++ (if null decls
+                 then ""
+                 else "\n" ++ flip concatMap decls (\d -> show d ++ "\n")
+               )
+    in  if null text then "" else text ++ "\n"

@@ -1,6 +1,10 @@
+.PHONY: all
+all:
+	./kalyn
+
 .PHONY: build
 build:
-	@stack build
+	stack build
 
 .PHONY: clean
 clean:

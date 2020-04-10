@@ -12,6 +12,7 @@ import           Assembly
 import           Lexer
 import           Reader
 import           Parser
+import           Bundler
 import           Assembler
 import           Linker
 
@@ -134,3 +135,6 @@ main = do
   parseIncrementally "Main"
   parseIncrementally "Stdlib"
   parseIncrementally "Util"
+  ignoringDoesNotExist $ removeLink "out-kalyn/MainFullAST.kalyn"
+  bundle <- readBundle "src-kalyn/Main.kalyn"
+  writeFile "out-kalyn/MainFullAST.kalyn" $ show bundle

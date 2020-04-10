@@ -8,6 +8,8 @@ dependencies:
   - base
   - bytestring
   - containers
+  - directory
+  - filepath
   - regex-base
   - regex-tdfa
   - unix
