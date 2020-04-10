@@ -3,6 +3,7 @@ module AST where
 import           Codec.Binary.UTF8.String
 import           Data.Int
 import           Data.List
+import qualified Data.Map                      as Map
 
 {-# ANN module "HLint: ignore Redundant flip" #-}
 
@@ -25,11 +26,11 @@ data Decl = Alias Bool TypeSpec Type
           | Class Bool [ClassSpec] ClassSpec [(VarName, Type)]
           | Data Bool TypeSpec [(VarName, [Type])]
           | Def Bool VarName Type Expr
-          | Derive ClassSpec
-          | Import String
-          | Instance [ClassSpec] ClassSpec [(VarName, Expr)]
+          | Derive Bool ClassSpec
+          | Import Bool String
+          | Instance Bool [ClassSpec] ClassSpec [(VarName, Expr)]
 
-newtype Bundle = Bundle [(String, [Decl], [String])]
+newtype Bundle = Bundle (Map.Map String ([Decl], [String]))
 
 instance Show ClassName where
   show (ClassName name) = name
@@ -156,10 +157,12 @@ instance Show Decl where
         ++ " "
         ++ show expr
         ++ ")"
-    Derive spec -> "(derive " ++ show spec ++ ")"
-    Import str  -> "(import " ++ show str ++ ")"
-    Instance constraints spec members ->
-      "(instance ("
+    Derive pub spec -> "(" ++ showPub pub ++ "derive " ++ show spec ++ ")"
+    Import pub str  -> "(" ++ showPub pub ++ "import " ++ show str ++ ")"
+    Instance pub constraints spec members ->
+      "("
+        ++ showPub pub
+        ++ "instance ("
         ++ (if null constraints
              then show spec
              else
@@ -177,19 +180,22 @@ instance Show Decl where
 
 instance Show Bundle where
   show (Bundle modules) =
-    let text = intercalate "\n" $ flip map modules $ \(name, decls, deps) ->
-          replicate 80 ';'
-            ++ "\n;; module "
-            ++ show name
-            ++ "\n"
-            ++ (if null deps
-                 then ""
-                 else "\n" ++ flip concatMap
-                                   deps
-                                   (\d -> "(import " ++ show d ++ ")\n")
-               )
-            ++ (if null decls
-                 then ""
-                 else "\n" ++ flip concatMap decls (\d -> show d ++ "\n")
-               )
+    let text =
+            intercalate "\n"
+              $ flip map (Map.toList modules)
+              $ \(name, (decls, deps)) ->
+                  replicate 80 ';'
+                    ++ "\n;; module "
+                    ++ show name
+                    ++ "\n"
+                    ++ (if null deps
+                         then ""
+                         else "\n" ++ flip concatMap
+                                           deps
+                                           (\d -> "(import " ++ show d ++ ")\n")
+                       )
+                    ++ (if null decls
+                         then ""
+                         else "\n" ++ flip concatMap decls (\d -> show d ++ "\n")
+                       )
     in  if null text then "" else text ++ "\n"

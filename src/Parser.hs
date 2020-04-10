@@ -102,22 +102,19 @@ parseDecl form = case form of
       (RoundList
         [Symbol "def", name, typ, RoundList [Symbol "lambda", args, body]]
       )
-  parseDecl' pub (RoundList [Symbol "derive", spec]) = if pub
-    then error $ "cannot make public: " ++ show form
-    else Derive (parseClassSpec spec)
-  parseDecl' pub (RoundList [Symbol "import", StrAtom file]) =
-    if pub then error $ "cannot make public: " ++ show form else Import file
-  parseDecl' pub (RoundList (Symbol "instance" : spec : members)) = if pub
-    then error $ "cannot make public: " ++ show form
-    else
-      let (constraints, innerSpec) = withConstraints parseClassSpec spec
-      in  Instance
-            constraints
-            innerSpec
-            (flip map members $ \m -> case m of
-              RoundList [Symbol name, expr] -> (VarName name, parseExpr expr)
-              _ -> error $ "failed to parse instance member: " ++ show m
-            )
+  parseDecl' pub (RoundList [Symbol "derive", spec]) =
+    Derive pub (parseClassSpec spec)
+  parseDecl' pub (RoundList [Symbol "import", StrAtom file]) = Import pub file
+  parseDecl' pub (RoundList (Symbol "instance" : spec : members)) =
+    let (constraints, innerSpec) = withConstraints parseClassSpec spec
+    in  Instance
+          pub
+          constraints
+          innerSpec
+          (flip map members $ \m -> case m of
+            RoundList [Symbol name, expr] -> (VarName name, parseExpr expr)
+            _ -> error $ "failed to parse instance member: " ++ show m
+          )
   parseDecl' _ _ = error $ "failed to parse declaration: " ++ show form
 
 parseModule :: [Form] -> [Decl]
