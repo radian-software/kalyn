@@ -19,8 +19,8 @@ data Expr = Variable VarName
           | Const Int64
           | Call Expr Expr
           | Case Expr [(Expr, Expr)]
-          | Lambda [VarName] Expr
-          | Let [(VarName, Expr)] Expr
+          | Lambda VarName Expr
+          | Let VarName Expr Expr
 
 data Decl = Alias Bool TypeSpec Type
           | Class Bool [ClassSpec] ClassSpec [(VarName, Type)]
@@ -90,17 +90,25 @@ instance Show Expr where
              )
          )
       ++ ")"
-  show (Lambda args body) =
-    "(lambda (" ++ unwords (map show args) ++ ") " ++ show body ++ ")"
-  show (Let bindings body) =
-    "(let ("
-      ++ unwords
-           ( flip map bindings
-           $ \(name, expr) -> "(" ++ show name ++ " " ++ show expr ++ ")"
-           )
-      ++ ") "
-      ++ show body
-      ++ ")"
+  show form@(Lambda _ _) =
+    let (body, args) = condenseLambdas form
+    in  "(lambda (" ++ unwords (map show args) ++ ") " ++ show body ++ ")"
+   where
+    condenseLambdas (Lambda arg body) = (arg :) <$> condenseLambdas body
+    condenseLambdas expr              = (expr, [])
+  show form@(Let _ _ _) =
+    let (body, bindings) = condenseLets form
+    in  "(let ("
+          ++ unwords
+               (flip map bindings $ \(name, expr) ->
+                 "(" ++ show name ++ " " ++ show expr ++ ")"
+               )
+          ++ ") "
+          ++ show body
+          ++ ")"
+   where
+    condenseLets (Let name expr body) = ((name, expr) :) <$> condenseLets body
+    condenseLets expr                 = (expr, [])
 
 instance Show Decl where
   show form = case form of
@@ -135,18 +143,22 @@ instance Show Decl where
                )
            )
         ++ ")"
-    Def pub name typ (Lambda args body) ->
-      "("
-        ++ showPub pub
-        ++ "defn "
-        ++ show name
-        ++ " "
-        ++ show typ
-        ++ " ("
-        ++ unwords (map show args)
-        ++ ") "
-        ++ show body
-        ++ ")"
+    Def pub name typ form'@(Lambda _ _) ->
+      let (body, args) = condenseLambdas form'
+      in  "("
+            ++ showPub pub
+            ++ "defn "
+            ++ show name
+            ++ " "
+            ++ show typ
+            ++ " ("
+            ++ unwords (map show args)
+            ++ ") "
+            ++ show body
+            ++ ")"
+     where
+      condenseLambdas (Lambda arg body) = (arg :) <$> condenseLambdas body
+      condenseLambdas expr              = (expr, [])
     Def pub name typ expr ->
       "("
         ++ showPub pub

@@ -46,18 +46,20 @@ parseExpr (RoundList (Symbol "case" : expr : branches)) = Case
     RoundList [pat, res] -> (parseExpr pat, parseExpr res)
     _                    -> error $ "failed to parse case branch: " ++ show br
   )
-parseExpr (RoundList [Symbol "lambda", RoundList args, body]) = Lambda
+parseExpr (RoundList [Symbol "lambda", RoundList args, body]) = foldr
+  Lambda
+  (parseExpr body)
   (flip map args $ \arg -> case arg of
     Symbol name -> VarName name
     _           -> error $ "failed to parse lambda argument: " ++ show arg
   )
+parseExpr (RoundList [Symbol "let", RoundList bindings, body]) = foldr
+  (uncurry Let)
   (parseExpr body)
-parseExpr (RoundList [Symbol "let", RoundList bindings, body]) = Let
   (flip map bindings $ \binding -> case binding of
     RoundList [Symbol name, val] -> (VarName name, parseExpr val)
     _ -> error $ "failed to parse let binding: " ++ show binding
   )
-  (parseExpr body)
 parseExpr (RoundList  elts) = foldl1 Call (map parseExpr elts)
 parseExpr (SquareList elts) = parseExpr $ foldr
   (\char rest -> RoundList [Symbol "Cons", char, rest])
