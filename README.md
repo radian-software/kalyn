@@ -121,4 +121,5 @@ as a pointer.
   monad.
 
 Note that knowing the compile-time type of an object guarantees that
-you know its size and memory layout.
+you know its size and memory layout, except for functions (whose size
+you can determine by inspecting the second word of their data).
