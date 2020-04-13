@@ -20,73 +20,87 @@ import           Linker
 
 helloWorld :: Program Register
 helloWorld = Program
-  [ map
-      (\instr -> (instr, Nothing))
-      [ OP MOV (IR 1 RAX)
-      , OP MOV (IR 1 RDI)
-      , LEAL (Label "message") RSI
-      , OP MOV (IR 14 RDX)
-      , SYSCALL 3
-      , OP MOV (IR 60 RAX)
-      , OP MOV (IR 0 RDI)
-      , SYSCALL 1
+  [ function
+      [ Right
+          [ OP MOV (IR 1 RAX)
+          , OP MOV (IR 1 RDI)
+          , LEAL (Label "message") RSI
+          , OP MOV (IR 14 RDX)
+          , SYSCALL 3
+          , OP MOV (IR 60 RAX)
+          , OP MOV (IR 0 RDI)
+          , SYSCALL 1
+          ]
       ]
   ]
   [(Label "message", toLazyByteString $ stringUtf8 "Hello, world!\n")]
 
 printInt :: Program Register
 printInt = Program
-  [ [ (OP MOV (IR 42 RDI)        , Nothing)
-    , (OP IMUL (IR 42 RDI)       , Nothing)
-    , (CALL 1 (Label "printInt") , Nothing)
-    , (OP MOV (IR 1 RAX)         , Nothing)
-    , (OP MOV (IR 1 RDI)         , Nothing)
-    , (LEAL (Label "newline") RSI, Nothing)
-    , (OP MOV (IR 1 RDX)         , Nothing)
-    , (SYSCALL 3                 , Nothing)
-    , (OP MOV (IR 60 RAX)        , Nothing)
-    , (OP MOV (IR 0 RDI)         , Nothing)
-    , (SYSCALL 1                 , Nothing)
+  [ function
+    [ Right
+        [ (OP MOV (IR 42 RDI))
+        , OP IMUL (IR 42 RDI)
+        , CALL 1 (Label "printInt")
+        , OP MOV (IR 1 RAX)
+        , OP MOV (IR 1 RDI)
+        , LEAL (Label "newline") RSI
+        , OP MOV (IR 1 RDX)
+        , SYSCALL 3
+        , OP MOV (IR 60 RAX)
+        , OP MOV (IR 0 RDI)
+        , SYSCALL 1
+        ]
     ]
-  , [ (OP CMP (IR 0 RDI)           , Just $ Label "printInt")
-    , (JGE (Label "printInt1")     , Nothing)
-    , (LEAL (Label "minus") RSI    , Nothing)
-    , (PUSH RDI                    , Nothing)
-    , (OP MOV (IR 1 RAX)           , Nothing)
-    , (OP MOV (IR 1 RDX)           , Nothing)
-    , (OP MOV (IR 1 RDI)           , Nothing)
-    , (SYSCALL 3                   , Nothing)
-    , (POP RDI                     , Nothing)
-    , (OP IMUL (IR (-1) RDI)       , Nothing)
-    , (OP CMP (IR 0 RDI)           , Just $ Label "printInt1")
-    , (JNE (Label "printInt2")     , Nothing)
-    , (OP MOV (IR 1 RAX)           , Nothing)
-    , (OP MOV (IR 1 RDI)           , Nothing)
-    , (LEAL (Label "digits") RSI   , Nothing)
-    , (OP MOV (IR 1 RDX)           , Nothing)
-    , (SYSCALL 3                   , Nothing)
-    , (RET                         , Nothing)
-    , (CALL 1 (Label "printIntRec"), Just $ Label "printInt2")
-    , (RET                         , Nothing)
+  , function
+    [ Left (Label "printInt")
+    , Right
+      [ OP CMP (IR 0 RDI)
+      , JGE (Label "printInt1")
+      , LEAL (Label "minus") RSI
+      , PUSH RDI
+      , OP MOV (IR 1 RAX)
+      , OP MOV (IR 1 RDX)
+      , OP MOV (IR 1 RDI)
+      , SYSCALL 3
+      , POP RDI
+      , OP IMUL (IR (-1) RDI)
+      ]
+    , Left (Label "printInt1")
+    , Right
+      [ OP CMP (IR 0 RDI)
+      , JNE (Label "printInt2")
+      , OP MOV (IR 1 RAX)
+      , OP MOV (IR 1 RDI)
+      , LEAL (Label "digits") RSI
+      , OP MOV (IR 1 RDX)
+      , SYSCALL 3
+      , RET
+      ]
+    , Left (Label "printInt2")
+    , Right [CALL 1 (Label "printIntRec"), RET]
     ]
-  , [ (OP CMP (IR 0 RDI)           , Just $ Label "printIntRec")
-    , (JNE (Label "printIntRec1")  , Nothing)
-    , (RET                         , Nothing)
-    , (OP MOV (RR RDI RAX)         , Just $ Label "printIntRec1")
-    , (CQTO                        , Nothing)
-    , (OP MOV (IR 10 RSI)          , Nothing)
-    , (IDIV RSI                    , Nothing)
-    , (PUSH RDX                    , Nothing)
-    , (OP MOV (RR RAX RDI)         , Nothing)
-    , (CALL 1 (Label "printIntRec"), Nothing)
-    , (LEAL (Label "digits") RSI   , Nothing)
-    , (OP MOV (IR 1 RAX)           , Nothing)
-    , (POP RDX                     , Nothing)
-    , (OP ADD (RR RDX RSI)         , Nothing)
-    , (OP MOV (IR 1 RDI)           , Nothing)
-    , (OP MOV (IR 1 RDX)           , Nothing)
-    , (SYSCALL 3                   , Nothing)
-    , (RET                         , Nothing)
+  , function
+    [ Left (Label "printIntRec")
+    , Right [OP CMP (IR 0 RDI), JNE (Label "printIntRec1"), RET]
+    , Left (Label "printIntRec1")
+    , Right
+      [ OP MOV (RR RDI RAX)
+      , CQTO
+      , OP MOV (IR 10 RSI)
+      , IDIV RSI
+      , PUSH RDX
+      , OP MOV (RR RAX RDI)
+      , CALL 1 (Label "printIntRec")
+      , LEAL (Label "digits") RSI
+      , OP MOV (IR 1 RAX)
+      , POP RDX
+      , OP ADD (RR RDX RSI)
+      , OP MOV (IR 1 RDI)
+      , OP MOV (IR 1 RDX)
+      , SYSCALL 3
+      , RET
+      ]
     ]
   ]
   [ (Label "digits" , toLazyByteString (stringUtf8 "0123456789"))
