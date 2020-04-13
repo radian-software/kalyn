@@ -1,5 +1,6 @@
 module Assembly where
 
+import           Control.Monad.State
 import qualified Data.ByteString.Lazy          as B
 import           Data.Int
 import           Data.Word
@@ -41,6 +42,40 @@ instance Show Temporary where
   show (Temporary name) = name
 
 data VirtualRegister = Physical Register | Virtual Temporary
+
+rax :: VirtualRegister
+rcx :: VirtualRegister
+rdx :: VirtualRegister
+rbx :: VirtualRegister
+rsp :: VirtualRegister
+rbp :: VirtualRegister
+rsi :: VirtualRegister
+rdi :: VirtualRegister
+r8 :: VirtualRegister
+r9 :: VirtualRegister
+r10 :: VirtualRegister
+r11 :: VirtualRegister
+r12 :: VirtualRegister
+r13 :: VirtualRegister
+r14 :: VirtualRegister
+r15 :: VirtualRegister
+
+rax = Physical RAX
+rcx = Physical RCX
+rdx = Physical RDX
+rbx = Physical RBX
+rsp = Physical RSP
+rbp = Physical RBP
+rsi = Physical RSI
+rdi = Physical RDI
+r8 = Physical R8
+r9 = Physical R9
+r10 = Physical R10
+r11 = Physical R11
+r12 = Physical R12
+r13 = Physical R13
+r14 = Physical R14
+r15 = Physical R15
 
 instance Show VirtualRegister where
   show (Physical reg ) = show reg
@@ -94,6 +129,7 @@ data Instruction reg = OP Op (Args reg)
                      | MOV64 Int64 reg
                      | CQTO
                      | IDIV reg
+                     | JMP Label
                      | JE Label
                      | JNE Label
                      | JL Label
@@ -165,6 +201,7 @@ instance Show reg => Show (Instruction reg) where
   show (MOV64 imm   dst) = "movq $" ++ show imm ++ ", " ++ show dst
   show CQTO              = "cqto"
   show (IDIV src    )    = "idivq " ++ show src
+  show (JMP  label  )    = "jmp " ++ show label
   show (JE   label  )    = "je " ++ show label
   show (JNE  label  )    = "jne " ++ show label
   show (JL   label  )    = "jl " ++ show label
@@ -225,6 +262,7 @@ getRegisters (IDIV src) =
   ( [src, fromRegister RAX, fromRegister RDX]
   , [fromRegister RAX, fromRegister RDX]
   )
+getRegisters (JMP  _  ) = ([], [])
 getRegisters (JE   _  ) = ([], [])
 getRegisters (JNE  _  ) = ([], [])
 getRegisters (JL   _  ) = ([], [])
@@ -285,3 +323,5 @@ instance Show reg => Show (Program reg) where
              $ \byte -> "\t.byte 0x" ++ showHex byte "" ++ "\n"
              )
            )
+
+type Stateful = State Int

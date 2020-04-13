@@ -278,6 +278,7 @@ compileInstr labels pc instr =
         opInstr64 [0xb8 + (snd . regCode $ dst)] dst (Left 0) (Just imm)
       CQTO          -> plainInstr64 [0x99]
       IDIV    src   -> opInstr [0xf7] src (Left 7) Nothing
+      JMP     label -> relInstr [0xe9] (getOffset label)
       JE      label -> relInstr [0x0f, 0x84] (getOffset label)
       JNE     label -> relInstr [0x0f, 0x85] (getOffset label)
       JL      label -> relInstr [0x0f, 0x8c] (getOffset label)

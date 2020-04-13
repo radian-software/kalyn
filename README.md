@@ -65,10 +65,10 @@ Primitives (math):
 * `| :: Func Int Int Int`
 * `^ :: Func Int Int Int`
 * `~ :: Func Int Int`
-* `sll :: Func Int Int Int`
-* `sla :: Func Int Int Int`
-* `sra :: Func Int Int Int`
-* `srl :: Func Int Int Int`
+* `shl :: Func Int Int Int`
+* `shr :: Func Int Int Int`
+* `sal :: Func Int Int Int`
+* `sar :: Func Int Int Int`
 
 Primitives (IO):
 
