@@ -94,6 +94,23 @@ printInt = Program
   , (Label "newline", toLazyByteString (charUtf8 '\n'))
   ]
 
+test :: Program Register
+test = Program
+  [ function
+      [ Right
+          [ SHIFT Nothing  SHL R12
+          , SHIFT Nothing  SAL R12
+          , SHIFT Nothing  SHR R12
+          , SHIFT Nothing  SAR R12
+          , SHIFT (Just 5) SHL R12
+          , SHIFT (Just 5) SAL R12
+          , SHIFT (Just 5) SHR R12
+          , SHIFT (Just 5) SAR R12
+          ]
+      ]
+  ]
+  []
+
 ignoringDoesNotExist :: IO () -> IO ()
 ignoringDoesNotExist m = do
   res <- try m
@@ -131,6 +148,7 @@ main :: IO ()
 main = do
   compileIncrementally helloWorld "hello"
   compileIncrementally printInt   "print"
+  compileIncrementally test       "test"
   parseIncrementally "Linker"
   parseIncrementally "Main"
   parseIncrementally "Stdlib"

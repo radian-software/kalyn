@@ -4,7 +4,7 @@ module Assembler
 where
 
 import           Control.Applicative
-import           Data.Bits
+import           Data.Bits               hiding ( shift )
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy          as B
 import           Data.Int
@@ -191,6 +191,10 @@ opInstr
   :: [Word8] -> Register -> Either Word8 Register -> Maybe Int32 -> B.ByteString
 opInstr = opInstr' int32LE
 
+opInstr8U
+  :: [Word8] -> Register -> Either Word8 Register -> Maybe Word8 -> B.ByteString
+opInstr8U = opInstr' word8
+
 opInstr64
   :: [Word8] -> Register -> Either Word8 Register -> Maybe Int64 -> B.ByteString
 opInstr64 = opInstr' int64LE
@@ -254,6 +258,20 @@ compileInstr labels pc instr =
                 Just _  -> memInstr memOp base msr disp (Right src)
                 Nothing -> errorMemDisallowed
               LR label dst -> pcInstr stdOp (getOffset label) dst
+      SHIFT Nothing shift dst ->
+        let (op, ext) = case shift of
+              SHL -> (0xd3, 4)
+              SAL -> (0xd3, 6)
+              SHR -> (0xd3, 5)
+              SAR -> (0xd3, 7)
+        in  opInstr [op] dst (Left ext) Nothing
+      SHIFT (Just amt) shift dst ->
+        let (op, ext) = case shift of
+              SHL -> (0xc1, 4)
+              SAL -> (0xc1, 6)
+              SHR -> (0xc1, 5)
+              SAR -> (0xc1, 7)
+        in  opInstr8U [op] dst (Left ext) (Just amt)
       LEA  (Mem disp base msr) dst -> memInstr [0x8d] base msr disp (Right dst)
       LEAL label               dst -> pcInstr [0x8d] (getOffset label) dst
       MOV64 imm dst ->

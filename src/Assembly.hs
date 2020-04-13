@@ -2,9 +2,11 @@ module Assembly where
 
 import qualified Data.ByteString.Lazy          as B
 import           Data.Int
+import           Data.Word
 import           Numeric
 
 {-# ANN module "HLint: ignore Use lambda-case" #-}
+{-# ANN module "HLint: ignore Use tuple-section" #-}
 
 class RegisterLike reg where
   fromRegister :: Register -> reg
@@ -71,6 +73,7 @@ type Args = Args' Int32
 type Args64 = Args' Int64
 
 data Op = MOV | ADD | SUB | IMUL | AND | OR | XOR | CMP
+  deriving (Eq)
 
 fromImm :: Args' imm reg -> Bool
 fromImm (IR _ _) = True
@@ -81,8 +84,11 @@ fromMem :: Args' imm reg -> Bool
 fromMem (MR _ _) = True
 fromMem _        = False
 
+data Shift = SHL | SAL | SHR | SAR
+
 -- reg is either Register or VisualRegister. We use AT&T syntax.
 data Instruction reg = OP Op (Args reg)
+                     | SHIFT (Maybe Word8) Shift reg
                      | LEA (Mem reg) reg
                      | LEAL Label reg
                      | MOV64 Int64 reg
@@ -140,28 +146,40 @@ instance Show Op where
   show XOR  = "xorq"
   show CMP  = "cmpq"
 
+instance Show Shift where
+  show SHL = "shl"
+  show SAL = "sal"
+  show SHR = "shr"
+  show SAR = "sar"
+
 instance Show reg => Show (Instruction reg) where
-  show (OP    op    args) = show op ++ " " ++ show args
-  show (LEA   src   dst ) = "leaq " ++ show src ++ ", " ++ show dst
-  show (LEAL  label dst ) = "leaq " ++ show label ++ "(%rip), " ++ show dst
-  show (MOV64 imm   dst ) = "movq $" ++ show imm ++ ", " ++ show dst
-  show CQTO               = "cqto"
-  show (IDIV src    )     = "idivq " ++ show src
-  show (JE   label  )     = "je " ++ show label
-  show (JNE  label  )     = "jne " ++ show label
-  show (JL   label  )     = "jl " ++ show label
-  show (JLE  label  )     = "jle " ++ show label
-  show (JG   label  )     = "jg " ++ show label
-  show (JGE  label  )     = "jge " ++ show label
-  show (JB   label  )     = "jb " ++ show label
-  show (JBE  label  )     = "jbe " ++ show label
-  show (JA   label  )     = "ja " ++ show label
-  show (JAE  label  )     = "jae " ++ show label
-  show (PUSH src    )     = "pushq " ++ show src
-  show (POP  dst    )     = "popq " ++ show dst
-  show (CALL _ label)     = "callq " ++ show label
-  show RET                = "retq"
-  show (SYSCALL _)        = "syscall"
+  show (OP op args) = show op ++ " " ++ show args
+  show (SHIFT amt shift dst) =
+    show shift
+      ++ " "
+      ++ maybe "%cx" (\val -> "$" ++ show val) amt
+      ++ ", "
+      ++ show dst
+  show (LEA   src   dst) = "leaq " ++ show src ++ ", " ++ show dst
+  show (LEAL  label dst) = "leaq " ++ show label ++ "(%rip), " ++ show dst
+  show (MOV64 imm   dst) = "movq $" ++ show imm ++ ", " ++ show dst
+  show CQTO              = "cqto"
+  show (IDIV src    )    = "idivq " ++ show src
+  show (JE   label  )    = "je " ++ show label
+  show (JNE  label  )    = "jne " ++ show label
+  show (JL   label  )    = "jl " ++ show label
+  show (JLE  label  )    = "jle " ++ show label
+  show (JG   label  )    = "jg " ++ show label
+  show (JGE  label  )    = "jge " ++ show label
+  show (JB   label  )    = "jb " ++ show label
+  show (JBE  label  )    = "jbe " ++ show label
+  show (JA   label  )    = "ja " ++ show label
+  show (JAE  label  )    = "jae " ++ show label
+  show (PUSH src    )    = "pushq " ++ show src
+  show (POP  dst    )    = "popq " ++ show dst
+  show (CALL _ label)    = "callq " ++ show label
+  show RET               = "retq"
+  show (SYSCALL _)       = "syscall"
 
 argumentRegisters :: [Register]
 argumentRegisters = [RDI, RSI, RDX, RCX, R8, R9]
@@ -177,34 +195,48 @@ getMemRegisters :: Mem reg -> [reg]
 getMemRegisters (Mem _ base Nothing          ) = [base]
 getMemRegisters (Mem _ base (Just (_, index))) = [base, index]
 
-getArgRegisters :: Args' imm reg -> ([reg], [reg])
-getArgRegisters (IR _   dst) = ([], [dst])
-getArgRegisters (IM _   mem) = (getMemRegisters mem, [])
-getArgRegisters (RR src dst) = ([src], [dst])
-getArgRegisters (MR mem dst) = (getMemRegisters mem, [dst])
-getArgRegisters (RM src mem) = (src : getMemRegisters mem, [])
-getArgRegisters (LR _   dst) = ([], [dst])
+getArgRegisters :: Op -> Args' imm reg -> ([reg], [reg])
+getArgRegisters op (IR _ dst) | op == MOV = ([], [dst])
+                              | op == CMP = ([dst], [])
+                              | otherwise = ([], [dst])
+getArgRegisters _ (IM _ mem) = (getMemRegisters mem, [])
+getArgRegisters op (RR src dst) | op == MOV = ([src], [dst])
+                                | op == CMP = ([src, dst], [])
+                                | otherwise = ([src, dst], [dst])
+getArgRegisters op (MR mem dst)
+  | op == MOV = (getMemRegisters mem, [dst])
+  | op == CMP = (getMemRegisters mem, [])
+  | otherwise = (dst : getMemRegisters mem, [dst])
+getArgRegisters _ (RM src mem) = (src : getMemRegisters mem, [])
+getArgRegisters op (LR _ dst) | op == MOV = ([], [dst])
+                              | op == CMP = ([dst], [])
+                              | otherwise = ([dst], [dst])
 
 -- returns (src, dst)
 getRegisters :: RegisterLike reg => Instruction reg -> ([reg], [reg])
-getRegisters (OP    _   args) = getArgRegisters args
-getRegisters (LEA   mem dst ) = (getMemRegisters mem, [dst])
-getRegisters (LEAL  _   dst ) = ([], [dst])
-getRegisters (MOV64 _   dst ) = ([], [dst])
-getRegisters CQTO             = ([], [])
-getRegisters (IDIV src)       = ([src], [])
-getRegisters (JE   _  )       = ([], [])
-getRegisters (JNE  _  )       = ([], [])
-getRegisters (JL   _  )       = ([], [])
-getRegisters (JLE  _  )       = ([], [])
-getRegisters (JG   _  )       = ([], [])
-getRegisters (JGE  _  )       = ([], [])
-getRegisters (JB   _  )       = ([], [])
-getRegisters (JBE  _  )       = ([], [])
-getRegisters (JA   _  )       = ([], [])
-getRegisters (JAE  _  )       = ([], [])
-getRegisters (PUSH src)       = ([src], [])
-getRegisters (POP  dst)       = ([], [dst])
+getRegisters (OP op args          ) = getArgRegisters op args
+getRegisters (SHIFT Nothing  _ dst) = ([dst, fromRegister RCX], [dst])
+getRegisters (SHIFT (Just _) _ dst) = ([dst], [dst])
+getRegisters (LEA   mem dst       ) = (getMemRegisters mem, [dst])
+getRegisters (LEAL  _   dst       ) = ([], [dst])
+getRegisters (MOV64 _   dst       ) = ([], [dst])
+getRegisters CQTO                   = ([fromRegister RAX], [fromRegister RDX])
+getRegisters (IDIV src) =
+  ( [src, fromRegister RAX, fromRegister RDX]
+  , [fromRegister RAX, fromRegister RDX]
+  )
+getRegisters (JE   _  ) = ([], [])
+getRegisters (JNE  _  ) = ([], [])
+getRegisters (JL   _  ) = ([], [])
+getRegisters (JLE  _  ) = ([], [])
+getRegisters (JG   _  ) = ([], [])
+getRegisters (JGE  _  ) = ([], [])
+getRegisters (JB   _  ) = ([], [])
+getRegisters (JBE  _  ) = ([], [])
+getRegisters (JA   _  ) = ([], [])
+getRegisters (JAE  _  ) = ([], [])
+getRegisters (PUSH src) = ([src], [])
+getRegisters (POP  dst) = ([], [dst])
 getRegisters (CALL n _) =
   ( map fromRegister $ take n argumentRegistersOnly
   , map fromRegister callerSavedRegisters
@@ -216,6 +248,16 @@ getRegisters (SYSCALL n) =
   )
 
 type Function reg = [(Instruction reg, Maybe Label)]
+
+function :: [Either Label [Instruction reg]] -> Function reg
+function = function' Nothing
+ where
+  function' _ []                    = []
+  function' _ (Left  label : parts) = function' (Just label) parts
+  function' _ (Right []    : parts) = function' Nothing parts
+  function' mlabel (Right (instr : instrs) : parts) =
+    ((instr, mlabel) : map (\i -> (i, Nothing)) instrs)
+      ++ function' Nothing parts
 
 type Datum = (Label, B.ByteString)
 
