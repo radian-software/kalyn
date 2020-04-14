@@ -287,8 +287,8 @@ getRegisters (SYSCALL n) =
 
 type Function reg = [(Instruction reg, Maybe Label)]
 
-function :: [Either Label [Instruction reg]] -> Function reg
-function = function' Nothing
+function :: String -> [Either Label [Instruction reg]] -> Function reg
+function name = function' (Just $ Label name)
  where
   function' _ []                    = []
   function' _ (Left  label : parts) = function' (Just label) parts

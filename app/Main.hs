@@ -21,6 +21,7 @@ import           Linker
 helloWorld :: Program Register
 helloWorld = Program
   [ function
+      "main"
       [ Right
           [ OP MOV (IR 1 RAX)
           , OP MOV (IR 1 RDI)
@@ -38,6 +39,7 @@ helloWorld = Program
 printInt :: Program Register
 printInt = Program
   [ function
+    "main"
     [ Right
         [ (OP MOV (IR 42 RDI))
         , OP IMUL (IR 42 RDI)
@@ -53,8 +55,8 @@ printInt = Program
         ]
     ]
   , function
-    [ Left (Label "printInt")
-    , Right
+    "printInt"
+    [ Right
       [ OP CMP (IR 0 RDI)
       , JGE (Label "printInt1")
       , LEAL (Label "minus") RSI
@@ -81,8 +83,8 @@ printInt = Program
     , Right [CALL 1 (Label "printIntRec"), RET]
     ]
   , function
-    [ Left (Label "printIntRec")
-    , Right [OP CMP (IR 0 RDI), JNE (Label "printIntRec1"), RET]
+    "printIntRec"
+    [ Right [OP CMP (IR 0 RDI), JNE (Label "printIntRec1"), RET]
     , Left (Label "printIntRec1")
     , Right
       [ OP MOV (RR RDI RAX)
@@ -111,6 +113,7 @@ printInt = Program
 test :: Program Register
 test = Program
   [ function
+      "main"
       [ Right
           [ SHIFT Nothing  SHL R12
           , SHIFT Nothing  SAL R12
