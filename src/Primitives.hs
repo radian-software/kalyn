@@ -76,7 +76,11 @@ xor :: Stateful (Function VirtualRegister)
 xor = basicOp "xor" XOR
 
 bitnot :: Stateful (Function VirtualRegister)
-bitnot = undefined  -- FIXME
+bitnot = do
+  temp <- newTemp
+  return $ function
+    "not"
+    [Right [OP MOV $ MR (getArg 1) temp, NOT temp, OP MOV $ RR temp rax]]
 
 shiftOp :: Shift -> Stateful (Function VirtualRegister)
 shiftOp name op = do

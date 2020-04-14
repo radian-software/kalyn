@@ -129,6 +129,7 @@ data Instruction reg = OP Op (Args reg)
                      | MOV64 Int64 reg
                      | CQTO
                      | IDIV reg
+                     | NOT reg
                      | JMP Label
                      | JE Label
                      | JNE Label
@@ -201,6 +202,7 @@ instance Show reg => Show (Instruction reg) where
   show (MOV64 imm   dst) = "movq $" ++ show imm ++ ", " ++ show dst
   show CQTO              = "cqto"
   show (IDIV src    )    = "idivq " ++ show src
+  show (NOT  dst    )    = "not " ++ show dst
   show (JMP  label  )    = "jmp " ++ show label
   show (JE   label  )    = "je " ++ show label
   show (JNE  label  )    = "jne " ++ show label
@@ -262,6 +264,7 @@ getRegisters (IDIV src) =
   ( [src, fromRegister RAX, fromRegister RDX]
   , [fromRegister RAX, fromRegister RDX]
   )
+getRegisters (NOT  dst) = ([dst], [dst])
 getRegisters (JMP  _  ) = ([], [])
 getRegisters (JE   _  ) = ([], [])
 getRegisters (JNE  _  ) = ([], [])
