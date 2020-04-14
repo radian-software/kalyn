@@ -113,6 +113,7 @@ print = do
         [ OP MOV $ MR (getArg 1) temp
         , PUSH temp
         , CALL "memoryPackString"
+        , unpush 1
         , OP MOV $ IR 1 rax
         , OP MOV $ IR 1 rdi
         , LEA (Mem (Right 1) rax Nothing) rsi
@@ -120,4 +121,69 @@ print = do
         , SYSCALL 3 -- write
         , RET
         ]
+    ]
+
+writeFile :: Stateful (Function VirtualRegister)
+writeFile = do
+  temp       <- newTemp
+  filename   <- newTemp
+  contents   <- newTemp
+  fd         <- newTemp
+  ptr        <- newTemp
+  bytesLeft  <- newTemp
+  writeStart <- newLabel
+  writeDone  <- newLabel
+  return $ function
+    "writeFile"
+    [ Right
+      [ OP MOV $ MR (getArg 2) temp
+      , PUSH temp
+      , CALL "memoryPackString"
+      , unpush 1
+      , OP MOV $ RR rax filename
+      , OP MOV $ MR (getArg 1) temp
+      , PUSH temp
+      , CALL "memoryPackString"
+      , unpush 1
+      , OP MOV $ RR rax contents
+      , OP MOV $ IR 87 rax
+      , LEA (getField 1 filename) rdi
+      , SYSCALL 1 -- unlink
+      , OP CMP $ IR 0 rax
+      , JLT "crash"
+      , OP MOV $ IR 2 rax
+      , LEA (getField 1 filename) rdi
+      , OP MOV $ IR 0x41 rsi
+      , OP MOV $ IR 0o666 rdx
+      , SYSCALL -- open
+      , OP CMP $ IR 0 rax
+      , JLT "crash"
+      , OP MOV $ RR rax fd
+      , LEA (getField 1 contents) ptr
+      , OP MOV $ MR (getField 0 contents) bytesLeft
+      ]
+    , Left copyStart
+    , Right
+      [ OP CMP $ IR 0 bytesLeft
+      , JLE copyDone
+      , OP MOV $ IR 1 rax
+      , OP MOV $ RR fd rdi
+      , OP MOV $ RR ptr rsi
+      , OP MOV $ RR bytesLeft rdx
+      , SYSCALL 3 -- write
+      , OP CMP $ IR 0 rax
+      , JLT "crash"
+      , OP ADD $ RR rax ptr
+      , OP SUB $ RR rax bytesLeft
+      , JMP copyStart
+      ]
+    , Left copyDone
+    , Right
+      [ OP MOV $ IR 3 rax
+      , OP MOV $ RR fd rdi
+      , SYSCALL 1 -- close
+      , OP CMP $ IR 0 rax
+      , JLT "crash"
+      , RET
+      ]
     ]

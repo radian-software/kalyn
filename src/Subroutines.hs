@@ -22,6 +22,9 @@ getField n reg = Mem (Right $ fromIntegral $ 8 * n) reg Nothing
 deref :: VirtualRegister -> Mem VirtualRegister
 deref = getField 0
 
+unpush :: Int -> Instruction VirtualRegister
+unpush n = OP ADD $ IR (8 * n) RSP
+
 -- warning: gets arguments in reverse order!
 getArg :: Int -> Mem VirtualRegister
 getArg n = getField (n + 1) rsp

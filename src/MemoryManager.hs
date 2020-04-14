@@ -95,9 +95,10 @@ memoryPackString = do
       ]
     , Left lengthDone
     , Right
-      [ LEA (Mem (Right 1) strLength Nothing) allocLength
+      [ LEA (Mem (Right 9) strLength Nothing) allocLength
       , PUSH allocLength
       , CALL "memoryAlloc"
+      , unpush 1
       , OP MOV $ RR rax result
       , OP MOV $ RM strLength (deref rax)
       , LEA (getField 1 rax) mptr
@@ -113,5 +114,5 @@ memoryPackString = do
       , INC mptr
       ]
     , Left copyDone
-    , Right [OP MOV $ RR result rax, RET]
+    , Right [OP MOV $ IM 0 (deref mptr), OP MOV $ RR result rax, RET]
     ]
