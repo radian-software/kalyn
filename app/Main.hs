@@ -27,65 +27,65 @@ helloWorld = Program
           , OP MOV (IR 1 RDI)
           , LEA (memLabel "message") RSI
           , OP MOV (IR 14 RDX)
-          , SYSCALL 3
+          , SYSCALL 3 -- write
           , OP MOV (IR 60 RAX)
           , OP MOV (IR 0 RDI)
-          , SYSCALL 1
+          , SYSCALL 1 -- exit
           ]
       ]
   ]
-  [(Label "message", toLazyByteString $ stringUtf8 "Hello, world!\n")]
+  [("message", toLazyByteString $ stringUtf8 "Hello, world!\n")]
 
 printInt :: Program Register
 printInt = Program
   [ function
     "main"
     [ Right
-        [ (OP MOV (IR 42 RDI))
+        [ OP MOV  (IR 42 RDI)
         , OP IMUL (IR 42 RDI)
-        , CALL 1 (Label "printInt")
+        , CALL "printInt"
         , OP MOV (IR 1 RAX)
         , OP MOV (IR 1 RDI)
         , LEA (memLabel "newline") RSI
         , OP MOV (IR 1 RDX)
-        , SYSCALL 3
+        , SYSCALL 3 -- write
         , OP MOV (IR 60 RAX)
         , OP MOV (IR 0 RDI)
-        , SYSCALL 1
+        , SYSCALL 1 -- exit
         ]
     ]
   , function
     "printInt"
     [ Right
       [ OP CMP (IR 0 RDI)
-      , JGE (Label "printInt1")
+      , JGE "printInt1"
       , LEA (memLabel "minus") RSI
       , PUSH RDI
       , OP MOV (IR 1 RAX)
       , OP MOV (IR 1 RDX)
       , OP MOV (IR 1 RDI)
-      , SYSCALL 3
+      , SYSCALL 3 -- write
       , POP RDI
       , OP IMUL (IR (-1) RDI)
       ]
-    , Left (Label "printInt1")
+    , Left "printInt1"
     , Right
       [ OP CMP (IR 0 RDI)
-      , JNE (Label "printInt2")
+      , JNE "printInt2"
       , OP MOV (IR 1 RAX)
       , OP MOV (IR 1 RDI)
       , LEA (memLabel "digits") RSI
       , OP MOV (IR 1 RDX)
-      , SYSCALL 3
+      , SYSCALL 3 -- write
       , RET
       ]
-    , Left (Label "printInt2")
-    , Right [CALL 1 (Label "printIntRec"), RET]
+    , Left "printInt2"
+    , Right [CALL "printIntRec", RET]
     ]
   , function
     "printIntRec"
-    [ Right [OP CMP (IR 0 RDI), JNE (Label "printIntRec1"), RET]
-    , Left (Label "printIntRec1")
+    [ Right [OP CMP (IR 0 RDI), JNE "printIntRec1", RET]
+    , Left "printIntRec1"
     , Right
       [ OP MOV (RR RDI RAX)
       , CQTO
@@ -93,21 +93,21 @@ printInt = Program
       , IDIV RSI
       , PUSH RDX
       , OP MOV (RR RAX RDI)
-      , CALL 1 (Label "printIntRec")
+      , CALL "printIntRec"
       , LEA (memLabel "digits") RSI
       , OP MOV (IR 1 RAX)
       , POP RDX
       , OP ADD (RR RDX RSI)
       , OP MOV (IR 1 RDI)
       , OP MOV (IR 1 RDX)
-      , SYSCALL 3
+      , SYSCALL 3 -- write
       , RET
       ]
     ]
   ]
-  [ (Label "digits" , toLazyByteString (stringUtf8 "0123456789"))
-  , (Label "minus"  , toLazyByteString (charUtf8 '-'))
-  , (Label "newline", toLazyByteString (charUtf8 '\n'))
+  [ ("digits" , toLazyByteString (stringUtf8 "0123456789"))
+  , ("minus"  , toLazyByteString (charUtf8 '-'))
+  , ("newline", toLazyByteString (charUtf8 '\n'))
   ]
 
 test :: Program Register
@@ -137,6 +137,7 @@ ignoringDoesNotExist m = do
 
 compileIncrementally :: Program Register -> String -> IO ()
 compileIncrementally prog fname = do
+  putStrLn $ "  compiling " ++ show fname ++ " ..."
   let path = "out/" ++ fname
   mapM_ (ignoringDoesNotExist . removeLink) [path, path ++ ".S", path ++ ".o"]
   writeFile (path ++ ".S") $ show prog
@@ -148,6 +149,7 @@ compileIncrementally prog fname = do
 
 parseIncrementally :: String -> IO ()
 parseIncrementally fname = do
+  putStrLn $ "  parsing " ++ show fname ++ " ..."
   let inpath  = "src-kalyn/" ++ fname ++ ".kalyn"
   let outpath = "out-kalyn/" ++ fname
   str <- readFile inpath
@@ -163,6 +165,7 @@ parseIncrementally fname = do
 
 main :: IO ()
 main = do
+  putStrLn "Running Kalyn ..."
   compileIncrementally helloWorld "hello"
   compileIncrementally printInt   "print"
   compileIncrementally test       "test"
@@ -171,5 +174,6 @@ main = do
   parseIncrementally "Stdlib"
   parseIncrementally "Util"
   ignoringDoesNotExist $ removeLink "out-kalyn/MainFullAST.kalyn"
+  putStrLn "  bundling ..."
   bundle <- readBundle "src-kalyn/Main.kalyn"
   writeFile "out-kalyn/MainFullAST.kalyn" $ show bundle

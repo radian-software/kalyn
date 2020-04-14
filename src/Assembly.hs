@@ -91,11 +91,7 @@ instance RegisterLike Register where
 instance RegisterLike VirtualRegister where
   fromRegister = Physical
 
-newtype Label = Label String
-  deriving (Eq, Ord)
-
-instance Show Label where
-  show (Label name) = name
+type Label = String
 
 data Scale = Scale1 | Scale2 | Scale4 | Scale8
 
@@ -132,6 +128,9 @@ data Instruction reg = OP Op (Args reg)
                      | CQTO
                      | IDIV reg
                      | NOT reg
+                     | NEG reg
+                     | INC reg
+                     | DEC reg
                      | JMP Label
                      | JE Label
                      | JNE Label
@@ -145,12 +144,12 @@ data Instruction reg = OP Op (Args reg)
                      | JAE Label
                      | PUSH reg
                      | POP reg
-                     | CALL Int Label
+                     | CALL Label
                      | RET
                      | SYSCALL Int
 
 memLabel :: RegisterLike reg => String -> Mem reg
-memLabel name = Mem (Left $ Label name) (fromRegister RIP) Nothing
+memLabel name = Mem (Left name) (fromRegister RIP) Nothing
 
 instance Show Scale where
   show Scale1 = "1"
@@ -208,34 +207,35 @@ instance Show reg => Show (Instruction reg) where
   show (LEA   src dst) = "leaq " ++ show src ++ ", " ++ show dst
   show (MOV64 imm dst) = "movq $" ++ show imm ++ ", " ++ show dst
   show CQTO            = "cqto"
-  show (IDIV src    )  = "idivq " ++ show src
-  show (NOT  dst    )  = "not " ++ show dst
-  show (JMP  label  )  = "jmp " ++ show label
-  show (JE   label  )  = "je " ++ show label
-  show (JNE  label  )  = "jne " ++ show label
-  show (JL   label  )  = "jl " ++ show label
-  show (JLE  label  )  = "jle " ++ show label
-  show (JG   label  )  = "jg " ++ show label
-  show (JGE  label  )  = "jge " ++ show label
-  show (JB   label  )  = "jb " ++ show label
-  show (JBE  label  )  = "jbe " ++ show label
-  show (JA   label  )  = "ja " ++ show label
-  show (JAE  label  )  = "jae " ++ show label
-  show (PUSH src    )  = "pushq " ++ show src
-  show (POP  dst    )  = "popq " ++ show dst
-  show (CALL _ label)  = "callq " ++ show label
+  show (IDIV src  )    = "idivq " ++ show src
+  show (NOT  dst  )    = "not " ++ show dst
+  show (NEG  dst  )    = "neg " ++ show dst
+  show (INC  dst  )    = "inc " ++ show dst
+  show (DEC  dst  )    = "dec " ++ show dst
+  show (JMP  label)    = "jmp " ++ show label
+  show (JE   label)    = "je " ++ show label
+  show (JNE  label)    = "jne " ++ show label
+  show (JL   label)    = "jl " ++ show label
+  show (JLE  label)    = "jle " ++ show label
+  show (JG   label)    = "jg " ++ show label
+  show (JGE  label)    = "jge " ++ show label
+  show (JB   label)    = "jb " ++ show label
+  show (JBE  label)    = "jbe " ++ show label
+  show (JA   label)    = "ja " ++ show label
+  show (JAE  label)    = "jae " ++ show label
+  show (PUSH src  )    = "pushq " ++ show src
+  show (POP  dst  )    = "popq " ++ show dst
+  show (CALL label)    = "callq " ++ show label
   show RET             = "retq"
   show (SYSCALL _)     = "syscall"
 
-argumentRegisters :: [Register]
-argumentRegisters = [RDI, RSI, RDX, RCX, R8, R9]
+dataRegisters :: [Register]
+dataRegisters =
+  [RAX, RCX, RDX, RBX, RSI, RDI, R8, R9, R10, R11, R12, R13, R14, R15]
 
-argumentRegistersOnly :: [Register]
-argumentRegistersOnly =
-  [RDI, RSI, RDX, RCX, R8, R9, error "too many arguments"]
-
-callerSavedRegisters :: [Register]
-callerSavedRegisters = [RAX, RCX, RDX, RDI, RSI, R8, R9, R10, R11]
+syscallRegisters :: [Register]
+syscallRegisters =
+  [RAX, RDI, RSI, RDX, RCX, R8, R9, error "too many arguments for system call"]
 
 getMemRegisters :: Mem reg -> [reg]
 getMemRegisters (Mem _ base Nothing          ) = [base]
@@ -268,6 +268,9 @@ getRegisters (IDIV src) =
   , [fromRegister RAX, fromRegister RDX]
   )
 getRegisters (NOT  dst) = ([dst], [dst])
+getRegisters (NEG  dst) = ([dst], [dst])
+getRegisters (INC  dst) = ([dst], [dst])
+getRegisters (DEC  dst) = ([dst], [dst])
 getRegisters (JMP  _  ) = ([], [])
 getRegisters (JE   _  ) = ([], [])
 getRegisters (JNE  _  ) = ([], [])
@@ -281,20 +284,17 @@ getRegisters (JA   _  ) = ([], [])
 getRegisters (JAE  _  ) = ([], [])
 getRegisters (PUSH src) = ([src], [])
 getRegisters (POP  dst) = ([], [dst])
-getRegisters (CALL n _) =
-  ( map fromRegister $ take n argumentRegistersOnly
-  , map fromRegister callerSavedRegisters
-  )
-getRegisters RET = ([fromRegister RAX], [])
+getRegisters (CALL _  ) = ([], map fromRegister dataRegisters)
+getRegisters RET        = ([fromRegister RAX], [])
 getRegisters (SYSCALL n) =
-  ( map fromRegister $ take (n + 1) (RAX : argumentRegistersOnly)
-  , map fromRegister callerSavedRegisters
+  ( map fromRegister $ take (n + 1) syscallRegisters
+  , map fromRegister syscallRegisters
   )
 
 type Function reg = [(Instruction reg, Maybe Label)]
 
 function :: String -> [Either Label [Instruction reg]] -> Function reg
-function name = function' (Just $ Label name)
+function name = function' (Just name)
  where
   function' _ []                    = []
   function' _ (Left  label : parts) = function' (Just label) parts

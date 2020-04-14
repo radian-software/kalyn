@@ -1,27 +1,7 @@
 module Primitives where
 
-import           Control.Monad.State
-
 import           Assembly
-
-newTemp :: Stateful VirtualRegister
-newTemp = do
-  count <- get
-  put $ count + 1
-  return $ Virtual $ Temporary $ "%t" ++ show count
-
-newLabel :: Stateful Label
-newLabel = do
-  count <- get
-  put $ count + 1
-  return $ Label $ "l" ++ show count
-
-getField :: Int -> VirtualRegister -> Mem VirtualRegister
-getField n reg = Mem (Right $ fromIntegral $ 8 * n) reg Nothing
-
--- warning: gets arguments in reverse order!
-getArg :: Int -> Mem VirtualRegister
-getArg n = getField (n + 1) rsp
+import           Subroutines
 
 basicOp :: String -> Op -> Stateful (Function VirtualRegister)
 basicOp name op = do
@@ -126,25 +106,18 @@ sar = shiftOp "sar" SAR
 
 print :: Stateful (Function VirtualRegister)
 print = do
-  arg   <- newTemp
-  start <- newLabel
-  done  <- newLabel
+  temp <- newTemp
   return $ function
     "print"
-    [ Right [OP MOV $ MR (getArg 1) arg]
-    , Left start
-    , Right
-      [ OP CMP $ IM 0 (getField 0 arg)
-      , JE done
-      , OP MOV $ IR 1 rax
-      , OP MOV $ IR 1 rdi
-      -- relies on little-endian architecture to pick out correct byte
-      , OP MOV $ MR (getField 1 arg) rsi
-      , OP MOV $ IR 1 rdx
-      , SYSCALL 3
-      , OP CMP $ IR 0 rax
-      , JL (Label "crash")
-      , OP MOV $ MR (getField 2 arg) arg
-      , JMP start
-      ]
+    [ Right
+        [ OP MOV $ MR (getArg 1) temp
+        , PUSH temp
+        , CALL "memoryPackString"
+        , OP MOV $ IR 1 rax
+        , OP MOV $ IR 1 rdi
+        , LEA (Mem (Right 1) rax Nothing) rsi
+        , OP MOV $ MR (deref rax) rdx
+        , SYSCALL 3 -- write
+        , RET
+        ]
     ]

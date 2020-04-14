@@ -287,6 +287,9 @@ compileInstr labels pc instr =
         CQTO          -> plainInstr64 [0x99]
         IDIV    src   -> opInstr [0xf7] src (Left 7) Nothing
         NOT     dst   -> opInstr [0xf7] dst (Left 2) Nothing
+        NEG     dst   -> opInstr [0xf7] dst (Left 3) Nothing
+        INC     dst   -> opInstr [0xff] dst (Left 0) Nothing
+        DEC     dst   -> opInstr [0xff] dst (Left 1) Nothing
         JMP     label -> relInstr [0xe9] (getOffset label)
         JE      label -> relInstr [0x0f, 0x84] (getOffset label)
         JNE     label -> relInstr [0x0f, 0x85] (getOffset label)
@@ -301,7 +304,7 @@ compileInstr labels pc instr =
         PUSH    reg   -> regInstr [0x50 + (snd . regCode $ reg)] reg
         POP     reg   -> regInstr [0x58 + (snd . regCode $ reg)] reg
         SYSCALL _     -> plainInstr [0x0f, 0x05]
-        CALL _ label  -> relInstr [0xe8] (getOffset label)
+        CALL    label -> relInstr [0xe8] (getOffset label)
         RET           -> plainInstr [0xc3]
 
 compileLine :: Map.Map Label Word32 -> Word32 -> Line -> B.ByteString
