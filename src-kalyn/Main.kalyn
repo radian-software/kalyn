@@ -3,4 +3,4 @@
 
 (public def main (IO Empty)
   (>> (writeFile "main" (link ""))
-      (setFileMode "main" 0x755)))
+      (setFileMode "main" 0x777)))

@@ -3,6 +3,9 @@ module Primitives where
 import           Assembly
 import           Subroutines
 
+-- https://filippo.io/linux-syscall-table/
+-- see also section 2 of the Linux man pages
+
 basicOp :: String -> Op -> Stateful (Function VirtualRegister)
 basicOp name op = do
   temp <- newTemp
@@ -186,4 +189,24 @@ writeFile = do
       , JLT "crash"
       , RET
       ]
+    ]
+
+setFileMode :: Stateful (Function VirtualRegister)
+setFileMode = do
+  temp     <- newTemp
+  filename <- newTemp
+  return $ function
+    "setFileMode"
+    [ Right
+        [ OP MOV $ MR (getArg 2) temp
+        , PUSH temp
+        , CALL "memoryPackString"
+        , unpush 1
+        , OP MOV $ RR rax filename
+        , OP MOV $ IR 90 rax
+        , LEA (getField 1 filename) rdi
+        , OP MOV $ MR (getArg 1) rsi
+        , SYSCALL 2 -- chmod
+        , RET
+        ]
     ]
