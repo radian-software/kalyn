@@ -45,7 +45,10 @@ minus = basicOp "minus" SUB
 times :: Stateful (Function VirtualRegister)
 times = basicOp "times" IMUL
 
-divOp :: [Instruction VirtualRegister] -> Stateful (Function VirtualRegister)
+divOp
+  :: String
+  -> [Instruction VirtualRegister]
+  -> Stateful (Function VirtualRegister)
 divOp name post = do
   temp <- newTemp
   return $ function
@@ -82,7 +85,7 @@ bitnot = do
     "not"
     [Right [OP MOV $ MR (getArg 1) temp, NOT temp, OP MOV $ RR temp rax]]
 
-shiftOp :: Shift -> Stateful (Function VirtualRegister)
+shiftOp :: String -> Shift -> Stateful (Function VirtualRegister)
 shiftOp name op = do
   arg       <- newTemp
   fixup     <- newLabel
@@ -139,7 +142,7 @@ print = do
       , OP MOV $ MR (getField 1 arg) rsi
       , OP MOV $ IR 1 rdx
       , SYSCALL 3
-      , OP CMP $ IR 0
+      , OP CMP $ IR 0 rax
       , JL (Label "crash")
       , OP MOV $ MR (getField 2 arg) arg
       , JMP start
