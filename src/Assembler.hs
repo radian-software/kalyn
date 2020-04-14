@@ -54,6 +54,7 @@ regCode R12 = (True, 0x4)
 regCode R13 = (True, 0x5)
 regCode R14 = (True, 0x6)
 regCode R15 = (True, 0x7)
+regCode RIP = error $ "can't use " ++ show RIP ++ " here"
 
 rex :: Maybe Register -> Maybe Register -> Maybe Register -> Word8
 rex reg rm index =
@@ -128,36 +129,43 @@ memInstr opcode base msi disp other =
           Right r -> Just r
           _       -> Nothing
         )
-        (Just base)
-        ((snd <$> msi) <|> Just RSP)
+        (case base of
+          RIP -> Nothing
+          _   -> Just base
+        )
+        (case (base, msi) of
+          (RIP, Just _ ) -> error $ "can't use scale with " ++ show RIP
+          (RIP, Nothing) -> Nothing
+          _              -> (snd <$> msi) <|> Just RSP
+        )
       modRMBits = modRM
-        ModMem
+        (case base of
+          RIP -> ModPC
+          _   -> ModMem
+        )
         (case other of
           Right r        -> Reg r
           Left  (ext, _) -> RegExt ext
         )
-        RMSIB
-      sibBits = sib base msi
+        (case base of
+          RIP -> RMPC
+          _   -> RMSIB
+        )
+      maybeSIB =
+          (case base of
+            RIP -> mempty
+            _   -> word8 $ sib base msi
+          )
   in  toLazyByteString
         $  word8 rexBits
         <> mconcat (map word8 opcode)
         <> word8 modRMBits
-        <> word8 sibBits
+        <> maybeSIB
         <> int32LE disp
         <> (case other of
              Left (_, imm) -> int32LE imm
              _             -> mempty
            )
-
-pcInstr :: [Word8] -> Int32 -> Register -> B.ByteString
-pcInstr opcode disp other =
-  let rexBits   = rex (Just other) Nothing Nothing
-      modRMBits = modRM ModPC (Reg other) RMPC
-  in  toLazyByteString
-        $  word8 rexBits
-        <> mconcat (map word8 opcode)
-        <> word8 modRMBits
-        <> int32LE disp
 
 opInstr'
   :: (imm -> Builder)
@@ -222,79 +230,79 @@ compileInstr labels pc instr =
   let getOffset label = case Map.lookup label labels of
         Nothing          -> error $ "no such label " ++ show label
         Just labelOffset -> fromIntegral labelOffset - fromIntegral pc
-  in
-    case instr of
-      OP op args ->
-        let errorMemDisallowed =
-                error $ "cannot " ++ show op ++ " into memory address"
-            (immOp, immExt, stdOp, memOp) = case op of
-              MOV  -> ([0xc7], Just 0, [0x8b], [0x89])
-              ADD  -> ([0x81], Just 0, [0x03], [0x01])
-              SUB  -> ([0x81], Just 5, [0x2b], [0x29])
-              IMUL -> ([0x69], Nothing, [0x0f, 0xaf], undefined)
-              AND  -> ([0x81], Just 4, [0x23], [0x21])
-              OR   -> ([0x81], Just 1, [0x0b], [0x09])
-              XOR  -> ([0x81], Just 6, [0x33], [0x31])
-              CMP  -> ([0x81], Just 7, [0x3b], [0x39])
-        in  case args of
-              IR imm dst -> opInstr
-                immOp
-                dst
-                (case immExt of
-                  Nothing  -> Right dst
-                  Just ext -> Left ext
-                )
-                (Just imm)
-              IM imm (Mem disp base msr) -> memInstr
-                immOp
-                base
-                msr
-                disp
-                (Left (fromMaybe errorMemDisallowed immExt, imm))
-              RR src dst -> opInstr stdOp src (Right dst) Nothing
-              MR (Mem disp base msr) dst ->
-                memInstr stdOp base msr disp (Right dst)
-              RM src (Mem disp base msr) -> case immExt of
-                Just _  -> memInstr memOp base msr disp (Right src)
-                Nothing -> errorMemDisallowed
-              LR label dst -> pcInstr stdOp (getOffset label) dst
-      SHIFT Nothing shift dst ->
-        let (op, ext) = case shift of
-              SHL -> (0xd3, 4)
-              SAL -> (0xd3, 6)
-              SHR -> (0xd3, 5)
-              SAR -> (0xd3, 7)
-        in  opInstr [op] dst (Left ext) Nothing
-      SHIFT (Just amt) shift dst ->
-        let (op, ext) = case shift of
-              SHL -> (0xc1, 4)
-              SAL -> (0xc1, 6)
-              SHR -> (0xc1, 5)
-              SAR -> (0xc1, 7)
-        in  opInstr8U [op] dst (Left ext) (Just amt)
-      LEA  (Mem disp base msr) dst -> memInstr [0x8d] base msr disp (Right dst)
-      LEAL label               dst -> pcInstr [0x8d] (getOffset label) dst
-      MOV64 imm dst ->
-        opInstr64 [0xb8 + (snd . regCode $ dst)] dst (Left 0) (Just imm)
-      CQTO          -> plainInstr64 [0x99]
-      IDIV    src   -> opInstr [0xf7] src (Left 7) Nothing
-      NOT     dst   -> opInstr [0xf7] dst (Left 2) Nothing
-      JMP     label -> relInstr [0xe9] (getOffset label)
-      JE      label -> relInstr [0x0f, 0x84] (getOffset label)
-      JNE     label -> relInstr [0x0f, 0x85] (getOffset label)
-      JL      label -> relInstr [0x0f, 0x8c] (getOffset label)
-      JLE     label -> relInstr [0x0f, 0x8e] (getOffset label)
-      JG      label -> relInstr [0x0f, 0x8f] (getOffset label)
-      JGE     label -> relInstr [0x0f, 0x8d] (getOffset label)
-      JB      label -> relInstr [0x0f, 0x82] (getOffset label)
-      JBE     label -> relInstr [0x0f, 0x86] (getOffset label)
-      JA      label -> relInstr [0x0f, 0x87] (getOffset label)
-      JAE     label -> relInstr [0x0f, 0x83] (getOffset label)
-      PUSH    reg   -> regInstr [0x50 + (snd . regCode $ reg)] reg
-      POP     reg   -> regInstr [0x58 + (snd . regCode $ reg)] reg
-      SYSCALL _     -> plainInstr [0x0f, 0x05]
-      CALL _ label  -> relInstr [0xe8] (getOffset label)
-      RET           -> plainInstr [0xc3]
+      fromDisp (Left  label) = getOffset label
+      fromDisp (Right imm  ) = imm
+  in  case instr of
+        OP op args ->
+          let errorMemDisallowed =
+                  error $ "cannot " ++ show op ++ " into memory address"
+              (immOp, immExt, stdOp, memOp) = case op of
+                MOV  -> ([0xc7], Just 0, [0x8b], [0x89])
+                ADD  -> ([0x81], Just 0, [0x03], [0x01])
+                SUB  -> ([0x81], Just 5, [0x2b], [0x29])
+                IMUL -> ([0x69], Nothing, [0x0f, 0xaf], undefined)
+                AND  -> ([0x81], Just 4, [0x23], [0x21])
+                OR   -> ([0x81], Just 1, [0x0b], [0x09])
+                XOR  -> ([0x81], Just 6, [0x33], [0x31])
+                CMP  -> ([0x81], Just 7, [0x3b], [0x39])
+          in  case args of
+                IR imm dst -> opInstr
+                  immOp
+                  dst
+                  (case immExt of
+                    Nothing  -> Right dst
+                    Just ext -> Left ext
+                  )
+                  (Just imm)
+                IM imm (Mem disp base msr) -> memInstr
+                  immOp
+                  base
+                  msr
+                  (fromDisp disp)
+                  (Left (fromMaybe errorMemDisallowed immExt, imm))
+                RR src dst -> opInstr stdOp src (Right dst) Nothing
+                MR (Mem disp base msr) dst ->
+                  memInstr stdOp base msr (fromDisp disp) (Right dst)
+                RM src (Mem disp base msr) -> case immExt of
+                  Just _  -> memInstr memOp base msr (fromDisp disp) (Right src)
+                  Nothing -> errorMemDisallowed
+        SHIFT Nothing shift dst ->
+          let (op, ext) = case shift of
+                SHL -> (0xd3, 4)
+                SAL -> (0xd3, 6)
+                SHR -> (0xd3, 5)
+                SAR -> (0xd3, 7)
+          in  opInstr [op] dst (Left ext) Nothing
+        SHIFT (Just amt) shift dst ->
+          let (op, ext) = case shift of
+                SHL -> (0xc1, 4)
+                SAL -> (0xc1, 6)
+                SHR -> (0xc1, 5)
+                SAR -> (0xc1, 7)
+          in  opInstr8U [op] dst (Left ext) (Just amt)
+        LEA (Mem disp base msr) dst ->
+          memInstr [0x8d] base msr (fromDisp disp) (Right dst)
+        MOV64 imm dst ->
+          opInstr64 [0xb8 + (snd . regCode $ dst)] dst (Left 0) (Just imm)
+        CQTO          -> plainInstr64 [0x99]
+        IDIV    src   -> opInstr [0xf7] src (Left 7) Nothing
+        NOT     dst   -> opInstr [0xf7] dst (Left 2) Nothing
+        JMP     label -> relInstr [0xe9] (getOffset label)
+        JE      label -> relInstr [0x0f, 0x84] (getOffset label)
+        JNE     label -> relInstr [0x0f, 0x85] (getOffset label)
+        JL      label -> relInstr [0x0f, 0x8c] (getOffset label)
+        JLE     label -> relInstr [0x0f, 0x8e] (getOffset label)
+        JG      label -> relInstr [0x0f, 0x8f] (getOffset label)
+        JGE     label -> relInstr [0x0f, 0x8d] (getOffset label)
+        JB      label -> relInstr [0x0f, 0x82] (getOffset label)
+        JBE     label -> relInstr [0x0f, 0x86] (getOffset label)
+        JA      label -> relInstr [0x0f, 0x87] (getOffset label)
+        JAE     label -> relInstr [0x0f, 0x83] (getOffset label)
+        PUSH    reg   -> regInstr [0x50 + (snd . regCode $ reg)] reg
+        POP     reg   -> regInstr [0x58 + (snd . regCode $ reg)] reg
+        SYSCALL _     -> plainInstr [0x0f, 0x05]
+        CALL _ label  -> relInstr [0xe8] (getOffset label)
+        RET           -> plainInstr [0xc3]
 
 compileLine :: Map.Map Label Word32 -> Word32 -> Line -> B.ByteString
 compileLine labels pc (Instruction instr) = compileInstr labels pc instr

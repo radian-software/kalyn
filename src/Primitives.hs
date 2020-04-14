@@ -17,7 +17,7 @@ newLabel = do
   return $ Label $ "l" ++ show count
 
 getField :: Int -> VirtualRegister -> Mem VirtualRegister
-getField n reg = Mem (fromIntegral $ 8 * n) reg Nothing
+getField n reg = Mem (Right $ fromIntegral $ 8 * n) reg Nothing
 
 -- warning: gets arguments in reverse order!
 getArg :: Int -> Mem VirtualRegister

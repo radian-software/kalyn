@@ -25,7 +25,7 @@ helloWorld = Program
       [ Right
           [ OP MOV (IR 1 RAX)
           , OP MOV (IR 1 RDI)
-          , LEAL (Label "message") RSI
+          , LEA (memLabel "message") RSI
           , OP MOV (IR 14 RDX)
           , SYSCALL 3
           , OP MOV (IR 60 RAX)
@@ -46,7 +46,7 @@ printInt = Program
         , CALL 1 (Label "printInt")
         , OP MOV (IR 1 RAX)
         , OP MOV (IR 1 RDI)
-        , LEAL (Label "newline") RSI
+        , LEA (memLabel "newline") RSI
         , OP MOV (IR 1 RDX)
         , SYSCALL 3
         , OP MOV (IR 60 RAX)
@@ -59,7 +59,7 @@ printInt = Program
     [ Right
       [ OP CMP (IR 0 RDI)
       , JGE (Label "printInt1")
-      , LEAL (Label "minus") RSI
+      , LEA (memLabel "minus") RSI
       , PUSH RDI
       , OP MOV (IR 1 RAX)
       , OP MOV (IR 1 RDX)
@@ -74,7 +74,7 @@ printInt = Program
       , JNE (Label "printInt2")
       , OP MOV (IR 1 RAX)
       , OP MOV (IR 1 RDI)
-      , LEAL (Label "digits") RSI
+      , LEA (memLabel "digits") RSI
       , OP MOV (IR 1 RDX)
       , SYSCALL 3
       , RET
@@ -94,7 +94,7 @@ printInt = Program
       , PUSH RDX
       , OP MOV (RR RAX RDI)
       , CALL 1 (Label "printIntRec")
-      , LEAL (Label "digits") RSI
+      , LEA (memLabel "digits") RSI
       , OP MOV (IR 1 RAX)
       , POP RDX
       , OP ADD (RR RDX RSI)

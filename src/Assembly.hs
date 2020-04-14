@@ -16,6 +16,7 @@ data Register = RAX | RCX | RDX | RBX
               | RSP | RBP | RSI | RDI
               | R8  | R9  | R10 | R11
               | R12 | R13 | R14 | R15
+              | RIP
   deriving (Eq)
 
 instance Show Register where
@@ -35,6 +36,7 @@ instance Show Register where
   show R13 = "%r13"
   show R14 = "%r14"
   show R15 = "%r15"
+  show RIP = "%rip"
 
 newtype Temporary = Temporary String
 
@@ -59,6 +61,7 @@ r12 :: VirtualRegister
 r13 :: VirtualRegister
 r14 :: VirtualRegister
 r15 :: VirtualRegister
+rip :: VirtualRegister
 
 rax = Physical RAX
 rcx = Physical RCX
@@ -76,6 +79,7 @@ r12 = Physical R12
 r13 = Physical R13
 r14 = Physical R14
 r15 = Physical R15
+rip = Physical RIP
 
 instance Show VirtualRegister where
   show (Physical reg ) = show reg
@@ -95,14 +99,13 @@ instance Show Label where
 
 data Scale = Scale1 | Scale2 | Scale4 | Scale8
 
-data Mem reg = Mem Int32 reg (Maybe (Scale, reg))
+data Mem reg = Mem (Either Label Int32) reg (Maybe (Scale, reg))
 
 data Args' imm reg = IR imm reg
                    | IM imm (Mem reg)
                    | RR reg reg
                    | MR (Mem reg) reg
                    | RM reg (Mem reg)
-                   | LR Label reg
 
 type Args = Args' Int32
 type Args64 = Args' Int64
@@ -125,7 +128,6 @@ data Shift = SHL | SAL | SHR | SAR
 data Instruction reg = OP Op (Args reg)
                      | SHIFT (Maybe Word8) Shift reg
                      | LEA (Mem reg) reg
-                     | LEAL Label reg
                      | MOV64 Int64 reg
                      | CQTO
                      | IDIV reg
@@ -147,6 +149,9 @@ data Instruction reg = OP Op (Args reg)
                      | RET
                      | SYSCALL Int
 
+memLabel :: RegisterLike reg => String -> Mem reg
+memLabel name = Mem (Left $ Label name) (fromRegister RIP) Nothing
+
 instance Show Scale where
   show Scale1 = "1"
   show Scale2 = "2"
@@ -155,7 +160,11 @@ instance Show Scale where
 
 instance Show reg => Show (Mem reg) where
   show (Mem disp base msi) =
-    (if disp == 0 then "" else show disp)
+    (case disp of
+        Left  label -> show label
+        Right 0     -> ""
+        Right imm   -> show imm
+      )
       ++ "("
       ++ show base
       ++ (case msi of
@@ -166,12 +175,11 @@ instance Show reg => Show (Mem reg) where
       ++ ")"
 
 instance (Show imm, Show reg) => Show (Args' imm reg) where
-  show (IR imm   reg) = "$" ++ show imm ++ ", " ++ show reg
-  show (IM imm   mem) = "$" ++ show imm ++ ", " ++ show mem
-  show (RR src   dst) = show src ++ ", " ++ show dst
-  show (MR mem   reg) = show mem ++ ", " ++ show reg
-  show (RM reg   mem) = show reg ++ ", " ++ show mem
-  show (LR label reg) = "$" ++ show label ++ "(%rip), " ++ show reg
+  show (IR imm reg) = "$" ++ show imm ++ ", " ++ show reg
+  show (IM imm mem) = "$" ++ show imm ++ ", " ++ show mem
+  show (RR src dst) = show src ++ ", " ++ show dst
+  show (MR mem reg) = show mem ++ ", " ++ show reg
+  show (RM reg mem) = show reg ++ ", " ++ show mem
 
 instance Show Op where
   show MOV  = "movq"
@@ -197,28 +205,27 @@ instance Show reg => Show (Instruction reg) where
       ++ maybe "%cx" (\val -> "$" ++ show val) amt
       ++ ", "
       ++ show dst
-  show (LEA   src   dst) = "leaq " ++ show src ++ ", " ++ show dst
-  show (LEAL  label dst) = "leaq " ++ show label ++ "(%rip), " ++ show dst
-  show (MOV64 imm   dst) = "movq $" ++ show imm ++ ", " ++ show dst
-  show CQTO              = "cqto"
-  show (IDIV src    )    = "idivq " ++ show src
-  show (NOT  dst    )    = "not " ++ show dst
-  show (JMP  label  )    = "jmp " ++ show label
-  show (JE   label  )    = "je " ++ show label
-  show (JNE  label  )    = "jne " ++ show label
-  show (JL   label  )    = "jl " ++ show label
-  show (JLE  label  )    = "jle " ++ show label
-  show (JG   label  )    = "jg " ++ show label
-  show (JGE  label  )    = "jge " ++ show label
-  show (JB   label  )    = "jb " ++ show label
-  show (JBE  label  )    = "jbe " ++ show label
-  show (JA   label  )    = "ja " ++ show label
-  show (JAE  label  )    = "jae " ++ show label
-  show (PUSH src    )    = "pushq " ++ show src
-  show (POP  dst    )    = "popq " ++ show dst
-  show (CALL _ label)    = "callq " ++ show label
-  show RET               = "retq"
-  show (SYSCALL _)       = "syscall"
+  show (LEA   src dst) = "leaq " ++ show src ++ ", " ++ show dst
+  show (MOV64 imm dst) = "movq $" ++ show imm ++ ", " ++ show dst
+  show CQTO            = "cqto"
+  show (IDIV src    )  = "idivq " ++ show src
+  show (NOT  dst    )  = "not " ++ show dst
+  show (JMP  label  )  = "jmp " ++ show label
+  show (JE   label  )  = "je " ++ show label
+  show (JNE  label  )  = "jne " ++ show label
+  show (JL   label  )  = "jl " ++ show label
+  show (JLE  label  )  = "jle " ++ show label
+  show (JG   label  )  = "jg " ++ show label
+  show (JGE  label  )  = "jge " ++ show label
+  show (JB   label  )  = "jb " ++ show label
+  show (JBE  label  )  = "jbe " ++ show label
+  show (JA   label  )  = "ja " ++ show label
+  show (JAE  label  )  = "jae " ++ show label
+  show (PUSH src    )  = "pushq " ++ show src
+  show (POP  dst    )  = "popq " ++ show dst
+  show (CALL _ label)  = "callq " ++ show label
+  show RET             = "retq"
+  show (SYSCALL _)     = "syscall"
 
 argumentRegisters :: [Register]
 argumentRegisters = [RDI, RSI, RDX, RCX, R8, R9]
@@ -247,9 +254,6 @@ getArgRegisters op (MR mem dst)
   | op == CMP = (getMemRegisters mem, [])
   | otherwise = (dst : getMemRegisters mem, [dst])
 getArgRegisters _ (RM src mem) = (src : getMemRegisters mem, [])
-getArgRegisters op (LR _ dst) | op == MOV = ([], [dst])
-                              | op == CMP = ([dst], [])
-                              | otherwise = ([dst], [dst])
 
 -- returns (src, dst)
 getRegisters :: RegisterLike reg => Instruction reg -> ([reg], [reg])
@@ -257,7 +261,6 @@ getRegisters (OP op args          ) = getArgRegisters op args
 getRegisters (SHIFT Nothing  _ dst) = ([dst, fromRegister RCX], [dst])
 getRegisters (SHIFT (Just _) _ dst) = ([dst], [dst])
 getRegisters (LEA   mem dst       ) = (getMemRegisters mem, [dst])
-getRegisters (LEAL  _   dst       ) = ([], [dst])
 getRegisters (MOV64 _   dst       ) = ([], [dst])
 getRegisters CQTO                   = ([fromRegister RAX], [fromRegister RDX])
 getRegisters (IDIV src) =
