@@ -153,40 +153,40 @@ writeFile = do
       , LEA (getField 1 filename) rdi
       , SYSCALL 1 -- unlink
       , OP CMP $ IR 0 rax
-      , JLT "crash"
+      , JL "crash"
       , OP MOV $ IR 2 rax
       , LEA (getField 1 filename) rdi
       , OP MOV $ IR 0x41 rsi
       , OP MOV $ IR 0o666 rdx
-      , SYSCALL -- open
+      , SYSCALL 2 -- open
       , OP CMP $ IR 0 rax
-      , JLT "crash"
+      , JL "crash"
       , OP MOV $ RR rax fd
       , LEA (getField 1 contents) ptr
       , OP MOV $ MR (getField 0 contents) bytesLeft
       ]
-    , Left copyStart
+    , Left writeStart
     , Right
       [ OP CMP $ IR 0 bytesLeft
-      , JLE copyDone
+      , JLE writeDone
       , OP MOV $ IR 1 rax
       , OP MOV $ RR fd rdi
       , OP MOV $ RR ptr rsi
       , OP MOV $ RR bytesLeft rdx
       , SYSCALL 3 -- write
       , OP CMP $ IR 0 rax
-      , JLT "crash"
+      , JL "crash"
       , OP ADD $ RR rax ptr
       , OP SUB $ RR rax bytesLeft
-      , JMP copyStart
+      , JMP writeStart
       ]
-    , Left copyDone
+    , Left writeDone
     , Right
       [ OP MOV $ IR 3 rax
       , OP MOV $ RR fd rdi
       , SYSCALL 1 -- close
       , OP CMP $ IR 0 rax
-      , JLT "crash"
+      , JL "crash"
       , RET
       ]
     ]
