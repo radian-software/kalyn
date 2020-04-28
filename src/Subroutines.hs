@@ -18,6 +18,12 @@ newLabel = do
   put $ count + 1
   return $ "l" ++ show count
 
+newLambda :: String -> Stateful Label
+newLambda fnName = do
+  count <- get
+  put $ count + 1
+  return $ fnName ++ "__lambda" ++ show count
+
 getField :: Int -> VirtualRegister -> Mem VirtualRegister
 getField n reg = Mem (Right $ fromIntegral $ 8 * n) reg Nothing
 

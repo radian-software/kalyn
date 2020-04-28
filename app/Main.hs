@@ -20,89 +20,82 @@ import           Linker
 
 helloWorld :: Program Register
 helloWorld = Program
-  [ function
-      "main"
-      [ Right
-          [ OP MOV (IR 1 RAX)
-          , OP MOV (IR 1 RDI)
-          , LEA (memLabel "message") RSI
-          , OP MOV (IR 14 RDX)
-          , SYSCALL 3 -- write
-          , OP MOV (IR 60 RAX)
-          , OP MOV (IR 0 RDI)
-          , SYSCALL 1 -- exit
-          ]
-      ]
-  ]
+  (Function
+    [ OP MOV (IR 1 RAX)
+    , OP MOV (IR 1 RDI)
+    , LEA (memLabel "message") RSI
+    , OP MOV (IR 14 RDX)
+    , SYSCALL 3 -- write
+    , OP MOV (IR 60 RAX)
+    , OP MOV (IR 0 RDI)
+    , SYSCALL 1
+    ]
+  )
+  []
   [("message", toLazyByteString $ stringUtf8 "Hello, world!\n")]
 
 printInt :: Program Register
 printInt = Program
-  [ function
-    "main"
-    [ Right
-        [ OP MOV  (IR 42 RDI)
-        , OP IMUL (IR 42 RDI)
-        , CALL "printInt"
-        , OP MOV (IR 1 RAX)
-        , OP MOV (IR 1 RDI)
-        , LEA (memLabel "newline") RSI
-        , OP MOV (IR 1 RDX)
-        , SYSCALL 3 -- write
-        , OP MOV (IR 60 RAX)
-        , OP MOV (IR 0 RDI)
-        , SYSCALL 1 -- exit
-        ]
+  (Function
+    [ OP MOV  (IR 42 RDI)
+    , OP IMUL (IR 42 RDI)
+    , CALL "printInt"
+    , OP MOV (IR 1 RAX)
+    , OP MOV (IR 1 RDI)
+    , LEA (memLabel "newline") RSI
+    , OP MOV (IR 1 RDX)
+    , SYSCALL 3 -- write
+    , OP MOV (IR 60 RAX)
+    , OP MOV (IR 0 RDI)
+    , SYSCALL 1
     ]
-  , function
+  )
+  [ function
     "printInt"
-    [ Right
-      [ OP CMP (IR 0 RDI)
-      , JGE "printInt1"
-      , LEA (memLabel "minus") RSI
-      , PUSH RDI
-      , OP MOV (IR 1 RAX)
-      , OP MOV (IR 1 RDX)
-      , OP MOV (IR 1 RDI)
-      , SYSCALL 3 -- write
-      , POP RDI
-      , OP IMUL (IR (-1) RDI)
-      ]
-    , Left "printInt1"
-    , Right
-      [ OP CMP (IR 0 RDI)
-      , JNE "printInt2"
-      , OP MOV (IR 1 RAX)
-      , OP MOV (IR 1 RDI)
-      , LEA (memLabel "digits") RSI
-      , OP MOV (IR 1 RDX)
-      , SYSCALL 3 -- write
-      , RET
-      ]
-    , Left "printInt2"
-    , Right [CALL "printIntRec", RET]
+    [ OP CMP (IR 0 RDI)
+    , JGE "printInt1"
+    , LEA (memLabel "minus") RSI
+    , PUSH RDI
+    , OP MOV (IR 1 RAX)
+    , OP MOV (IR 1 RDX)
+    , OP MOV (IR 1 RDI)
+    , SYSCALL 3 -- write
+    , POP RDI
+    , OP IMUL (IR (-1) RDI)
+    , LABEL "printInt1"
+    , OP CMP (IR 0 RDI)
+    , JNE "printInt2"
+    , OP MOV (IR 1 RAX)
+    , OP MOV (IR 1 RDI)
+    , LEA (memLabel "digits") RSI
+    , OP MOV (IR 1 RDX)
+    , SYSCALL 3 -- write
+    , RET
+    , LABEL "printInt2"
+    , CALL "printIntRec"
+    , RET
     ]
   , function
     "printIntRec"
-    [ Right [OP CMP (IR 0 RDI), JNE "printIntRec1", RET]
-    , Left "printIntRec1"
-    , Right
-      [ OP MOV (RR RDI RAX)
-      , CQTO
-      , OP MOV (IR 10 RSI)
-      , IDIV RSI
-      , PUSH RDX
-      , OP MOV (RR RAX RDI)
-      , CALL "printIntRec"
-      , LEA (memLabel "digits") RSI
-      , OP MOV (IR 1 RAX)
-      , POP RDX
-      , OP ADD (RR RDX RSI)
-      , OP MOV (IR 1 RDI)
-      , OP MOV (IR 1 RDX)
-      , SYSCALL 3 -- write
-      , RET
-      ]
+    [ OP CMP (IR 0 RDI)
+    , JNE "printIntRec1"
+    , RET
+    , LABEL "printIntRec1"
+    , OP MOV (RR RDI RAX)
+    , CQTO
+    , OP MOV (IR 10 RSI)
+    , IDIV RSI
+    , PUSH RDX
+    , OP MOV (RR RAX RDI)
+    , CALL "printIntRec"
+    , LEA (memLabel "digits") RSI
+    , OP MOV (IR 1 RAX)
+    , POP RDX
+    , OP ADD (RR RDX RSI)
+    , OP MOV (IR 1 RDI)
+    , OP MOV (IR 1 RDX)
+    , SYSCALL 3 -- write
+    , RET
     ]
   ]
   [ ("digits" , toLazyByteString (stringUtf8 "0123456789"))
@@ -112,20 +105,18 @@ printInt = Program
 
 test :: Program Register
 test = Program
-  [ function
-      "main"
-      [ Right
-          [ SHIFT Nothing  SHL R12
-          , SHIFT Nothing  SAL R12
-          , SHIFT Nothing  SHR R12
-          , SHIFT Nothing  SAR R12
-          , SHIFT (Just 5) SHL R12
-          , SHIFT (Just 5) SAL R12
-          , SHIFT (Just 5) SHR R12
-          , SHIFT (Just 5) SAR R12
-          ]
-      ]
-  ]
+  (Function
+    [ SHIFT Nothing  SHL R12
+    , SHIFT Nothing  SAL R12
+    , SHIFT Nothing  SHR R12
+    , SHIFT Nothing  SAR R12
+    , SHIFT (Just 5) SHL R12
+    , SHIFT (Just 5) SAL R12
+    , SHIFT (Just 5) SHR R12
+    , SHIFT (Just 5) SAR R12
+    ]
+  )
+  []
   []
 
 ignoringDoesNotExist :: IO () -> IO ()

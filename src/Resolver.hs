@@ -13,12 +13,6 @@ import           Util
 {-# ANN module "HLint: ignore Use record patterns" #-}
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 
-data Symbol = SymDef String | SymData String Int
-
-symName :: Symbol -> String
-symName (SymDef name   ) = name
-symName (SymData name _) = name
-
 mapSymbol :: (String -> String) -> Symbol -> Symbol
 mapSymbol f (SymDef name     ) = SymDef (f name)
 mapSymbol f (SymData name idx) = SymData (f name) idx
@@ -92,5 +86,3 @@ resolveBundle (Bundle mmap) =
             mods
       )
       mmap
-
-type Resolver = Map.Map String (Map.Map String [Symbol])

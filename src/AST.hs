@@ -31,7 +31,14 @@ data Decl = Alias Bool TypeSpec Type
           | Import Bool String
           | Instance Bool [ClassSpec] ClassSpec [(VarName, Expr)]
 
+data Symbol = SymDef String | SymData String Int
+
+symName :: Symbol -> String
+symName (SymDef name   ) = name
+symName (SymData name _) = name
+
 newtype Bundle = Bundle (Map.Map String ([Decl], [String]))
+type Resolver = Map.Map String (Map.Map String [Symbol])
 
 instance Show ClassSpec where
   show (ClassSpec cls typ) = "(" ++ show cls ++ " " ++ show typ ++ ")"

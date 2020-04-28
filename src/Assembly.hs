@@ -2,6 +2,7 @@ module Assembly where
 
 import qualified Data.ByteString.Lazy          as B
 import           Data.Int
+import           Data.List
 import           Data.Word
 import           Numeric
 
@@ -143,9 +144,15 @@ data Instruction reg = OP Op (Args reg)
                      | JAE Label
                      | PUSH reg
                      | POP reg
+                     | PUSHI Int32
+                     | PUSHM (Mem reg)
+                     | POPM (Mem reg)
                      | CALL Label
+                     | CALLR reg
+                     | CALLM (Mem reg)
                      | RET
                      | SYSCALL Int
+                     | LABEL Label
 
 memLabel :: RegisterLike reg => String -> Mem reg
 memLabel name = Mem (Left name) (fromRegister RIP) Nothing
@@ -206,27 +213,33 @@ instance Show reg => Show (Instruction reg) where
   show (LEA   src dst) = "leaq " ++ show src ++ ", " ++ show dst
   show (MOV64 imm dst) = "movq $" ++ show imm ++ ", " ++ show dst
   show CQTO            = "cqto"
-  show (IDIV src  )    = "idivq " ++ show src
-  show (NOT  dst  )    = "not " ++ show dst
-  show (NEG  dst  )    = "neg " ++ show dst
-  show (INC  dst  )    = "inc " ++ show dst
-  show (DEC  dst  )    = "dec " ++ show dst
-  show (JMP  label)    = "jmp " ++ show label
-  show (JE   label)    = "je " ++ show label
-  show (JNE  label)    = "jne " ++ show label
-  show (JL   label)    = "jl " ++ show label
-  show (JLE  label)    = "jle " ++ show label
-  show (JG   label)    = "jg " ++ show label
-  show (JGE  label)    = "jge " ++ show label
-  show (JB   label)    = "jb " ++ show label
-  show (JBE  label)    = "jbe " ++ show label
-  show (JA   label)    = "ja " ++ show label
-  show (JAE  label)    = "jae " ++ show label
-  show (PUSH src  )    = "pushq " ++ show src
-  show (POP  dst  )    = "popq " ++ show dst
-  show (CALL label)    = "callq " ++ show label
+  show (IDIV  src  )   = "idivq " ++ show src
+  show (NOT   dst  )   = "not " ++ show dst
+  show (NEG   dst  )   = "neg " ++ show dst
+  show (INC   dst  )   = "inc " ++ show dst
+  show (DEC   dst  )   = "dec " ++ show dst
+  show (JMP   label)   = "jmp " ++ show label
+  show (JE    label)   = "je " ++ show label
+  show (JNE   label)   = "jne " ++ show label
+  show (JL    label)   = "jl " ++ show label
+  show (JLE   label)   = "jle " ++ show label
+  show (JG    label)   = "jg " ++ show label
+  show (JGE   label)   = "jge " ++ show label
+  show (JB    label)   = "jb " ++ show label
+  show (JBE   label)   = "jbe " ++ show label
+  show (JA    label)   = "ja " ++ show label
+  show (JAE   label)   = "jae " ++ show label
+  show (PUSH  src  )   = "pushq " ++ show src
+  show (POP   dst  )   = "popq " ++ show dst
+  show (PUSHI src  )   = "pushq " ++ show src
+  show (PUSHM src  )   = "pushq " ++ show src
+  show (POPM  dst  )   = "popq " ++ show dst
+  show (CALL  label)   = "callq " ++ show label
+  show (CALLR reg  )   = "callq *" ++ show reg
+  show (CALLM mem  )   = "callq *" ++ show mem
   show RET             = "retq"
-  show (SYSCALL _)     = "syscall"
+  show (SYSCALL _    ) = "syscall"
+  show (LABEL   label) = label ++ ":"
 
 dataRegisters :: [Register]
 dataRegisters =
@@ -266,61 +279,63 @@ getRegisters (IDIV src) =
   ( [src, fromRegister RAX, fromRegister RDX]
   , [fromRegister RAX, fromRegister RDX]
   )
-getRegisters (NOT  dst) = ([dst], [dst])
-getRegisters (NEG  dst) = ([dst], [dst])
-getRegisters (INC  dst) = ([dst], [dst])
-getRegisters (DEC  dst) = ([dst], [dst])
-getRegisters (JMP  _  ) = ([], [])
-getRegisters (JE   _  ) = ([], [])
-getRegisters (JNE  _  ) = ([], [])
-getRegisters (JL   _  ) = ([], [])
-getRegisters (JLE  _  ) = ([], [])
-getRegisters (JG   _  ) = ([], [])
-getRegisters (JGE  _  ) = ([], [])
-getRegisters (JB   _  ) = ([], [])
-getRegisters (JBE  _  ) = ([], [])
-getRegisters (JA   _  ) = ([], [])
-getRegisters (JAE  _  ) = ([], [])
-getRegisters (PUSH src) = ([src], [])
-getRegisters (POP  dst) = ([], [dst])
-getRegisters (CALL _  ) = ([], map fromRegister dataRegisters)
-getRegisters RET        = ([fromRegister RAX], [])
+getRegisters (NOT   dst) = ([dst], [dst])
+getRegisters (NEG   dst) = ([dst], [dst])
+getRegisters (INC   dst) = ([dst], [dst])
+getRegisters (DEC   dst) = ([dst], [dst])
+getRegisters (JMP   _  ) = ([], [])
+getRegisters (JE    _  ) = ([], [])
+getRegisters (JNE   _  ) = ([], [])
+getRegisters (JL    _  ) = ([], [])
+getRegisters (JLE   _  ) = ([], [])
+getRegisters (JG    _  ) = ([], [])
+getRegisters (JGE   _  ) = ([], [])
+getRegisters (JB    _  ) = ([], [])
+getRegisters (JBE   _  ) = ([], [])
+getRegisters (JA    _  ) = ([], [])
+getRegisters (JAE   _  ) = ([], [])
+getRegisters (PUSH  src) = ([src], [])
+getRegisters (POP   dst) = ([], [dst])
+getRegisters (PUSHI _  ) = ([], [])
+getRegisters (PUSHM src) = (getMemRegisters src, [])
+getRegisters (POPM  dst) = (getMemRegisters dst, [])
+getRegisters (CALL  _  ) = ([], map fromRegister dataRegisters)
+getRegisters (CALLR reg) = ([reg], map fromRegister dataRegisters)
+getRegisters (CALLM mem) =
+  (getMemRegisters mem, map fromRegister dataRegisters)
+getRegisters RET = ([fromRegister RAX], [])
 getRegisters (SYSCALL n) =
   ( map fromRegister $ take (n + 1) syscallRegisters
   , map fromRegister syscallRegisters
   )
+getRegisters (LABEL _) = ([], [])
 
-type Function reg = [(Instruction reg, Maybe Label)]
+newtype Function reg = Function [Instruction reg]
 
-function :: String -> [Either Label [Instruction reg]] -> Function reg
-function name = function' (Just name)
- where
-  function' _ []                    = []
-  function' _ (Left  label : parts) = function' (Just label) parts
-  function' _ (Right []    : parts) = function' Nothing parts
-  function' mlabel (Right (instr : instrs) : parts) =
-    ((instr, mlabel) : map (\i -> (i, Nothing)) instrs)
-      ++ function' Nothing parts
+instance Show reg => Show (Function reg) where
+  show (Function instrs) = concatMap
+    (\instr ->
+      let str  = show instr
+          str' = if ":" `isSuffixOf` str then str else "\t" ++ str
+      in  str' ++ "\n"
+    )
+    instrs
+
+function :: String -> [Instruction reg] -> Function reg
+function name = Function . (LABEL name :)
+
+fnInstrs :: Function reg -> [Instruction reg]
+fnInstrs (Function instrs) = instrs
 
 type Datum = (Label, B.ByteString)
 
-data Program reg = Program [Function reg] [Datum]
+data Program reg = Program (Function reg) [Function reg] [Datum]
 
 instance Show reg => Show (Program reg) where
-  show (Program fns datums) =
+  show (Program main fns datums) =
     ".text\n.globl main\nmain:\n"
-      ++ concat
-           (flip map fns $ \fn -> concat
-             (flip map fn $ \(instr, mlabel) ->
-               (case mlabel of
-                   Nothing    -> ""
-                   Just label -> show label ++ ":\n"
-                 )
-                 ++ "\t"
-                 ++ show instr
-                 ++ "\n"
-             )
-           )
+      ++ show main
+      ++ concatMap show fns
       ++ ".data\n"
       ++ concat
            (flip map datums $ \(label, datum) -> show label ++ ":\n" ++ concat

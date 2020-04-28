@@ -124,3 +124,25 @@ as a pointer.
 Note that knowing the compile-time type of an object guarantees that
 you know its size and memory layout, except for functions (whose size
 you can determine by inspecting the second word of their data).
+
+## Calling convention
+
+There are two types of functions: top-level functions and function
+objects.
+
+Top-level functions include all bindings that are made at the top
+level, even ones which are not of function type. To obtain the value
+of a top-level binding, you invoke its top-level function. This is
+done by simply calling it directly. The value is produced in `%rax`.
+Note that this means multiple uses of a top-level binding will
+recompute its value. This may be optimized later.
+
+Function objects are produced by evaluating `lambda` expressions. A
+`defn` declaration results in a top-level function which returns a
+function object. Function objects, as discussed in the section on data
+representation, include a lexical closure as a list of implicit
+arguments. To call a function object, you push its arguments onto the
+stack, starting with the lexical closure in the order in which it
+appears in memory and then followed by the single argument used at the
+current call. The return value is produced in `%rax`, and the stack
+pointer is left pointing at the last argument pushed.

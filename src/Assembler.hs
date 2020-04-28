@@ -17,18 +17,6 @@ import           Assembly
 import           OS
 import           Util
 
-data Line = Instruction (Instruction Register)
-          | LLabel Label
-
-getLines :: [Function Register] -> [Line]
-getLines fns = concat
-  (flip map fns $ \fn -> concat
-    (flip map fn $ \(instr, maybeLabel) -> case maybeLabel of
-      Nothing    -> [Instruction instr]
-      Just label -> [LLabel label, Instruction instr]
-    )
-  )
-
 -- https://www.codeproject.com/Articles/662301/x86-Instruction-Encoding-Revealed-Bit-Twiddling-fo
 -- https://wiki.osdev.org/X86-64_Instruction_Encoding
 -- http://ref.x86asm.net/index.html
@@ -121,9 +109,10 @@ memInstr
   -> Register
   -> Maybe (Scale, Register)
   -> Int32
-  -> Either (Word8, Int32) Register
+  -> Either Word8 Register
+  -> Maybe Int32
   -> B.ByteString
-memInstr opcode base msi disp other =
+memInstr opcode base msi disp other imm =
   let rexBits = rex
         (case other of
           Right r -> Just r
@@ -144,8 +133,8 @@ memInstr opcode base msi disp other =
           _   -> ModMem
         )
         (case other of
-          Right r        -> Reg r
-          Left  (ext, _) -> RegExt ext
+          Right r   -> Reg r
+          Left  ext -> RegExt ext
         )
         (case base of
           RIP -> RMPC
@@ -162,9 +151,9 @@ memInstr opcode base msi disp other =
         <> word8 modRMBits
         <> maybeSIB
         <> int32LE disp
-        <> (case other of
-             Left (_, imm) -> int32LE imm
-             _             -> mempty
+        <> (case imm of
+             Just imm' -> int32LE imm'
+             _         -> mempty
            )
 
 opInstr'
@@ -215,8 +204,8 @@ plainInstr64 opcode =
   toLazyByteString $ word8 (rex Nothing Nothing Nothing) <> mconcat
     (map word8 opcode)
 
-relInstr :: [Word8] -> Int32 -> B.ByteString
-relInstr opcode rel =
+immInstr :: [Word8] -> Int32 -> B.ByteString
+immInstr opcode rel =
   toLazyByteString $ mconcat (map word8 opcode) <> int32LE rel
 
 regInstr :: [Word8] -> Register -> B.ByteString
@@ -259,12 +248,14 @@ compileInstr labels pc instr =
                   base
                   msr
                   (fromDisp disp)
-                  (Left (fromMaybe errorMemDisallowed immExt, imm))
+                  (Left $ fromMaybe errorMemDisallowed immExt)
+                  (Just imm)
                 RR src dst -> opInstr stdOp src (Right dst) Nothing
                 MR (Mem disp base msr) dst ->
-                  memInstr stdOp base msr (fromDisp disp) (Right dst)
+                  memInstr stdOp base msr (fromDisp disp) (Right dst) Nothing
                 RM src (Mem disp base msr) -> case immExt of
-                  Just _  -> memInstr memOp base msr (fromDisp disp) (Right src)
+                  Just _ ->
+                    memInstr memOp base msr (fromDisp disp) (Right src) Nothing
                   Nothing -> errorMemDisallowed
         SHIFT Nothing shift dst ->
           let (op, ext) = case shift of
@@ -281,59 +272,67 @@ compileInstr labels pc instr =
                 SAR -> (0xc1, 7)
           in  opInstr8U [op] dst (Left ext) (Just amt)
         LEA (Mem disp base msr) dst ->
-          memInstr [0x8d] base msr (fromDisp disp) (Right dst)
+          memInstr [0x8d] base msr (fromDisp disp) (Right dst) Nothing
         MOV64 imm dst ->
           opInstr64 [0xb8 + (snd . regCode $ dst)] dst (Left 0) (Just imm)
-        CQTO          -> plainInstr64 [0x99]
-        IDIV    src   -> opInstr [0xf7] src (Left 7) Nothing
-        NOT     dst   -> opInstr [0xf7] dst (Left 2) Nothing
-        NEG     dst   -> opInstr [0xf7] dst (Left 3) Nothing
-        INC     dst   -> opInstr [0xff] dst (Left 0) Nothing
-        DEC     dst   -> opInstr [0xff] dst (Left 1) Nothing
-        JMP     label -> relInstr [0xe9] (getOffset label)
-        JE      label -> relInstr [0x0f, 0x84] (getOffset label)
-        JNE     label -> relInstr [0x0f, 0x85] (getOffset label)
-        JL      label -> relInstr [0x0f, 0x8c] (getOffset label)
-        JLE     label -> relInstr [0x0f, 0x8e] (getOffset label)
-        JG      label -> relInstr [0x0f, 0x8f] (getOffset label)
-        JGE     label -> relInstr [0x0f, 0x8d] (getOffset label)
-        JB      label -> relInstr [0x0f, 0x82] (getOffset label)
-        JBE     label -> relInstr [0x0f, 0x86] (getOffset label)
-        JA      label -> relInstr [0x0f, 0x87] (getOffset label)
-        JAE     label -> relInstr [0x0f, 0x83] (getOffset label)
-        PUSH    reg   -> regInstr [0x50 + (snd . regCode $ reg)] reg
-        POP     reg   -> regInstr [0x58 + (snd . regCode $ reg)] reg
+        CQTO        -> plainInstr64 [0x99]
+        IDIV  src   -> opInstr [0xf7] src (Left 7) Nothing
+        NOT   dst   -> opInstr [0xf7] dst (Left 2) Nothing
+        NEG   dst   -> opInstr [0xf7] dst (Left 3) Nothing
+        INC   dst   -> opInstr [0xff] dst (Left 0) Nothing
+        DEC   dst   -> opInstr [0xff] dst (Left 1) Nothing
+        JMP   label -> immInstr [0xe9] (getOffset label)
+        JE    label -> immInstr [0x0f, 0x84] (getOffset label)
+        JNE   label -> immInstr [0x0f, 0x85] (getOffset label)
+        JL    label -> immInstr [0x0f, 0x8c] (getOffset label)
+        JLE   label -> immInstr [0x0f, 0x8e] (getOffset label)
+        JG    label -> immInstr [0x0f, 0x8f] (getOffset label)
+        JGE   label -> immInstr [0x0f, 0x8d] (getOffset label)
+        JB    label -> immInstr [0x0f, 0x82] (getOffset label)
+        JBE   label -> immInstr [0x0f, 0x86] (getOffset label)
+        JA    label -> immInstr [0x0f, 0x87] (getOffset label)
+        JAE   label -> immInstr [0x0f, 0x83] (getOffset label)
+        PUSH  reg   -> regInstr [0x50 + (snd . regCode $ reg)] reg
+        POP   reg   -> regInstr [0x58 + (snd . regCode $ reg)] reg
+        PUSHI imm   -> immInstr [0x68] imm
+        PUSHM (Mem disp base msr) ->
+          memInstr [0xff] base msr (fromDisp disp) (Left 6) Nothing
+        POPM (Mem disp base msr) ->
+          memInstr [0x8f] base msr (fromDisp disp) (Left 0) Nothing
         SYSCALL _     -> plainInstr [0x0f, 0x05]
-        CALL    label -> relInstr [0xe8] (getOffset label)
-        RET           -> plainInstr [0xc3]
-
-compileLine :: Map.Map Label Word32 -> Word32 -> Line -> B.ByteString
-compileLine labels pc (Instruction instr) = compileInstr labels pc instr
-compileLine _      _  (LLabel      _    ) = B.empty
+        CALL    label -> immInstr [0xe8] (getOffset label)
+        CALLR   reg   -> opInstr [0xff] reg (Left 2) Nothing
+        CALLM (Mem disp base msr) ->
+          memInstr [0xff] base msr (fromDisp disp) (Left 2) Nothing
+        RET     -> plainInstr [0xc3]
+        LABEL _ -> B.empty
 
 compile :: Program Register -> (B.ByteString, B.ByteString)
-compile (Program fns datums) =
-  let lines = getLines fns
+compile (Program main fns datums) =
+  let allInstrs = fnInstrs main ++ concatMap fnInstrs fns
       codeB =
-          B.concat $ fixedPoint (replicate (length lines) B.empty) $ \binLines ->
-            let codeOffsets =
-                    scanl (+) 0 $ map (fromIntegral . B.length) binLines
-                dataOffsets =
-                    scanl (+) (roundUp (fromIntegral pageSize) $ last codeOffsets)
-                      $ map (fromIntegral . B.length . snd) datums
-                labels =
-                    foldr
-                        (\(label, offset) ls -> Map.insert label offset ls)
-                        ( foldr
-                            (\(line, offset) ls -> case line of
-                              LLabel name -> Map.insert name offset ls
-                              _           -> ls
+          B.concat
+            $ fixedPoint (replicate (length allInstrs) B.empty)
+            $ \binInstrs ->
+                let codeOffsets =
+                        scanl (+) 0 $ map (fromIntegral . B.length) binInstrs
+                    dataOffsets =
+                        scanl (+)
+                              (roundUp (fromIntegral pageSize) $ last codeOffsets)
+                          $ map (fromIntegral . B.length . snd) datums
+                    labels =
+                        foldr
+                            (\(label, offset) ls -> Map.insert label offset ls)
+                            ( foldr
+                                (\(instr, offset) ls -> case instr of
+                                  LABEL name -> Map.insert name offset ls
+                                  _          -> ls
+                                )
+                                Map.empty
+                            $ zip allInstrs codeOffsets
                             )
-                            Map.empty
-                        $ zip lines codeOffsets
-                        )
-                      $ zip (map fst datums) dataOffsets
-            in  zipWith (compileLine labels) (tail codeOffsets) lines
+                          $ zip (map fst datums) dataOffsets
+                in  zipWith (compileInstr labels) (tail codeOffsets) allInstrs
   in  ( codeB <> B.pack
         (replicate (leftover pageSize (fromIntegral $ B.length codeB)) 0)
       , B.concat $ map snd datums

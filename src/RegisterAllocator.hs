@@ -19,5 +19,5 @@ allocateFunctionRegs fn = case tryAllocateFunctionRegs fn of
   Left  spilled -> allocateFunctionRegs $ foldr spillTemporary fn spilled
 
 allocateProgramRegs :: Program VirtualRegister -> Program Register
-allocateProgramRegs (Program fns datums) =
-  Program (map allocateFunctionRegs fns) datums
+allocateProgramRegs (Program main fns datums) =
+  Program (allocateFunctionRegs main) (map allocateFunctionRegs fns) datums
