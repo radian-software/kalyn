@@ -5,6 +5,8 @@ where
 
 import           Assembly
 
+-- http://web.cs.ucla.edu/~palsberg/course/cs132/linearscan.pdf
+
 tryAllocateFunctionRegs
   :: Function VirtualRegister -> Either [Temporary] (Function Register)
 tryAllocateFunctionRegs _ = undefined

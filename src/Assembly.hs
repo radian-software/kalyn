@@ -310,6 +310,22 @@ getRegisters (SYSCALL n) =
   )
 getRegisters (LABEL _) = ([], [])
 
+data JumpType = Straightline | Jump Label | Branch Label
+
+getJumpType :: Instruction reg -> JumpType
+getJumpType (JMP label) = Jump label
+getJumpType (JE  label) = Branch label
+getJumpType (JNE label) = Branch label
+getJumpType (JL  label) = Branch label
+getJumpType (JLE label) = Branch label
+getJumpType (JG  label) = Branch label
+getJumpType (JGE label) = Branch label
+getJumpType (JB  label) = Branch label
+getJumpType (JBE label) = Branch label
+getJumpType (JA  label) = Branch label
+getJumpType (JAE label) = Branch label
+getJumpType _           = Straightline
+
 newtype Function reg = Function [Instruction reg]
 
 instance Show reg => Show (Function reg) where
