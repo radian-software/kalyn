@@ -1,5 +1,9 @@
 module Util where
 
+import           Control.Arrow
+import           Data.List
+import qualified Data.Map                      as Map
+
 fixedPoint :: Eq a => a -> (a -> a) -> a
 fixedPoint x f = let fx = f x in if x == fx then x else fixedPoint fx f
 
@@ -13,3 +17,9 @@ leftover f x = (f - x) `mod` f
 
 roundUp :: Integral n => n -> n -> n
 roundUp f x = x + leftover f x
+
+groupBy :: Ord k => (v -> k) -> [v] -> Map.Map k [v]
+groupBy k = Map.fromListWith (++) . map (k &&& pure)
+
+listUnique :: (Eq k, Ord k) => [k] -> Bool
+listUnique ks = nub ks == ks

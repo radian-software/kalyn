@@ -6,10 +6,11 @@ import           Data.List
 import qualified Data.Map                      as Map
 
 {-# ANN module "HLint: ignore Redundant flip" #-}
+{-# ANN module "HLint: ignore Use record patterns" #-}
 
-newtype ClassName = ClassName String
-newtype TypeName = TypeName String
-newtype VarName = VarName String
+type ClassName = String
+type TypeName = String
+type VarName = String
 
 data ClassSpec = ClassSpec ClassName TypeName
 data TypeSpec = TypeSpec TypeName [TypeName]
@@ -32,15 +33,6 @@ data Decl = Alias Bool TypeSpec Type
 
 newtype Bundle = Bundle (Map.Map String ([Decl], [String]))
 
-instance Show ClassName where
-  show (ClassName name) = name
-
-instance Show TypeName where
-  show (TypeName name) = name
-
-instance Show VarName where
-  show (VarName name) = name
-
 instance Show ClassSpec where
   show (ClassSpec cls typ) = "(" ++ show cls ++ " " ++ show typ ++ ")"
 
@@ -61,7 +53,7 @@ instance Show Type where
 instance Show Expr where
   show (Variable name) = show name
   show (Const    i   ) = show i
-  show (Call (Variable (VarName "Char")) (Const c)) =
+  show (Call (Variable "Char") (Const c)) =
     show (toEnum $ fromIntegral c :: Char)
   show form@(Call _ _) = case unstringExpr form of
     Just bytes@(_ : _) -> show $ decode (map fromIntegral bytes)
@@ -69,12 +61,12 @@ instance Show Expr where
       Just forms -> "[" ++ unwords (map show forms) ++ "]"
       _ -> "(" ++ unwords (map show $ reverse $ uncurryExpr form) ++ ")"
    where
-    unstringExpr (Variable (VarName "Null")) = Just []
-    unstringExpr (Call (Call (Variable (VarName "Cons")) (Call (Variable (VarName "Char")) (Const first))) rest)
+    unstringExpr (Variable "Null") = Just []
+    unstringExpr (Call (Call (Variable "Cons") (Call (Variable "Char") (Const first))) rest)
       = unstringExpr rest >>= (Just . (first :))
     unstringExpr _ = Nothing
-    unlistExpr (Variable (VarName "Null")) = Just []
-    unlistExpr (Call (Call (Variable (VarName "Cons")) first) rest) =
+    unlistExpr (Variable "Null") = Just []
+    unlistExpr (Call (Call (Variable "Cons") first) rest) =
       unlistExpr rest >>= (Just . (first :))
     unlistExpr _ = Nothing
     uncurryExpr (Call lhs rhs) = rhs : uncurryExpr lhs

@@ -7,11 +7,6 @@ import           System.FilePath
 
 import           AST
 
--- import in stack order
-import           Lexer
-import           Reader
-import           Parser
-
 extractImports :: [Decl] -> ([(FilePath, Bool)], [Decl])
 extractImports [] = ([], [])
 extractImports (Import pub file : decls) =
@@ -20,26 +15,26 @@ extractImports (decl : decls) =
   let (files, decls') = extractImports decls in (files, decl : decls')
 
 readBundle'
-  :: [FilePath]
+  :: (String -> [Decl])
+  -> [FilePath]
   -> [FilePath]
   -> Map.Map FilePath ([Decl], [(FilePath, Bool)])
   -> IO (Map.Map FilePath ([Decl], [(FilePath, Bool)]))
-readBundle' _ [] declsSoFar = return declsSoFar
-readBundle' alreadyRead (curToRead : restToRead) declsSoFar =
+readBundle' _ _ [] declsSoFar = return declsSoFar
+readBundle' readDecls alreadyRead (curToRead : restToRead) declsSoFar =
   if curToRead `elem` alreadyRead
-    then readBundle' alreadyRead restToRead declsSoFar
+    then readBundle' readDecls alreadyRead restToRead declsSoFar
     else do
       str <- readFile curToRead
-      let tokens                = tokenize str
-          forms                 = readModule tokens
-          (newToRead, newDecls) = extractImports $ parseModule forms
+      let (newToRead, newDecls) = extractImports $ readDecls str
       absNewToRead <- withCurrentDirectory (takeDirectory curToRead) $ mapM
         (\(path, pub) -> do
           absPath <- canonicalizePath path
           return (absPath, pub)
         )
         newToRead
-      readBundle' (curToRead : alreadyRead)
+      readBundle' readDecls
+                  (curToRead : alreadyRead)
                   (map fst absNewToRead ++ restToRead)
                   (Map.insert curToRead (newDecls, absNewToRead) declsSoFar)
 
@@ -57,10 +52,10 @@ transitiveImports modules seen (cur : next) result = if cur `elem` seen
         new       = map fst $ filter snd deps
     in  transitiveImports modules (cur : seen) (new ++ next) (cur : result)
 
-readBundle :: FilePath -> IO Bundle
-readBundle filename = do
+readBundle :: (String -> [Decl]) -> FilePath -> IO Bundle
+readBundle readDecls filename = do
   absFilename <- canonicalizePath filename
-  modules     <- readBundle' [] [absFilename] Map.empty
+  modules     <- readBundle' readDecls [] [absFilename] Map.empty
   return $ Bundle $ Map.mapWithKey
     (\name (decls, _) ->
       ( decls

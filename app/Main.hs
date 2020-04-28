@@ -175,5 +175,6 @@ main = do
   parseIncrementally "Util"
   ignoringDoesNotExist $ removeLink "out-kalyn/MainFullAST.kalyn"
   putStrLn "  bundling ..."
-  bundle <- readBundle "src-kalyn/Main.kalyn"
+  bundle <- readBundle (parseModule . readModule . tokenize)
+                       "src-kalyn/Main.kalyn"
   writeFile "out-kalyn/MainFullAST.kalyn" $ show bundle

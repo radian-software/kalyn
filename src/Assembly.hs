@@ -1,6 +1,5 @@
 module Assembly where
 
-import           Control.Monad.State
 import qualified Data.ByteString.Lazy          as B
 import           Data.Int
 import           Data.Word
@@ -329,5 +328,3 @@ instance Show reg => Show (Program reg) where
              $ \byte -> "\t.byte 0x" ++ showHex byte "" ++ "\n"
              )
            )
-
-type Stateful = State Int

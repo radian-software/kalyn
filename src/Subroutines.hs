@@ -4,6 +4,8 @@ import           Control.Monad.State
 
 import           Assembly
 
+type Stateful = State Int
+
 newTemp :: Stateful VirtualRegister
 newTemp = do
   count <- get
@@ -23,7 +25,7 @@ deref :: VirtualRegister -> Mem VirtualRegister
 deref = getField 0
 
 unpush :: Int -> Instruction VirtualRegister
-unpush n = OP ADD $ IR (8 * n) RSP
+unpush n = OP ADD $ IR (fromIntegral $ 8 * n) rsp
 
 -- warning: gets arguments in reverse order!
 getArg :: Int -> Mem VirtualRegister
