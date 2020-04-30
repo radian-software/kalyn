@@ -6,7 +6,7 @@ import           Subroutines
 -- https://filippo.io/linux-syscall-table/
 -- see also section 2 of the Linux man pages
 
-basicOp :: String -> Op -> Stateful (Function VirtualRegister)
+basicOp :: String -> Op -> Stateful VirtualFunction
 basicOp name op = do
   temp <- newTemp
   return $ function
@@ -17,19 +17,16 @@ basicOp name op = do
     , RET
     ]
 
-plus :: Stateful (Function VirtualRegister)
+plus :: Stateful VirtualFunction
 plus = basicOp "plus" ADD
 
-minus :: Stateful (Function VirtualRegister)
+minus :: Stateful VirtualFunction
 minus = basicOp "minus" SUB
 
-times :: Stateful (Function VirtualRegister)
+times :: Stateful VirtualFunction
 times = basicOp "times" IMUL
 
-divOp
-  :: String
-  -> [Instruction VirtualRegister]
-  -> Stateful (Function VirtualRegister)
+divOp :: String -> [VirtualInstruction] -> Stateful VirtualFunction
 divOp name post = do
   temp <- newTemp
   return
@@ -38,29 +35,29 @@ divOp name post = do
     ++ post
     ++ [RET]
 
-divide :: Stateful (Function VirtualRegister)
+divide :: Stateful VirtualFunction
 divide = divOp "divide" []
 
-modulo :: Stateful (Function VirtualRegister)
+modulo :: Stateful VirtualFunction
 modulo = divOp "modulo" [OP MOV $ RR rdx rax]
 
-and :: Stateful (Function VirtualRegister)
+and :: Stateful VirtualFunction
 and = basicOp "and" AND
 
-or :: Stateful (Function VirtualRegister)
+or :: Stateful VirtualFunction
 or = basicOp "or" OR
 
-xor :: Stateful (Function VirtualRegister)
+xor :: Stateful VirtualFunction
 xor = basicOp "xor" XOR
 
-bitnot :: Stateful (Function VirtualRegister)
+bitnot :: Stateful VirtualFunction
 bitnot = do
   temp <- newTemp
   return $ function
     "not"
     [OP MOV $ MR (getArg 1) temp, NOT temp, OP MOV $ RR temp rax]
 
-shiftOp :: String -> Shift -> Stateful (Function VirtualRegister)
+shiftOp :: String -> Shift -> Stateful VirtualFunction
 shiftOp name op = do
   arg       <- newTemp
   fixup     <- newLabel
@@ -85,19 +82,19 @@ shiftOp name op = do
     , RET
     ]
 
-shl :: Stateful (Function VirtualRegister)
+shl :: Stateful VirtualFunction
 shl = shiftOp "shl" SHL
 
-shr :: Stateful (Function VirtualRegister)
+shr :: Stateful VirtualFunction
 shr = shiftOp "shr" SHR
 
-sal :: Stateful (Function VirtualRegister)
+sal :: Stateful VirtualFunction
 sal = shiftOp "sal" SAL
 
-sar :: Stateful (Function VirtualRegister)
+sar :: Stateful VirtualFunction
 sar = shiftOp "sar" SAR
 
-print :: Stateful (Function VirtualRegister)
+print :: Stateful VirtualFunction
 print = do
   temp <- newTemp
   return $ function
@@ -114,7 +111,7 @@ print = do
     , RET
     ]
 
-writeFile :: Stateful (Function VirtualRegister)
+writeFile :: Stateful VirtualFunction
 writeFile = do
   temp       <- newTemp
   filename   <- newTemp
@@ -173,7 +170,7 @@ writeFile = do
     , RET
     ]
 
-setFileMode :: Stateful (Function VirtualRegister)
+setFileMode :: Stateful VirtualFunction
 setFileMode = do
   temp     <- newTemp
   filename <- newTemp

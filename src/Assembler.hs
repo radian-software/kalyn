@@ -214,7 +214,7 @@ regInstr opcode reg =
     (map word8 opcode)
 
 compileInstr
-  :: Map.Map Label Word32 -> Word32 -> Instruction Register -> B.ByteString
+  :: Map.Map Label Word32 -> Word32 -> PhysicalInstruction -> B.ByteString
 compileInstr labels pc instr =
   let getOffset label = case Map.lookup label labels of
         Nothing          -> error $ "no such label " ++ show label

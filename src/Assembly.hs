@@ -154,6 +154,9 @@ data Instruction reg = OP Op (Args reg)
                      | SYSCALL Int
                      | LABEL Label
 
+type VirtualInstruction = Instruction VirtualRegister
+type PhysicalInstruction = Instruction Register
+
 memLabel :: RegisterLike reg => String -> Mem reg
 memLabel name = Mem (Left name) (fromRegister RIP) Nothing
 
@@ -327,6 +330,9 @@ getJumpType (JAE label) = Branch label
 getJumpType _           = Straightline
 
 newtype Function reg = Function [Instruction reg]
+
+type VirtualFunction = Function VirtualRegister
+type PhysicalFunction = Function Register
 
 instance Show reg => Show (Function reg) where
   show (Function instrs) = concatMap

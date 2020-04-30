@@ -8,14 +8,13 @@ import           Assembly
 -- http://web.cs.ucla.edu/~palsberg/course/cs132/linearscan.pdf
 
 tryAllocateFunctionRegs
-  :: Function VirtualRegister -> Either [Temporary] (Function Register)
+  :: VirtualFunction -> Either [Temporary] PhysicalFunction
 tryAllocateFunctionRegs _ = undefined
 
-spillTemporary
-  :: Temporary -> Function VirtualRegister -> Function VirtualRegister
+spillTemporary :: Temporary -> VirtualFunction -> VirtualFunction
 spillTemporary = undefined
 
-allocateFunctionRegs :: Function VirtualRegister -> Function Register
+allocateFunctionRegs :: VirtualFunction -> PhysicalFunction
 allocateFunctionRegs fn = case tryAllocateFunctionRegs fn of
   Right fn'     -> fn'
   Left  spilled -> allocateFunctionRegs $ foldr spillTemporary fn spilled

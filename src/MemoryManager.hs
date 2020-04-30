@@ -16,7 +16,7 @@ memoryProgramBreak = ("mmProgramBreak", toLazyByteString $ word64LE 0)
 heap :: Datum
 heap = ("heap", B.empty)
 
-memoryInit :: Stateful (Function VirtualRegister)
+memoryInit :: Stateful VirtualFunction
 memoryInit = do
   temp <- newTemp
   return $ function
@@ -30,7 +30,7 @@ memoryInit = do
     , RET
     ]
 
-memoryAlloc :: Stateful (Function VirtualRegister)
+memoryAlloc :: Stateful VirtualFunction
 memoryAlloc = do
   firstFree <- newTemp
   ptr       <- newTemp
@@ -63,7 +63,7 @@ memoryAlloc = do
     , JMP done
     ]
 
-memoryPackString :: Stateful (Function VirtualRegister)
+memoryPackString :: Stateful VirtualFunction
 memoryPackString = do
   arg         <- newTemp
   ptr         <- newTemp

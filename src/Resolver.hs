@@ -14,8 +14,8 @@ import           Util
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 
 mapSymbol :: (String -> String) -> Symbol -> Symbol
-mapSymbol f (SymDef name     ) = SymDef (f name)
-mapSymbol f (SymData name idx) = SymData (f name) idx
+mapSymbol f (SymDef name               ) = SymDef (f name)
+mapSymbol f (SymData name idx numFields) = SymData (f name) idx numFields
 
 userAllowedChars :: String
 userAllowedChars = ['A' .. 'Z'] ++ ['a' .. 'z'] ++ ['0' .. '9']
@@ -50,10 +50,12 @@ sanitizeModuleNames fullNames =
 
 -- for now, doesn't handle Derive or Instance
 getDeclSymbols :: Decl -> [Symbol]
-getDeclSymbols (Alias _ _ _  ) = []
-getDeclSymbols (Class _ _ _ _) = []
-getDeclSymbols (Data _ _ ctors) =
-  zipWith (\(name, _) idx -> SymData name idx) ctors (iterate (+ 1) 0)
+getDeclSymbols (Alias _ _ _   ) = []
+getDeclSymbols (Class _ _ _ _ ) = []
+getDeclSymbols (Data _ _ ctors) = zipWith
+  (\(name, _) idx -> SymData name idx (length ctors))
+  ctors
+  (iterate (+ 1) 0)
 getDeclSymbols (Def _ name _ _  ) = [SymDef name]
 getDeclSymbols (Derive _ _      ) = []
 getDeclSymbols (Import _ _) = error "resolver shouldn't be handling imports"
