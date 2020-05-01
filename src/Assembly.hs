@@ -17,7 +17,7 @@ data Register = RAX | RCX | RDX | RBX
               | R8  | R9  | R10 | R11
               | R12 | R13 | R14 | R15
               | RIP
-  deriving (Eq)
+  deriving (Eq, Ord)
 
 instance Show Register where
   show RAX = "%rax"
@@ -39,47 +39,49 @@ instance Show Register where
   show RIP = "%rip"
 
 newtype Temporary = Temporary String
+  deriving (Eq, Ord)
 
 instance Show Temporary where
   show (Temporary name) = name
 
 data VirtualRegister = Physical Register | Virtual Temporary
+  deriving (Eq, Ord)
 
-rax :: VirtualRegister
-rcx :: VirtualRegister
-rdx :: VirtualRegister
-rbx :: VirtualRegister
-rsp :: VirtualRegister
-rbp :: VirtualRegister
-rsi :: VirtualRegister
-rdi :: VirtualRegister
-r8 :: VirtualRegister
-r9 :: VirtualRegister
-r10 :: VirtualRegister
-r11 :: VirtualRegister
-r12 :: VirtualRegister
-r13 :: VirtualRegister
-r14 :: VirtualRegister
-r15 :: VirtualRegister
-rip :: VirtualRegister
+rax :: RegisterLike reg => reg
+rcx :: RegisterLike reg => reg
+rdx :: RegisterLike reg => reg
+rbx :: RegisterLike reg => reg
+rsp :: RegisterLike reg => reg
+rbp :: RegisterLike reg => reg
+rsi :: RegisterLike reg => reg
+rdi :: RegisterLike reg => reg
+r8 :: RegisterLike reg => reg
+r9 :: RegisterLike reg => reg
+r10 :: RegisterLike reg => reg
+r11 :: RegisterLike reg => reg
+r12 :: RegisterLike reg => reg
+r13 :: RegisterLike reg => reg
+r14 :: RegisterLike reg => reg
+r15 :: RegisterLike reg => reg
+rip :: RegisterLike reg => reg
 
-rax = Physical RAX
-rcx = Physical RCX
-rdx = Physical RDX
-rbx = Physical RBX
-rsp = Physical RSP
-rbp = Physical RBP
-rsi = Physical RSI
-rdi = Physical RDI
-r8 = Physical R8
-r9 = Physical R9
-r10 = Physical R10
-r11 = Physical R11
-r12 = Physical R12
-r13 = Physical R13
-r14 = Physical R14
-r15 = Physical R15
-rip = Physical RIP
+rax = fromRegister RAX
+rcx = fromRegister RCX
+rdx = fromRegister RDX
+rbx = fromRegister RBX
+rsp = fromRegister RSP
+rbp = fromRegister RBP
+rsi = fromRegister RSI
+rdi = fromRegister RDI
+r8 = fromRegister R8
+r9 = fromRegister R9
+r10 = fromRegister R10
+r11 = fromRegister R11
+r12 = fromRegister R12
+r13 = fromRegister R13
+r14 = fromRegister R14
+r15 = fromRegister R15
+rip = fromRegister RIP
 
 instance Show VirtualRegister where
   show (Physical reg ) = show reg
@@ -97,24 +99,21 @@ data Scale = Scale1 | Scale2 | Scale4 | Scale8
 
 data Mem reg = Mem (Either Label Int32) reg (Maybe (Scale, reg))
 
-data Args' imm reg = IR imm reg
-                   | IM imm (Mem reg)
-                   | RR reg reg
-                   | MR (Mem reg) reg
-                   | RM reg (Mem reg)
-
-type Args = Args' Int32
-type Args64 = Args' Int64
+data Args reg = IR Int32 reg
+              | IM Int32 (Mem reg)
+              | RR reg reg
+              | MR (Mem reg) reg
+              | RM reg (Mem reg)
 
 data Op = MOV | ADD | SUB | IMUL | AND | OR | XOR | CMP
   deriving (Eq)
 
-fromImm :: Args' imm reg -> Bool
+fromImm :: Args reg -> Bool
 fromImm (IR _ _) = True
 fromImm (IM _ _) = True
 fromImm _        = False
 
-fromMem :: Args' imm reg -> Bool
+fromMem :: Args reg -> Bool
 fromMem (MR _ _) = True
 fromMem _        = False
 
@@ -158,7 +157,7 @@ type VirtualInstruction = Instruction VirtualRegister
 type PhysicalInstruction = Instruction Register
 
 memLabel :: RegisterLike reg => String -> Mem reg
-memLabel name = Mem (Left name) (fromRegister RIP) Nothing
+memLabel name = Mem (Left name) rip Nothing
 
 instance Show Scale where
   show Scale1 = "1"
@@ -182,7 +181,7 @@ instance Show reg => Show (Mem reg) where
          )
       ++ ")"
 
-instance (Show imm, Show reg) => Show (Args' imm reg) where
+instance Show reg => Show (Args reg) where
   show (IR imm reg) = "$" ++ show imm ++ ", " ++ show reg
   show (IM imm mem) = "$" ++ show imm ++ ", " ++ show mem
   show (RR src dst) = show src ++ ", " ++ show dst
@@ -256,7 +255,7 @@ getMemRegisters :: Mem reg -> [reg]
 getMemRegisters (Mem _ base Nothing          ) = [base]
 getMemRegisters (Mem _ base (Just (_, index))) = [base, index]
 
-getArgRegisters :: Op -> Args' imm reg -> ([reg], [reg])
+getArgRegisters :: Op -> Args reg -> ([reg], [reg])
 getArgRegisters op (IR _ dst) | op == MOV = ([], [dst])
                               | op == CMP = ([dst], [])
                               | otherwise = ([], [dst])
@@ -273,14 +272,14 @@ getArgRegisters _ (RM src mem) = (src : getMemRegisters mem, [])
 -- returns (src, dst)
 getRegisters :: RegisterLike reg => Instruction reg -> ([reg], [reg])
 getRegisters (OP op args          ) = getArgRegisters op args
-getRegisters (SHIFT Nothing  _ dst) = ([dst, fromRegister RCX], [dst])
+getRegisters (SHIFT Nothing  _ dst) = ([dst, fromRegister rcx], [dst])
 getRegisters (SHIFT (Just _) _ dst) = ([dst], [dst])
 getRegisters (LEA   mem dst       ) = (getMemRegisters mem, [dst])
 getRegisters (MOV64 _   dst       ) = ([], [dst])
-getRegisters CQTO                   = ([fromRegister RAX], [fromRegister RDX])
+getRegisters CQTO                   = ([fromRegister rax], [fromRegister rdx])
 getRegisters (IDIV src) =
-  ( [src, fromRegister RAX, fromRegister RDX]
-  , [fromRegister RAX, fromRegister RDX]
+  ( [src, fromRegister rax, fromRegister rdx]
+  , [fromRegister rax, fromRegister rdx]
   )
 getRegisters (NOT   dst) = ([dst], [dst])
 getRegisters (NEG   dst) = ([dst], [dst])
@@ -306,7 +305,7 @@ getRegisters (CALL  _  ) = ([], map fromRegister dataRegisters)
 getRegisters (CALLR reg) = ([reg], map fromRegister dataRegisters)
 getRegisters (CALLM mem) =
   (getMemRegisters mem, map fromRegister dataRegisters)
-getRegisters RET = ([fromRegister RAX], [])
+getRegisters RET = ([fromRegister rax], [])
 getRegisters (SYSCALL n) =
   ( map fromRegister $ take (n + 1) syscallRegisters
   , map fromRegister syscallRegisters
@@ -329,6 +328,53 @@ getJumpType (JA  label) = Branch label
 getJumpType (JAE label) = Branch label
 getJumpType _           = Straightline
 
+mapMem :: (reg1 -> reg2) -> Mem reg1 -> Mem reg2
+mapMem f (Mem disp reg msi) = Mem disp (f reg) ((f <$>) <$> msi)
+
+mapArgs :: (reg1 -> reg2) -> Args reg1 -> Args reg2
+mapArgs f (IR imm reg) = IR imm (f reg)
+mapArgs f (IM imm mem) = IM imm (mapMem f mem)
+mapArgs f (RR src dst) = RR (f src) (f dst)
+mapArgs f (MR mem reg) = MR (mapMem f mem) (f reg)
+mapArgs f (RM reg mem) = RM (f reg) (mapMem f mem)
+
+mapInstr :: (reg1 -> reg2) -> Instruction reg1 -> Instruction reg2
+mapInstr f (OP op args         ) = OP op (mapArgs f args)
+mapInstr f (SHIFT amt shift reg) = SHIFT amt shift (f reg)
+mapInstr f (LEA   mem reg      ) = LEA (mapMem f mem) (f reg)
+mapInstr f (MOV64 imm reg      ) = MOV64 imm (f reg)
+mapInstr _ CQTO                  = CQTO
+mapInstr f (IDIV  reg  )         = IDIV (f reg)
+mapInstr f (NOT   reg  )         = NOT (f reg)
+mapInstr f (NEG   reg  )         = NEG (f reg)
+mapInstr f (INC   reg  )         = INC (f reg)
+mapInstr f (DEC   reg  )         = DEC (f reg)
+mapInstr _ (JMP   label)         = JMP label
+mapInstr _ (JE    label)         = JMP label
+mapInstr _ (JNE   label)         = JMP label
+mapInstr _ (JL    label)         = JMP label
+mapInstr _ (JLE   label)         = JMP label
+mapInstr _ (JG    label)         = JMP label
+mapInstr _ (JGE   label)         = JMP label
+mapInstr _ (JB    label)         = JMP label
+mapInstr _ (JBE   label)         = JMP label
+mapInstr _ (JA    label)         = JMP label
+mapInstr _ (JAE   label)         = JMP label
+mapInstr f (PUSH  reg  )         = PUSH (f reg)
+mapInstr f (POP   reg  )         = POP (f reg)
+mapInstr _ (PUSHI imm  )         = PUSHI imm
+mapInstr f (PUSHM mem  )         = PUSHM (mapMem f mem)
+mapInstr f (POPM  mem  )         = POPM (mapMem f mem)
+mapInstr _ (CALL  label)         = CALL label
+mapInstr f (CALLR reg  )         = CALLR (f reg)
+mapInstr f (CALLM mem  )         = CALLM (mapMem f mem)
+mapInstr _ RET                   = RET
+mapInstr _ (SYSCALL n   )        = SYSCALL n
+mapInstr _ (LABEL   name)        = LABEL name
+
+spillInstr :: reg -> Mem reg -> Instruction reg -> Instruction reg
+spillInstr = undefined
+
 newtype Function reg = Function [Instruction reg]
 
 type VirtualFunction = Function VirtualRegister
@@ -348,6 +394,9 @@ function name = Function . (LABEL name :)
 
 fnInstrs :: Function reg -> [Instruction reg]
 fnInstrs (Function instrs) = instrs
+
+mapFunction :: (reg1 -> reg2) -> Function reg1 -> Function reg2
+mapFunction f (Function instrs) = Function (map (mapInstr f) instrs)
 
 type Datum = (Label, B.ByteString)
 
