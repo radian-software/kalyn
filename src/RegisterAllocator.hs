@@ -25,13 +25,13 @@ intervalsIntersect (a, b) (c, d) = not (b <= c || d <= a)
 tryAllocateFunctionRegs
   :: VirtualFunction -> Either [Temporary] PhysicalFunction
 tryAllocateFunctionRegs fn@(Function instrs) =
-  let allRegs =
+  let liveness = computeLiveness instrs
+      allRegs =
           ( nub
           $ concatMap
               (\(liveIn, liveOut) -> Set.toList liveIn ++ Set.toList liveOut)
           $ Map.elems liveness
           )
-      liveness    = computeLiveness instrs
       intervalMap = Map.fromList
         $ map (\reg -> (reg, computeLivenessInterval liveness reg)) allRegs
       disallowed = Map.mapWithKey

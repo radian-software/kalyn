@@ -117,9 +117,12 @@ as a pointer.
   omitted. After the header comes one word for each field for the
   relevant data constructor. Note that this means that wrapping an
   integer in a single-constructor ADT will not incur any overhead.
-* The IO monad is just a pointer to a function that performs the IO
-  action and then returns a value of the type parameterizing the
-  monad.
+  ADTs whose constructors all have no fields do not have their header
+  word boxed; all other ADTs are boxed even if some of their
+  constructors have no fields.
+* The IO monad is just an impure function object that, when called,
+  performs the IO action and then returns a value of the type
+  parameterizing the monad.
 
 Note that knowing the compile-time type of an object guarantees that
 you know its size and memory layout, except for functions (whose size

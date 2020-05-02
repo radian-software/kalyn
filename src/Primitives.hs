@@ -11,8 +11,8 @@ basicOp name op = do
   temp <- newTemp
   return $ function
     name
-    [ OP MOV $ MR (getArg 2) temp
-    , OP op $ MR (getArg 1) temp
+    [ OP MOV $ MR (getArg 1) temp
+    , OP op $ MR (getArg 2) temp
     , OP MOV $ RR temp rax
     , RET
     ]
@@ -105,7 +105,7 @@ print = do
     , unpush 1
     , OP MOV $ IR 1 rax
     , OP MOV $ IR 1 rdi
-    , LEA (Mem (Right 1) rax Nothing) rsi
+    , LEA (Mem (Right 8) rax Nothing) rsi
     , OP MOV $ MR (deref rax) rdx
     , SYSCALL 3 -- write
     , RET
@@ -185,5 +185,53 @@ setFileMode = do
     , LEA (getField 1 filename) rdi
     , OP MOV $ MR (getArg 1) rsi
     , SYSCALL 2 -- chmod
+    , RET
+    ]
+
+primitiveError :: Stateful VirtualFunction
+primitiveError = return $ function
+  "error"
+  [ UN PUSH $ M (getArg 1)
+  , JUMP CALL "memoryPackString"
+  , unpush 1
+  , OP MOV $ MR (deref rax) rsi
+  , OP MOV $ IR 2 rdi
+  , LEA (Mem (Right 8) rax Nothing) rdx
+  , OP MOV $ IR 1 rax
+  , SYSCALL 3 -- write
+  , OP MOV $ IR 60 rax
+  , OP MOV $ IR 1 rdi
+  , SYSCALL 1 -- exit
+  ]
+
+equals :: Stateful VirtualFunction
+equals = do
+  temp <- newTemp
+  yes  <- newLabel
+  return $ function
+    "equals"
+    [ OP MOV $ MR (getArg 1) temp
+    , OP CMP $ MR (getArg 2) temp
+    , JUMP JE yes
+    , OP MOV $ IR 0 rax
+    , RET
+    , LABEL yes
+    , OP MOV $ IR 1 rax
+    , RET
+    ]
+
+lessThan :: Stateful VirtualFunction
+lessThan = do
+  temp <- newTemp
+  yes  <- newLabel
+  return $ function
+    "equals"
+    [ OP MOV $ MR (getArg 1) temp
+    , OP CMP $ MR (getArg 2) temp
+    , JUMP JL yes
+    , OP MOV $ IR 1 rax
+    , RET
+    , LABEL yes
+    , OP MOV $ IR 0 rax
     , RET
     ]
