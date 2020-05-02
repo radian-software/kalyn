@@ -235,3 +235,46 @@ lessThan = do
     , OP MOV $ IR 0 rax
     , RET
     ]
+
+monadPure :: Stateful VirtualFunction
+monadPure = return $ function "pure" [OP MOV $ MR (getArg 1) rax, RET]
+
+monadBind :: Stateful VirtualFunction
+monadBind = do
+  monad          <- newTemp
+  arg            <- newTemp
+  fn             <- newTemp
+  firstCallCode  <- translateCall monad Nothing
+  secondCallCode <- translateCall fn (Just arg)
+  return $ function
+    "bind"
+    (  [OP MOV $ MR (getArg 1) monad]
+    ++ firstCallCode
+    ++ [OP MOV $ RR rax arg, OP MOV $ MR (getArg 2) fn]
+    ++ secondCallCode
+    -- we should never actually get here
+    ++ [RET]
+    )
+
+monadify :: Int -> String -> Stateful VirtualFunction
+monadify numArgs fnName = do
+  fnPtr <- newTemp
+  arg   <- newTemp
+  return $ function
+    (fnName ++ "__monadified")
+    (  [ PUSHI (fromIntegral $ (numArgs + 2) * 8)
+       , JUMP CALL "memoryAlloc"
+       , unpush 1
+       , LEA (Mem (Left fnName) rip Nothing) fnPtr
+       , OP MOV $ RM fnPtr (getField 0 rax)
+       , OP MOV $ IM (fromIntegral numArgs) (getField 1 rax)
+       ]
+    ++ concatMap
+         (\i ->
+           [ OP MOV $ MR (getArg i) arg
+           , OP MOV $ RM arg (getField (i + 1) rax)
+           ]
+         )
+         [1 .. numArgs]
+    ++ [RET]
+    )

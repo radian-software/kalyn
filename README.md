@@ -120,9 +120,11 @@ as a pointer.
   ADTs whose constructors all have no fields do not have their header
   word boxed; all other ADTs are boxed even if some of their
   constructors have no fields.
-* The IO monad is just an impure function object that, when called,
-  performs the IO action and then returns a value of the type
-  parameterizing the monad.
+* The IO monad is mostly just an impure function object that, when
+  called, performs the IO action and then returns a value of the type
+  parameterizing the monad. The only difference is this function
+  object doesn't expect to get passed an extra argument on top of its
+  closure.
 
 Note that knowing the compile-time type of an object guarantees that
 you know its size and memory layout, except for functions (whose size

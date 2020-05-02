@@ -118,36 +118,11 @@ translateExpr _   dst (Const    val ) = return ([MOV64 val dst], [])
 translateExpr ctx dst (Call lhs rhs ) = do
   lhsTemp           <- newTemp
   rhsTemp           <- newTemp
-  argPtr            <- newTemp
-  argsLeft          <- newTemp
-  popAmt            <- newTemp
-  pushStart         <- newLabel
-  pushDone          <- newLabel
   (lhsCode, lhsFns) <- translateExpr ctx lhsTemp lhs
   (rhsCode, rhsFns) <- translateExpr ctx rhsTemp rhs
+  callCode          <- translateCall lhsTemp (Just rhsTemp)
   return
-    ( lhsCode
-    ++ rhsCode
-    ++ [ OP MOV $ MR (getField 1 lhsTemp) argsLeft
-       , LEA (getField 2 lhsTemp) argPtr
-       , LABEL pushStart
-       , OP CMP $ IR 0 argsLeft
-       , JUMP JLE pushDone
-       , UN PUSH $ M (deref argPtr)
-       , OP ADD $ IR 8 argPtr
-       , UN DEC $ R argsLeft
-       , JUMP JMP pushStart
-       , LABEL pushDone
-       , UN PUSH $ R rhsTemp
-       , UN ICALL $ M (getField 0 lhsTemp)
-       , OP MOV $ MR (getField 1 lhsTemp) popAmt
-       , UN INC $ R popAmt
-       , OP IMUL $ IR 8 popAmt
-       , OP ADD $ RR popAmt rsp
-       , OP MOV $ RR rax dst
-       ]
-    , lhsFns ++ rhsFns
-    )
+    (lhsCode ++ rhsCode ++ callCode ++ [OP MOV $ RR rax dst], lhsFns ++ rhsFns)
 translateExpr ctx dst (Case arg branches) = do
   argTemp           <- newTemp
   (argCode, argFns) <- translateExpr ctx argTemp arg
