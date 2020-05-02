@@ -33,6 +33,6 @@ deref = getField 0
 unpush :: Int -> VirtualInstruction
 unpush n = OP ADD $ IR (fromIntegral $ 8 * n) rsp
 
--- warning: gets arguments in reverse order!
+-- warning: gets arguments in reverse order! indexed from 1
 getArg :: Int -> Mem VirtualRegister
-getArg n = getField (n + 1) rsp
+getArg n = getField (n + 2) rbp
