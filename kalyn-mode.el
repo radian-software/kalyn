@@ -38,6 +38,13 @@
     (goto-char pos)
     (current-column)))
 
+(defun kalyn--next-sexp (pos)
+  (when-let ((end (condition-case _
+                      (scan-sexps pos 1)
+                    (scan-error))))
+    (let ((start (scan-sexps end -1)))
+      (buffer-substring start end))))
+
 (defun kalyn--indent-function (indent-point state)
   (cl-block nil
     (unless (nth 1 state)
@@ -47,9 +54,6 @@
             (condition-case _
                 (scan-sexps list-start 1)
               (scan-error)))
-           (first-sexp-start
-            (when first-sexp-end
-              (scan-sexps first-sexp-end -1)))
            (second-sexp-end
             (condition-case _
                 (scan-sexps list-start 2)
@@ -57,24 +61,40 @@
            (second-sexp-start
             (when second-sexp-end
               (scan-sexps second-sexp-end -1)))
-           (first-sexp (buffer-substring first-sexp-start first-sexp-end))
+           (first-sexp (kalyn--next-sexp list-start))
            (second-sexp-on-same-line-p
             (and first-sexp-end
                  second-sexp-start
                  (<= (count-lines first-sexp-end second-sexp-start) 1)))
            (square-p (= (char-before list-start) ?\[))
-           (starting-column (kalyn--column-at list-start)))
+           (starting-column (kalyn--column-at list-start))
+           (outer-list-start
+            (when-let ((pos (car (last (nth 9 state) 2))))
+              (1+ pos)))
+           (next-outer-list-start
+            (when-let ((pos (car (last (nth 9 state) 3))))
+              (1+ pos)))
+           (first-outer-sexp (kalyn--next-sexp outer-list-start))
+           (next-first-outer-sexp (kalyn--next-sexp next-outer-list-start)))
       (cond
        ;; [foo
        ;;  bar]
        (square-p
+        starting-column)
+       ;; (case (foo
+       ;;        bar))
+       ((equal first-outer-sexp "case")
+        starting-column)
+       ;; (let ((foo
+       ;;        bar)))
+       ((equal next-first-outer-sexp "let")
         starting-column)
        ;; ((foo)
        ;;  bar)
        ;;
        ;; ( foo
        ;;  bar)
-       ((not (eq (car (syntax-after list-start)) 3))
+       ((not (memq (car (syntax-after list-start)) '(2 3)))
         starting-column)
        ;; (let bar
        ;;   baz)
@@ -92,11 +112,6 @@
 ;;;###autoload
 (define-derived-mode kalyn-mode prog-mode "Kalyn"
   "Major mode for editing Kalyn code."
-  (map-char-table
-   (lambda (range value)
-     (when (eq (car value) 2)
-       (set-char-table-range (syntax-table) range (cons 3 (cdr value)))))
-   (syntax-table))
   (modify-syntax-entry ?\; "<" (syntax-table))
   (modify-syntax-entry ?\n ">" (syntax-table))
   (setq-local comment-start ";;")
