@@ -1,5 +1,6 @@
 module Liveness where
 
+import           Control.Exception
 import qualified Data.Map.Strict               as Map
 import qualified Data.Set                      as Set
 
@@ -12,7 +13,10 @@ computeLiveness
   :: (Eq reg, Ord reg, RegisterLike reg)
   => [Instruction reg]
   -> Map.Map Int (Set.Set reg, Set.Set reg)
-computeLiveness instrs = fixedPoint initial propagate
+computeLiveness instrs =
+  -- check no free variables at beginning of function
+  let analysis = fixedPoint initial propagate
+  in  assert (Set.null . fst . (Map.! 0) $ analysis) analysis
  where
   instrMap = Map.fromList $ zip (iterate (+ 1) 0) instrs
   labelMap = foldr

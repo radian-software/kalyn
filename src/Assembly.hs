@@ -2,7 +2,6 @@ module Assembly where
 
 import qualified Data.ByteString.Lazy          as B
 import           Data.Int
-import           Data.List
 import           Data.Word
 import           Numeric
 
@@ -105,8 +104,17 @@ data Args reg = IR Int32 reg
               | MR (Mem reg) reg
               | RM reg (Mem reg)
 
-data Op = MOV | ADD | SUB | IMUL | AND | OR | XOR | CMP
+data Arg reg = R reg | M (Mem reg)
+
+data BinOp = MOV | ADD | SUB | IMUL | AND | OR | XOR | CMP
   deriving (Eq)
+
+data UnOp = NOT | NEG | INC | DEC | PUSH | POP | ICALL
+  deriving (Eq)
+
+data Jump = JMP | JE | JNE | JL | JLE | JG | JGE | JB | JBE | JA | JAE | CALL
+
+data Shift = SHL | SAL | SHR | SAR
 
 fromImm :: Args reg -> Bool
 fromImm (IR _ _) = True
@@ -117,38 +125,16 @@ fromMem :: Args reg -> Bool
 fromMem (MR _ _) = True
 fromMem _        = False
 
-data Shift = SHL | SAL | SHR | SAR
-
 -- reg is either Register or VisualRegister. We use AT&T syntax.
-data Instruction reg = OP Op (Args reg)
+data Instruction reg = OP BinOp (Args reg)
+                     | UN UnOp (Arg reg)
+                     | JUMP Jump Label
+                     | MOV64 Int64 reg
                      | SHIFT (Maybe Word8) Shift reg
                      | LEA (Mem reg) reg
-                     | MOV64 Int64 reg
-                     | CQTO
                      | IDIV reg
-                     | NOT reg
-                     | NEG reg
-                     | INC reg
-                     | DEC reg
-                     | JMP Label
-                     | JE Label
-                     | JNE Label
-                     | JL Label
-                     | JLE Label
-                     | JG Label
-                     | JGE Label
-                     | JB Label
-                     | JBE Label
-                     | JA Label
-                     | JAE Label
-                     | PUSH reg
-                     | POP reg
+                     | CQTO
                      | PUSHI Int32
-                     | PUSHM (Mem reg)
-                     | POPM (Mem reg)
-                     | CALL Label
-                     | CALLR reg
-                     | CALLM (Mem reg)
                      | RET
                      | SYSCALL Int
                      | LABEL Label
@@ -188,7 +174,11 @@ instance Show reg => Show (Args reg) where
   show (MR mem reg) = show mem ++ ", " ++ show reg
   show (RM reg mem) = show reg ++ ", " ++ show mem
 
-instance Show Op where
+instance Show reg => Show (Arg reg) where
+  show (R reg) = show reg
+  show (M mem) = show mem
+
+instance Show BinOp where
   show MOV  = "movq"
   show ADD  = "addq"
   show SUB  = "subq"
@@ -198,6 +188,29 @@ instance Show Op where
   show XOR  = "xorq"
   show CMP  = "cmpq"
 
+instance Show UnOp where
+  show NOT   = "not"
+  show NEG   = "neg"
+  show INC   = "inc"
+  show DEC   = "dec"
+  show PUSH  = "pushq"
+  show POP   = "popq"
+  show ICALL = "callq"
+
+instance Show Jump where
+  show JMP  = "jmp"
+  show JE   = "je"
+  show JNE  = "jne"
+  show JL   = "jl"
+  show JLE  = "jle"
+  show JG   = "jg"
+  show JGE  = "jge"
+  show JB   = "jb"
+  show JBE  = "jbe"
+  show JA   = "ja"
+  show JAE  = "jae"
+  show CALL = "callq"
+
 instance Show Shift where
   show SHL = "shl"
   show SAL = "sal"
@@ -205,40 +218,21 @@ instance Show Shift where
   show SAR = "sar"
 
 instance Show reg => Show (Instruction reg) where
-  show (OP op args) = show op ++ " " ++ show args
+  show (OP    op    args ) = show op ++ " " ++ show args
+  show (UN    ICALL arg  ) = show ICALL ++ " *" ++ show arg
+  show (UN    op    arg  ) = show op ++ " " ++ show arg
+  show (JUMP  op    label) = show op ++ " " ++ label
+  show (MOV64 imm   dst  ) = "movq $" ++ show imm ++ ", " ++ show dst
   show (SHIFT amt shift dst) =
     show shift
       ++ " "
       ++ maybe "%cx" (\val -> "$" ++ show val) amt
       ++ ", "
       ++ show dst
-  show (LEA   src dst) = "leaq " ++ show src ++ ", " ++ show dst
-  show (MOV64 imm dst) = "movq $" ++ show imm ++ ", " ++ show dst
+  show (LEA src dst)   = "leaq " ++ show src ++ ", " ++ show dst
+  show (IDIV src   )   = "idivq " ++ show src
   show CQTO            = "cqto"
-  show (IDIV  src  )   = "idivq " ++ show src
-  show (NOT   dst  )   = "not " ++ show dst
-  show (NEG   dst  )   = "neg " ++ show dst
-  show (INC   dst  )   = "inc " ++ show dst
-  show (DEC   dst  )   = "dec " ++ show dst
-  show (JMP   label)   = "jmp " ++ show label
-  show (JE    label)   = "je " ++ show label
-  show (JNE   label)   = "jne " ++ show label
-  show (JL    label)   = "jl " ++ show label
-  show (JLE   label)   = "jle " ++ show label
-  show (JG    label)   = "jg " ++ show label
-  show (JGE   label)   = "jge " ++ show label
-  show (JB    label)   = "jb " ++ show label
-  show (JBE   label)   = "jbe " ++ show label
-  show (JA    label)   = "ja " ++ show label
-  show (JAE   label)   = "jae " ++ show label
-  show (PUSH  src  )   = "pushq " ++ show src
-  show (POP   dst  )   = "popq " ++ show dst
-  show (PUSHI src  )   = "pushq " ++ show src
-  show (PUSHM src  )   = "pushq " ++ show src
-  show (POPM  dst  )   = "popq " ++ show dst
-  show (CALL  label)   = "callq " ++ show label
-  show (CALLR reg  )   = "callq *" ++ show reg
-  show (CALLM mem  )   = "callq *" ++ show mem
+  show (PUSHI imm)     = "pushq " ++ show imm
   show RET             = "retq"
   show (SYSCALL _    ) = "syscall"
   show (LABEL   label) = label ++ ":"
@@ -255,57 +249,42 @@ getMemRegisters :: Mem reg -> [reg]
 getMemRegisters (Mem _ base Nothing          ) = [base]
 getMemRegisters (Mem _ base (Just (_, index))) = [base, index]
 
-getArgRegisters :: Op -> Args reg -> ([reg], [reg])
-getArgRegisters op (IR _ dst) | op == MOV = ([], [dst])
-                              | op == CMP = ([dst], [])
-                              | otherwise = ([], [dst])
-getArgRegisters _ (IM _ mem) = (getMemRegisters mem, [])
-getArgRegisters op (RR src dst) | op == MOV = ([src], [dst])
-                                | op == CMP = ([src, dst], [])
-                                | otherwise = ([src, dst], [dst])
-getArgRegisters op (MR mem dst)
+getArgsRegisters :: BinOp -> Args reg -> ([reg], [reg])
+getArgsRegisters op (IR _ dst) | op == MOV = ([], [dst])
+                               | op == CMP = ([dst], [])
+                               | otherwise = ([], [dst])
+getArgsRegisters _ (IM _ mem) = (getMemRegisters mem, [])
+getArgsRegisters op (RR src dst) | op == MOV = ([src], [dst])
+                                 | op == CMP = ([src, dst], [])
+                                 | otherwise = ([src, dst], [dst])
+getArgsRegisters op (MR mem dst)
   | op == MOV = (getMemRegisters mem, [dst])
   | op == CMP = (getMemRegisters mem, [])
   | otherwise = (dst : getMemRegisters mem, [dst])
-getArgRegisters _ (RM src mem) = (src : getMemRegisters mem, [])
+getArgsRegisters _ (RM src mem) = (src : getMemRegisters mem, [])
+
+getArgRegisters :: UnOp -> Arg reg -> ([reg], [reg])
+getArgRegisters op (R reg) | op `elem` [PUSH, ICALL] = ([reg], [])
+                           | op == POP               = ([], [reg])
+                           | otherwise               = ([reg], [reg])
+getArgRegisters _ (M _) = ([], [])
 
 -- returns (src, dst)
 getRegisters :: RegisterLike reg => Instruction reg -> ([reg], [reg])
-getRegisters (OP op args          ) = getArgRegisters op args
+getRegisters (OP    op args       ) = getArgsRegisters op args
+getRegisters (UN    op arg        ) = getArgRegisters op arg
+getRegisters (JUMP  _  _          ) = ([], [])
+getRegisters (MOV64 _  dst        ) = ([], [dst])
 getRegisters (SHIFT Nothing  _ dst) = ([dst, fromRegister rcx], [dst])
 getRegisters (SHIFT (Just _) _ dst) = ([dst], [dst])
-getRegisters (LEA   mem dst       ) = (getMemRegisters mem, [dst])
-getRegisters (MOV64 _   dst       ) = ([], [dst])
-getRegisters CQTO                   = ([fromRegister rax], [fromRegister rdx])
+getRegisters (LEA mem dst         ) = (getMemRegisters mem, [dst])
 getRegisters (IDIV src) =
   ( [src, fromRegister rax, fromRegister rdx]
   , [fromRegister rax, fromRegister rdx]
   )
-getRegisters (NOT   dst) = ([dst], [dst])
-getRegisters (NEG   dst) = ([dst], [dst])
-getRegisters (INC   dst) = ([dst], [dst])
-getRegisters (DEC   dst) = ([dst], [dst])
-getRegisters (JMP   _  ) = ([], [])
-getRegisters (JE    _  ) = ([], [])
-getRegisters (JNE   _  ) = ([], [])
-getRegisters (JL    _  ) = ([], [])
-getRegisters (JLE   _  ) = ([], [])
-getRegisters (JG    _  ) = ([], [])
-getRegisters (JGE   _  ) = ([], [])
-getRegisters (JB    _  ) = ([], [])
-getRegisters (JBE   _  ) = ([], [])
-getRegisters (JA    _  ) = ([], [])
-getRegisters (JAE   _  ) = ([], [])
-getRegisters (PUSH  src) = ([src], [])
-getRegisters (POP   dst) = ([], [dst])
-getRegisters (PUSHI _  ) = ([], [])
-getRegisters (PUSHM src) = (getMemRegisters src, [])
-getRegisters (POPM  dst) = (getMemRegisters dst, [])
-getRegisters (CALL  _  ) = ([], map fromRegister dataRegisters)
-getRegisters (CALLR reg) = ([reg], map fromRegister dataRegisters)
-getRegisters (CALLM mem) =
-  (getMemRegisters mem, map fromRegister dataRegisters)
-getRegisters RET = ([fromRegister rax], [])
+getRegisters CQTO      = ([fromRegister rax], [fromRegister rdx])
+getRegisters (PUSHI _) = ([], [])
+getRegisters RET       = ([fromRegister rax], [])
 getRegisters (SYSCALL n) =
   ( map fromRegister $ take (n + 1) syscallRegisters
   , map fromRegister syscallRegisters
@@ -315,18 +294,10 @@ getRegisters (LABEL _) = ([], [])
 data JumpType = Straightline | Jump Label | Branch Label
 
 getJumpType :: Instruction reg -> JumpType
-getJumpType (JMP label) = Jump label
-getJumpType (JE  label) = Branch label
-getJumpType (JNE label) = Branch label
-getJumpType (JL  label) = Branch label
-getJumpType (JLE label) = Branch label
-getJumpType (JG  label) = Branch label
-getJumpType (JGE label) = Branch label
-getJumpType (JB  label) = Branch label
-getJumpType (JBE label) = Branch label
-getJumpType (JA  label) = Branch label
-getJumpType (JAE label) = Branch label
-getJumpType _           = Straightline
+getJumpType (JUMP JMP  label) = Jump label
+getJumpType (JUMP CALL _    ) = Straightline
+getJumpType (JUMP _    label) = Branch label
+getJumpType _                 = Straightline
 
 mapMem :: (reg1 -> reg2) -> Mem reg1 -> Mem reg2
 mapMem f (Mem disp reg msi) = Mem disp (f reg) ((f <$>) <$> msi)
@@ -338,42 +309,23 @@ mapArgs f (RR src dst) = RR (f src) (f dst)
 mapArgs f (MR mem reg) = MR (mapMem f mem) (f reg)
 mapArgs f (RM reg mem) = RM (f reg) (mapMem f mem)
 
+mapArg :: (reg1 -> reg2) -> Arg reg1 -> Arg reg2
+mapArg f (R reg) = R (f reg)
+mapArg f (M mem) = M (mapMem f mem)
+
 mapInstr :: (reg1 -> reg2) -> Instruction reg1 -> Instruction reg2
-mapInstr f (OP op args         ) = OP op (mapArgs f args)
-mapInstr f (SHIFT amt shift reg) = SHIFT amt shift (f reg)
-mapInstr f (LEA   mem reg      ) = LEA (mapMem f mem) (f reg)
+mapInstr f (OP    op  args     ) = OP op (mapArgs f args)
+mapInstr f (UN    op  arg      ) = UN op (mapArg f arg)
+mapInstr _ (JUMP  op  label    ) = JUMP op label
 mapInstr f (MOV64 imm reg      ) = MOV64 imm (f reg)
+mapInstr f (SHIFT amt shift reg) = SHIFT amt shift (f reg)
+mapInstr f (LEA mem reg        ) = LEA (mapMem f mem) (f reg)
+mapInstr f (IDIV reg           ) = IDIV (f reg)
 mapInstr _ CQTO                  = CQTO
-mapInstr f (IDIV  reg  )         = IDIV (f reg)
-mapInstr f (NOT   reg  )         = NOT (f reg)
-mapInstr f (NEG   reg  )         = NEG (f reg)
-mapInstr f (INC   reg  )         = INC (f reg)
-mapInstr f (DEC   reg  )         = DEC (f reg)
-mapInstr _ (JMP   label)         = JMP label
-mapInstr _ (JE    label)         = JMP label
-mapInstr _ (JNE   label)         = JMP label
-mapInstr _ (JL    label)         = JMP label
-mapInstr _ (JLE   label)         = JMP label
-mapInstr _ (JG    label)         = JMP label
-mapInstr _ (JGE   label)         = JMP label
-mapInstr _ (JB    label)         = JMP label
-mapInstr _ (JBE   label)         = JMP label
-mapInstr _ (JA    label)         = JMP label
-mapInstr _ (JAE   label)         = JMP label
-mapInstr f (PUSH  reg  )         = PUSH (f reg)
-mapInstr f (POP   reg  )         = POP (f reg)
-mapInstr _ (PUSHI imm  )         = PUSHI imm
-mapInstr f (PUSHM mem  )         = PUSHM (mapMem f mem)
-mapInstr f (POPM  mem  )         = POPM (mapMem f mem)
-mapInstr _ (CALL  label)         = CALL label
-mapInstr f (CALLR reg  )         = CALLR (f reg)
-mapInstr f (CALLM mem  )         = CALLM (mapMem f mem)
+mapInstr _ (PUSHI imm)           = PUSHI imm
 mapInstr _ RET                   = RET
 mapInstr _ (SYSCALL n   )        = SYSCALL n
 mapInstr _ (LABEL   name)        = LABEL name
-
-spillInstr :: reg -> Mem reg -> Instruction reg -> Instruction reg
-spillInstr = undefined
 
 newtype Function reg = Function [Instruction reg]
 
@@ -383,9 +335,11 @@ type PhysicalFunction = Function Register
 instance Show reg => Show (Function reg) where
   show (Function instrs) = concatMap
     (\instr ->
-      let str  = show instr
-          str' = if ":" `isSuffixOf` str then str else "\t" ++ str
-      in  str' ++ "\n"
+      (case instr of
+          LABEL name -> name ++ ":"
+          _          -> "\t" ++ show instr
+        )
+        ++ "\n"
     )
     instrs
 

@@ -6,7 +6,7 @@ import           Subroutines
 -- https://filippo.io/linux-syscall-table/
 -- see also section 2 of the Linux man pages
 
-basicOp :: String -> Op -> Stateful VirtualFunction
+basicOp :: String -> BinOp -> Stateful VirtualFunction
 basicOp name op = do
   temp <- newTemp
   return $ function
@@ -55,7 +55,7 @@ bitnot = do
   temp <- newTemp
   return $ function
     "not"
-    [OP MOV $ MR (getArg 1) temp, NOT temp, OP MOV $ RR temp rax]
+    [OP MOV $ MR (getArg 1) temp, UN NOT $ R temp, OP MOV $ RR temp rax]
 
 shiftOp :: String -> Shift -> Stateful VirtualFunction
 shiftOp name op = do
@@ -72,7 +72,7 @@ shiftOp name op = do
     [ OP MOV $ MR (getArg 2) arg
     , OP MOV $ MR (getArg 1) rcx
     , OP CMP $ IR 64 rcx
-    , JGE fixup
+    , JUMP JGE fixup
     , SHIFT Nothing op arg
     , LABEL fixupDone
     , OP MOV $ RR arg rax
@@ -100,8 +100,8 @@ print = do
   return $ function
     "print"
     [ OP MOV $ MR (getArg 1) temp
-    , PUSH temp
-    , CALL "memoryPackString"
+    , UN PUSH $ R temp
+    , JUMP CALL "memoryPackString"
     , unpush 1
     , OP MOV $ IR 1 rax
     , OP MOV $ IR 1 rdi
@@ -124,49 +124,49 @@ writeFile = do
   return $ function
     "writeFile"
     [ OP MOV $ MR (getArg 2) temp
-    , PUSH temp
-    , CALL "memoryPackString"
+    , UN PUSH $ R temp
+    , JUMP CALL "memoryPackString"
     , unpush 1
     , OP MOV $ RR rax filename
     , OP MOV $ MR (getArg 1) temp
-    , PUSH temp
-    , CALL "memoryPackString"
+    , UN PUSH $ R temp
+    , JUMP CALL "memoryPackString"
     , unpush 1
     , OP MOV $ RR rax contents
     , OP MOV $ IR 87 rax
     , LEA (getField 1 filename) rdi
     , SYSCALL 1 -- unlink
     , OP CMP $ IR 0 rax
-    , JL "crash"
+    , JUMP JL "crash"
     , OP MOV $ IR 2 rax
     , LEA (getField 1 filename) rdi
     , OP MOV $ IR 0x41 rsi
     , OP MOV $ IR 0o666 rdx
     , SYSCALL 2 -- open
     , OP CMP $ IR 0 rax
-    , JL "crash"
+    , JUMP JL "crash"
     , OP MOV $ RR rax fd
     , LEA (getField 1 contents) ptr
     , OP MOV $ MR (getField 0 contents) bytesLeft
     , LABEL writeStart
     , OP CMP $ IR 0 bytesLeft
-    , JLE writeDone
+    , JUMP JLE writeDone
     , OP MOV $ IR 1 rax
     , OP MOV $ RR fd rdi
     , OP MOV $ RR ptr rsi
     , OP MOV $ RR bytesLeft rdx
     , SYSCALL 3 -- write
     , OP CMP $ IR 0 rax
-    , JL "crash"
+    , JUMP JL "crash"
     , OP ADD $ RR rax ptr
     , OP SUB $ RR rax bytesLeft
-    , JMP writeStart
+    , JUMP JMP writeStart
     , LABEL writeDone
     , OP MOV $ IR 3 rax
     , OP MOV $ RR fd rdi
     , SYSCALL 1 -- close
     , OP CMP $ IR 0 rax
-    , JL "crash"
+    , JUMP JL "crash"
     , RET
     ]
 
@@ -177,8 +177,8 @@ setFileMode = do
   return $ function
     "setFileMode"
     [ OP MOV $ MR (getArg 2) temp
-    , PUSH temp
-    , CALL "memoryPackString"
+    , UN PUSH $ R temp
+    , JUMP CALL "memoryPackString"
     , unpush 1
     , OP MOV $ RR rax filename
     , OP MOV $ IR 90 rax

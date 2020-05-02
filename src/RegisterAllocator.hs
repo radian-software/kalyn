@@ -70,8 +70,57 @@ tryAllocateFunctionRegs fn@(Function instrs) =
         [] -> Right $ mapFunction (allocation Map.!) fn
         _  -> Left spilled
 
+spillMem :: Eq reg => reg -> Mem reg -> Bool
+spillMem reg (Mem _ base msi) =
+  base
+    == reg
+    || (case msi of
+         Nothing       -> False
+         Just (_, idx) -> idx == reg
+       )
+
+spillInstr :: Eq reg => reg -> Mem reg -> Instruction reg -> [Instruction reg]
+spillInstr dir ind (OP op (IR imm reg)) | reg == dir = [OP op (IM imm ind)]
+spillInstr dir ind (OP op (IM imm mem)) | spillMem dir mem =
+  [OP MOV $ MR ind dir, OP op (IM imm mem)]
+spillInstr dir ind (OP op (RR src dst))
+  | src == dir && dst == dir = [OP MOV $ MR ind dir, OP op $ RM dir ind]
+  | src == dir               = [OP MOV $ MR ind dst]
+  | dst == dir               = [OP MOV $ RM src ind]
+spillInstr dir ind (OP op (MR mem dst))
+  | spillMem dir mem && dst == dir
+  = [OP MOV $ MR ind dir, OP op $ MR mem dir, OP MOV $ RM dir ind]
+  | spillMem dir mem
+  = [OP MOV $ MR ind dir, OP op $ MR mem dst]
+  | dst == dir
+  = [OP MOV $ MR mem dir, OP op $ RM dir ind]
+spillInstr dir ind (OP op (RM src mem))
+  | spillMem dir mem = [OP MOV $ MR ind dir, OP op $ RM src mem]
+  | src == dir       = [OP MOV $ MR ind dir, OP op $ RM dir mem]
+spillInstr dir ind (UN op (R dst)) | dst == dir = [UN op (M ind)]
+spillInstr dir ind (UN op (M mem)) | spillMem dir mem =
+  [OP MOV $ MR ind dir, UN op (M mem)]
+spillInstr dir ind (MOV64 imm dst) | dst == dir =
+  [MOV64 imm dir, OP MOV $ RM dir ind]
+spillInstr dir ind (SHIFT amt op dst) | dst == dir =
+  [OP MOV $ MR ind dir, SHIFT amt op dir, OP MOV $ RM dir ind]
+spillInstr dir ind (LEA mem dst) | spillMem dir mem && dst == dir =
+  [OP MOV $ MR ind dir, LEA mem dst, OP MOV $ RM dir ind]
+spillInstr dir ind (LEA mem dst) | spillMem dir mem =
+  [OP MOV $ MR ind dir, LEA mem dst]
+spillInstr dir ind (LEA mem dst) | dst == dir =
+  [LEA mem dir, OP MOV $ RM dir ind]
+spillInstr dir ind (IDIV src) | src == dir = [OP MOV $ MR ind dir, IDIV dir]
+spillInstr _ _ instr                       = [instr]
+
+spillFunction :: Eq reg => reg -> Mem reg -> Function reg -> Function reg
+spillFunction dir ind (Function instrs) =
+  Function . concatMap (spillInstr dir ind) $ instrs
+
 spillTemporary :: Int -> Temporary -> VirtualFunction -> VirtualFunction
-spillTemporary = undefined
+spillTemporary numSpilled temp = spillFunction
+  (Virtual temp)
+  (Mem (Right . fromIntegral $ (-numSpilled - 1) * 8) rbp Nothing)
 
 allocateFunctionRegs :: Int -> VirtualFunction -> PhysicalFunction
 allocateFunctionRegs numSpilled fn = case tryAllocateFunctionRegs fn of
@@ -82,5 +131,7 @@ allocateFunctionRegs numSpilled fn = case tryAllocateFunctionRegs fn of
     (zip (iterate (+ 1) numSpilled) spilled)
 
 allocateProgramRegs :: Program VirtualRegister -> Program Register
-allocateProgramRegs (Program main fns datums) =
-  Program (allocateFunctionRegs 0 main) (map allocateFunctionRegs 0 fns) datums
+allocateProgramRegs (Program main fns datums) = Program
+  (allocateFunctionRegs 0 main)
+  (map (allocateFunctionRegs 0) fns)
+  datums

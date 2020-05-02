@@ -60,11 +60,6 @@ rex reg rm index =
           _         -> 0
         )
 
-rexMaybe :: Maybe Register -> Maybe Register -> Maybe Register -> Builder
-rexMaybe reg rm index = case rex reg rm index of
-  0x48 -> mempty
-  byte -> word8 byte
-
 modRM :: Mod -> Reg -> RM -> Word8
 modRM modOpt reg rm =
   let modBits =
@@ -208,11 +203,6 @@ immInstr :: [Word8] -> Int32 -> B.ByteString
 immInstr opcode rel =
   toLazyByteString $ mconcat (map word8 opcode) <> int32LE rel
 
-regInstr :: [Word8] -> Register -> B.ByteString
-regInstr opcode reg =
-  toLazyByteString $ rexMaybe Nothing (Just reg) Nothing <> mconcat
-    (map word8 opcode)
-
 compileInstr
   :: Map.Map Label Word32 -> Word32 -> PhysicalInstruction -> B.ByteString
 compileInstr labels pc instr =
@@ -243,20 +233,48 @@ compileInstr labels pc instr =
                     Just ext -> Left ext
                   )
                   (Just imm)
-                IM imm (Mem disp base msr) -> memInstr
+                IM imm (Mem disp base msi) -> memInstr
                   immOp
                   base
-                  msr
+                  msi
                   (fromDisp disp)
                   (Left $ fromMaybe errorMemDisallowed immExt)
                   (Just imm)
                 RR src dst -> opInstr stdOp src (Right dst) Nothing
-                MR (Mem disp base msr) dst ->
-                  memInstr stdOp base msr (fromDisp disp) (Right dst) Nothing
-                RM src (Mem disp base msr) -> case immExt of
+                MR (Mem disp base msi) dst ->
+                  memInstr stdOp base msi (fromDisp disp) (Right dst) Nothing
+                RM src (Mem disp base msi) -> case immExt of
                   Just _ ->
-                    memInstr memOp base msr (fromDisp disp) (Right src) Nothing
+                    memInstr memOp base msi (fromDisp disp) (Right src) Nothing
                   Nothing -> errorMemDisallowed
+        UN op arg ->
+          let (opcode, ext) = case op of
+                NOT   -> ([0xf7], 2)
+                NEG   -> ([0xf7], 3)
+                INC   -> ([0xff], 0)
+                DEC   -> ([0xff], 1)
+                PUSH  -> ([0xff], 6)
+                POP   -> ([0x8f], 0)
+                ICALL -> ([0xff], 2)
+          in  case arg of
+                R reg -> opInstr opcode reg (Left ext) Nothing
+                M (Mem disp base msi) ->
+                  memInstr opcode base msi (fromDisp disp) (Left ext) Nothing
+        JUMP op label ->
+          let opcode = case op of
+                JMP  -> [0xe9]
+                JE   -> [0x0f, 0x84]
+                JNE  -> [0x0f, 0x85]
+                JL   -> [0x0f, 0x8c]
+                JLE  -> [0x0f, 0x8e]
+                JG   -> [0x0f, 0x8f]
+                JGE  -> [0x0f, 0x8d]
+                JB   -> [0x0f, 0x82]
+                JBE  -> [0x0f, 0x86]
+                JA   -> [0x0f, 0x87]
+                JAE  -> [0x0f, 0x83]
+                CALL -> [0xe8]
+          in  immInstr opcode (getOffset label)
         SHIFT Nothing shift dst ->
           let (op, ext) = case shift of
                 SHL -> (0xd3, 4)
@@ -264,6 +282,8 @@ compileInstr labels pc instr =
                 SHR -> (0xd3, 5)
                 SAR -> (0xd3, 7)
           in  opInstr [op] dst (Left ext) Nothing
+        MOV64 imm dst ->
+          opInstr64 [0xb8 + (snd . regCode $ dst)] dst (Left 0) (Just imm)
         SHIFT (Just amt) shift dst ->
           let (op, ext) = case shift of
                 SHL -> (0xc1, 4)
@@ -271,41 +291,14 @@ compileInstr labels pc instr =
                 SHR -> (0xc1, 5)
                 SAR -> (0xc1, 7)
           in  opInstr8U [op] dst (Left ext) (Just amt)
-        LEA (Mem disp base msr) dst ->
-          memInstr [0x8d] base msr (fromDisp disp) (Right dst) Nothing
-        MOV64 imm dst ->
-          opInstr64 [0xb8 + (snd . regCode $ dst)] dst (Left 0) (Just imm)
-        CQTO        -> plainInstr64 [0x99]
-        IDIV  src   -> opInstr [0xf7] src (Left 7) Nothing
-        NOT   dst   -> opInstr [0xf7] dst (Left 2) Nothing
-        NEG   dst   -> opInstr [0xf7] dst (Left 3) Nothing
-        INC   dst   -> opInstr [0xff] dst (Left 0) Nothing
-        DEC   dst   -> opInstr [0xff] dst (Left 1) Nothing
-        JMP   label -> immInstr [0xe9] (getOffset label)
-        JE    label -> immInstr [0x0f, 0x84] (getOffset label)
-        JNE   label -> immInstr [0x0f, 0x85] (getOffset label)
-        JL    label -> immInstr [0x0f, 0x8c] (getOffset label)
-        JLE   label -> immInstr [0x0f, 0x8e] (getOffset label)
-        JG    label -> immInstr [0x0f, 0x8f] (getOffset label)
-        JGE   label -> immInstr [0x0f, 0x8d] (getOffset label)
-        JB    label -> immInstr [0x0f, 0x82] (getOffset label)
-        JBE   label -> immInstr [0x0f, 0x86] (getOffset label)
-        JA    label -> immInstr [0x0f, 0x87] (getOffset label)
-        JAE   label -> immInstr [0x0f, 0x83] (getOffset label)
-        PUSH  reg   -> regInstr [0x50 + (snd . regCode $ reg)] reg
-        POP   reg   -> regInstr [0x58 + (snd . regCode $ reg)] reg
-        PUSHI imm   -> immInstr [0x68] imm
-        PUSHM (Mem disp base msr) ->
-          memInstr [0xff] base msr (fromDisp disp) (Left 6) Nothing
-        POPM (Mem disp base msr) ->
-          memInstr [0x8f] base msr (fromDisp disp) (Left 0) Nothing
-        SYSCALL _     -> plainInstr [0x0f, 0x05]
-        CALL    label -> immInstr [0xe8] (getOffset label)
-        CALLR   reg   -> opInstr [0xff] reg (Left 2) Nothing
-        CALLM (Mem disp base msr) ->
-          memInstr [0xff] base msr (fromDisp disp) (Left 2) Nothing
-        RET     -> plainInstr [0xc3]
-        LABEL _ -> B.empty
+        LEA (Mem disp base msi) dst ->
+          memInstr [0x8d] base msi (fromDisp disp) (Right dst) Nothing
+        IDIV src  -> opInstr [0xf7] src (Left 7) Nothing
+        CQTO      -> plainInstr64 [0x99]
+        PUSHI imm -> immInstr [0x68] imm
+        RET       -> plainInstr [0xc3]
+        SYSCALL _ -> plainInstr [0x0f, 0x05]
+        LABEL   _ -> B.empty
 
 compile :: Program Register -> (B.ByteString, B.ByteString)
 compile (Program main fns datums) =

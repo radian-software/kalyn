@@ -21,13 +21,13 @@ import           Linker
 helloWorld :: Program Register
 helloWorld = Program
   (Function
-    [ OP MOV (IR 1 RAX)
-    , OP MOV (IR 1 RDI)
+    [ OP MOV $ IR 1 RAX
+    , OP MOV $ IR 1 RDI
     , LEA (memLabel "message") RSI
-    , OP MOV (IR 14 RDX)
+    , OP MOV $ IR 14 RDX
     , SYSCALL 3 -- write
-    , OP MOV (IR 60 RAX)
-    , OP MOV (IR 0 RDI)
+    , OP MOV $ IR 60 RAX
+    , OP MOV $ IR 0 RDI
     , SYSCALL 1
     ]
   )
@@ -37,63 +37,63 @@ helloWorld = Program
 printInt :: Program Register
 printInt = Program
   (Function
-    [ OP MOV  (IR 42 RDI)
-    , OP IMUL (IR 42 RDI)
-    , CALL "printInt"
-    , OP MOV (IR 1 RAX)
-    , OP MOV (IR 1 RDI)
+    [ OP MOV $ IR 42 RDI
+    , OP IMUL $ IR 42 RDI
+    , JUMP CALL "printInt"
+    , OP MOV $ IR 1 RAX
+    , OP MOV $ IR 1 RDI
     , LEA (memLabel "newline") RSI
-    , OP MOV (IR 1 RDX)
+    , OP MOV $ IR 1 RDX
     , SYSCALL 3 -- write
-    , OP MOV (IR 60 RAX)
-    , OP MOV (IR 0 RDI)
+    , OP MOV $ IR 60 RAX
+    , OP MOV $ IR 0 RDI
     , SYSCALL 1
     ]
   )
   [ function
     "printInt"
-    [ OP CMP (IR 0 RDI)
-    , JGE "printInt1"
+    [ OP CMP $ IR 0 RDI
+    , JUMP JGE "printInt1"
     , LEA (memLabel "minus") RSI
-    , PUSH RDI
-    , OP MOV (IR 1 RAX)
-    , OP MOV (IR 1 RDX)
-    , OP MOV (IR 1 RDI)
+    , UN PUSH $ R RDI
+    , OP MOV $ IR 1 RAX
+    , OP MOV $ IR 1 RDX
+    , OP MOV $ IR 1 RDI
     , SYSCALL 3 -- write
-    , POP RDI
-    , OP IMUL (IR (-1) RDI)
+    , UN POP $ R RDI
+    , OP IMUL $ IR (-1) RDI
     , LABEL "printInt1"
-    , OP CMP (IR 0 RDI)
-    , JNE "printInt2"
-    , OP MOV (IR 1 RAX)
-    , OP MOV (IR 1 RDI)
+    , OP CMP $ IR 0 RDI
+    , JUMP JNE "printInt2"
+    , OP MOV $ IR 1 RAX
+    , OP MOV $ IR 1 RDI
     , LEA (memLabel "digits") RSI
-    , OP MOV (IR 1 RDX)
+    , OP MOV $ IR 1 RDX
     , SYSCALL 3 -- write
     , RET
     , LABEL "printInt2"
-    , CALL "printIntRec"
+    , JUMP CALL "printIntRec"
     , RET
     ]
   , function
     "printIntRec"
-    [ OP CMP (IR 0 RDI)
-    , JNE "printIntRec1"
+    [ OP CMP $ IR 0 RDI
+    , JUMP JNE "printIntRec1"
     , RET
     , LABEL "printIntRec1"
-    , OP MOV (RR RDI RAX)
+    , OP MOV $ RR RDI RAX
     , CQTO
-    , OP MOV (IR 10 RSI)
+    , OP MOV $ IR 10 RSI
     , IDIV RSI
-    , PUSH RDX
-    , OP MOV (RR RAX RDI)
-    , CALL "printIntRec"
+    , UN PUSH $ R RDX
+    , OP MOV $ RR RAX RDI
+    , JUMP CALL "printIntRec"
     , LEA (memLabel "digits") RSI
-    , OP MOV (IR 1 RAX)
-    , POP RDX
-    , OP ADD (RR RDX RSI)
-    , OP MOV (IR 1 RDI)
-    , OP MOV (IR 1 RDX)
+    , OP MOV $ IR 1 RAX
+    , UN POP $ R RDX
+    , OP ADD $ RR RDX RSI
+    , OP MOV $ IR 1 RDI
+    , OP MOV $ IR 1 RDX
     , SYSCALL 3 -- write
     , RET
     ]

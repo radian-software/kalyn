@@ -33,7 +33,7 @@ freeVariables (Let name val body) =
 
 translateVar :: Context -> VirtualRegister -> String -> [VirtualInstruction]
 translateVar ctx dst name = case Map.lookup name (bindings ctx) of
-  Just (Left  sym) -> [CALL (symName sym), OP MOV $ RR rax dst]
+  Just (Left  sym) -> [JUMP CALL (symName sym), OP MOV $ RR rax dst]
   Just (Right reg) -> [OP MOV $ RR reg dst]
   Nothing          -> error $ "reference to free variable: " ++ show name
 
@@ -55,7 +55,7 @@ translatePattern ctx _ temp (Variable name) =
     _ -> return ([], Map.fromList [(name, temp)])
 translatePattern _ nextBranch temp (Const val) = do
   imm <- newTemp
-  return ([MOV64 val imm, OP CMP $ RR imm temp, JNE nextBranch], Map.empty)
+  return ([MOV64 val imm, OP CMP $ RR imm temp, JUMP JNE nextBranch], Map.empty)
 translatePattern ctx nextBranch obj expr@(Call _ _) =
   let (ctor : args) = reverse $ uncurryExpr expr
   in
@@ -79,7 +79,7 @@ translatePattern ctx nextBranch obj expr@(Call _ _) =
                     (iterate (+ 1) 0)
               let mainCheck =
                     [ OP CMP $ IM (fromIntegral ctorIdx) (getField 0 obj)
-                    , JNE nextBranch
+                    , JUMP JNE nextBranch
                     ]
               fieldChecks <- zipWithM (translatePattern ctx nextBranch)
                                       fieldTemps
@@ -132,16 +132,16 @@ translateExpr ctx dst (Call lhs rhs ) = do
        , LEA (getField 2 lhsTemp) argPtr
        , LABEL pushStart
        , OP CMP $ IR 0 argsLeft
-       , JLE pushDone
-       , PUSHM (deref argPtr)
+       , JUMP JLE pushDone
+       , UN PUSH $ M (deref argPtr)
        , OP ADD $ IR 8 argPtr
-       , DEC argsLeft
-       , JMP pushStart
+       , UN DEC $ R argsLeft
+       , JUMP JMP pushStart
        , LABEL pushDone
-       , PUSH rhsTemp
-       , CALLM (getField 0 lhsTemp)
+       , UN PUSH $ R rhsTemp
+       , UN ICALL $ M (getField 0 lhsTemp)
        , OP MOV $ MR (getField 1 lhsTemp) popAmt
-       , INC popAmt
+       , UN INC $ R popAmt
        , OP IMUL $ IR 8 popAmt
        , OP ADD $ RR popAmt rsp
        , OP MOV $ RR rax dst
@@ -159,7 +159,7 @@ translateExpr ctx dst (Case arg branches) = do
   exprCodes <- zipWithM
     (\branch ctx' -> do
       (code, fns) <- translateExpr ctx' dst branch
-      return (code ++ [JMP endLabel], fns)
+      return (code ++ [JUMP JMP endLabel], fns)
     )
     (map snd branches)
     (map (foldr (uncurry withBinding) ctx . Map.toList . snd) branchCodes)
@@ -184,7 +184,7 @@ translateExpr ctx dst form@(Lambda name body) = do
   (bodyCode, bodyFns) <- translateExpr bodyCtx bodyDst body
   return
     ( [ PUSHI (fromIntegral $ (length vars + 2) * 8)
-      , CALL "memoryAlloc"
+      , JUMP CALL "memoryAlloc"
       , unpush 1
       , OP MOV $ RR rax fnPtr
       , LEA (memLabel lambdaName) temp

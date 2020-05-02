@@ -29,15 +29,14 @@ patterns =
     , Just . STRING . readString
     )
   , ( "'([^\\\\\']|\\\\[\\\\\'0abfnrtv]|\\\\x[0-9a-zA-Z]{2})'"
-    , (\s ->
-        let s' = readString s
-        in  if length s' == 1
-              then Just . CHAR $ head s'
-              else
-                error
-                $  error "character literal had more than one character: "
-                ++ show s
-      )
+    , \s ->
+      let s' = readString s
+      in  if length s' == 1
+            then Just . CHAR $ head s'
+            else
+              error
+              $  error "character literal had more than one character: "
+              ++ show s
     )
   ]
 

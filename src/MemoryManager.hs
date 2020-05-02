@@ -48,7 +48,7 @@ memoryAlloc = do
     , OP ADD $ MR (getArg 1) firstFree
     , OP MOV $ RM firstFree (memLabel "mmFirstFree")
     , OP CMP $ MR (memLabel "mmProgramBreak") firstFree
-    , JG brk
+    , JUMP JG brk
     , LABEL done
     , OP MOV $ RR ptr rax
     , RET
@@ -58,9 +58,9 @@ memoryAlloc = do
     , OP MOV $ RR firstFree rdi
     , SYSCALL 1 -- brk
     , OP CMP $ RR firstFree rax
-    , JLE "crash"
+    , JUMP JLE "crash"
     , OP MOV $ RM rax (memLabel "mmProgramBreak")
-    , JMP done
+    , JUMP JMP done
     ]
 
 memoryPackString :: Stateful VirtualFunction
@@ -83,14 +83,14 @@ memoryPackString = do
     , OP MOV $ RR arg ptr
     , LABEL lengthStart
     , OP CMP $ IM 0 (getField 0 ptr)
-    , JE lengthDone
-    , INC strLength
+    , JUMP JE lengthDone
+    , UN INC $ R strLength
     , OP MOV $ MR (getField 2 ptr) ptr
-    , JMP lengthStart
+    , JUMP JMP lengthStart
     , LABEL lengthDone
     , LEA (Mem (Right 9) strLength Nothing) allocLength
-    , PUSH allocLength
-    , CALL "memoryAlloc"
+    , UN PUSH $ R allocLength
+    , JUMP CALL "memoryAlloc"
     , unpush 1
     , OP MOV $ RR rax result
     , OP MOV $ RM strLength (deref rax)
@@ -98,11 +98,11 @@ memoryPackString = do
     , OP MOV $ RR arg ptr
     , LABEL copyStart
     , OP CMP $ IM 0 (getField 0 ptr)
-    , JE copyDone
+    , JUMP JE copyDone
     , OP MOV $ MR (getField 1 ptr) temp
     , OP MOV $ RM temp (deref mptr)
     , OP MOV $ MR (getField 2 ptr) ptr
-    , INC mptr
+    , UN INC $ R mptr
     , LABEL copyDone
     , OP MOV $ IM 0 (deref mptr)
     , OP MOV $ RR result rax
