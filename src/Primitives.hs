@@ -1,5 +1,7 @@
 module Primitives where
 
+import           Control.Exception
+
 import           Assembly
 import           Subroutines
 
@@ -265,7 +267,7 @@ monadify numArgs fnName = do
     (  [ PUSHI (fromIntegral $ (numArgs + 2) * 8)
        , JUMP CALL "memoryAlloc"
        , unpush 1
-       , LEA (Mem (Left fnName) rip Nothing) fnPtr
+       , LEA (memLabel fnName) fnPtr
        , OP MOV $ RM fnPtr (getField 0 rax)
        , OP MOV $ IM (fromIntegral numArgs) (getField 1 rax)
        ]
@@ -278,3 +280,36 @@ monadify numArgs fnName = do
          [1 .. numArgs]
     ++ [RET]
     )
+
+curryify :: Int -> String -> Stateful [VirtualFunction]
+curryify numArgs fnName = do
+  let _ = assert (numArgs >= 2)
+  mapM
+    (\numCurried -> do
+      fnPtr     <- newTemp
+      nextFnPtr <- newTemp
+      arg       <- newTemp
+      let nextFnName = if numCurried == numArgs - 1
+            then fnName
+            else fnName ++ "__curried" ++ show (numCurried + 1)
+      return $ function
+        (fnName ++ "__curried" ++ show numCurried)
+        (  [ PUSHI (fromIntegral $ (numCurried + 3) * 8)
+           , JUMP CALL "memoryAlloc"
+           , unpush 1
+           , OP MOV $ RR rax fnPtr
+           , LEA (memLabel nextFnName) nextFnPtr
+           , OP MOV $ RM nextFnPtr (getField 0 fnPtr)
+           , OP MOV $ IM (fromIntegral $ numCurried + 1) (getField 1 fnPtr)
+           ]
+        ++ concatMap
+             (\i ->
+               [ OP MOV $ MR (getArg i) arg
+               , OP MOV $ RM arg (getField (i + 1) fnPtr)
+               ]
+             )
+             [1 .. numCurried + 1]
+        ++ [OP MOV $ RR fnPtr rax, RET]
+        )
+    )
+    [0 .. numArgs - 1]
