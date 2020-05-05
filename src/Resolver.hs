@@ -62,29 +62,31 @@ getDeclSymbols (Import _ _) = error "resolver shouldn't be handling imports"
 getDeclSymbols (Instance _ _ _ _) = []
 
 resolveBundle :: Bundle -> Resolver
-resolveBundle (Bundle mmap) =
+resolveBundle (Bundle _ mmap) =
   let modNames = sanitizeModuleNames (map fst $ Map.toList mmap)
   in
     Map.mapWithKey
       (\mainMod info ->
         let mods = mainMod : snd info
         in
-          Map.fromList $ map
-            (\mod ->
-              let
-                modAbbr = modNames Map.! mod
-                syms =
-                  map
-                      (mapSymbol
-                        (\name -> "__" ++ modAbbr ++ "__" ++ sanitize name)
-                      )
-                    $     concatMap getDeclSymbols
-                    $     fst
-                    $     mmap
-                    Map.! mod
-              in
-                (mod, syms)
-            )
-            mods
+          Map.fromListWithKey
+              (\name _ -> error $ "more than one definition for " ++ show name)
+            $ concatMap
+                (\mod ->
+                  let
+                    modAbbr = modNames Map.! mod
+                    syms =
+                      map
+                          (mapSymbol
+                            (\name -> "__" ++ modAbbr ++ "__" ++ sanitize name)
+                          )
+                        $     concatMap getDeclSymbols
+                        $     fst
+                        $     mmap
+                        Map.! mod
+                  in
+                    map (\sym -> (symName sym, sym)) syms
+                )
+                mods
       )
       mmap

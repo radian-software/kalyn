@@ -56,7 +56,7 @@ readBundle :: (String -> [Decl]) -> FilePath -> IO Bundle
 readBundle readDecls filename = do
   absFilename <- canonicalizePath filename
   modules     <- readBundle' readDecls [] [absFilename] Map.empty
-  return $ Bundle $ Map.mapWithKey
+  return $ Bundle absFilename $ Map.mapWithKey
     (\name (decls, _) ->
       ( decls
       , nub $ transitiveImports modules

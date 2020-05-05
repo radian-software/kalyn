@@ -38,8 +38,8 @@ symName :: Symbol -> String
 symName (SymDef name     ) = name
 symName (SymData name _ _) = name
 
-newtype Bundle = Bundle (Map.Map String ([Decl], [String]))
-type Resolver = Map.Map String (Map.Map String [Symbol])
+data Bundle = Bundle String (Map.Map String ([Decl], [String]))
+type Resolver = Map.Map String (Map.Map String Symbol)
 
 instance Show ClassSpec where
   show (ClassSpec cls typ) = "(" ++ show cls ++ " " ++ show typ ++ ")"
@@ -191,23 +191,21 @@ instance Show Decl where
     showPub True  = "public "
 
 instance Show Bundle where
-  show (Bundle modules) =
-    let text =
-            intercalate "\n"
-              $ flip map (Map.toList modules)
-              $ \(name, (decls, deps)) ->
-                  replicate 80 ';'
-                    ++ "\n;; module "
-                    ++ show name
-                    ++ "\n"
-                    ++ (if null deps
-                         then ""
-                         else "\n" ++ flip concatMap
-                                           deps
-                                           (\d -> "(import " ++ show d ++ ")\n")
-                       )
-                    ++ (if null decls
-                         then ""
-                         else "\n" ++ flip concatMap decls (\d -> show d ++ "\n")
-                       )
-    in  if null text then "" else text ++ "\n"
+  show (Bundle main modules) =
+    ";; main module: " ++ show main ++ "\n\n" ++ intercalate
+      "\n"
+      (flip map (Map.toList modules) $ \(name, (decls, deps)) ->
+        replicate 80 ';'
+          ++ "\n;; module "
+          ++ show name
+          ++ "\n"
+          ++ (if null deps
+               then ""
+               else "\n"
+                 ++ flip concatMap deps (\d -> "(import " ++ show d ++ ")\n")
+             )
+          ++ (if null decls
+               then ""
+               else "\n" ++ flip concatMap decls (\d -> show d ++ "\n")
+             )
+      )

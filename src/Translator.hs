@@ -1,8 +1,10 @@
 module Translator where
 
 import           Control.Monad
+import           Data.Bifunctor
 import           Data.List
 import qualified Data.Map.Strict               as Map
+import           Prelude                 hiding ( mod )
 
 import           AST
 import           Assembly
@@ -10,8 +12,10 @@ import           Subroutines
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
 
+type Bindings = Map.Map String (Either Symbol VirtualRegister)
+
 data Context = Context
-  { bindings :: Map.Map String (Either Symbol VirtualRegister)
+  { bindings :: Bindings
   , fnName :: String
   }
 
@@ -180,8 +184,40 @@ translateExpr ctx dst (Let name val body) = do
   (bodyCode, bodyFns) <- translateExpr (withBinding name temp ctx) dst body
   return (letCode ++ bodyCode, letFns ++ bodyFns)
 
-translateDecl :: Resolver -> Decl -> [VirtualFunction]
-translateDecl = undefined
+-- don't handle Derive or Instance for now
+translateDecl :: Bindings -> Decl -> Stateful [VirtualFunction]
+translateDecl _     (Alias _ _ _       ) = return []
+translateDecl _     (Class _ _ _ _     ) = return []
+translateDecl _     (Data _ _ _        ) = undefined
+translateDecl binds (Def _ name _ value) = do
+  dst           <- newTemp
+  (instrs, fns) <- translateExpr (Context binds name) dst value
+  return $ function name (instrs ++ [OP MOV $ RR dst rax, RET]) : fns
+translateDecl _ (Derive _ _) = return []
+translateDecl _ (Import _ _) = error "translator shouldn't be handling imports"
+translateDecl _ (Instance _ _ _ _) = return []
 
-translateBundle :: Resolver -> Bundle -> Program VirtualRegister
-translateBundle _ _ = undefined
+getBindings :: Resolver -> String -> Bindings
+getBindings resolver mod = Map.map Left (resolver Map.! mod)
+
+translateBundle :: Resolver -> Bundle -> Stateful (Program VirtualRegister)
+translateBundle resolver (Bundle mmod mmap) = do
+  let isMain decl = case decl of
+        Def _ name _ _ | name == "main" -> True
+        _                               -> False
+  let mainDecl = case filter isMain (fst $ mmap Map.! mmod) of
+        []     -> error "no main function declared"
+        [main] -> main
+        _      -> error "more than one main function declared"
+  let mmap' = Map.adjust (first (filter (not . isMain))) mmod mmap
+  fns <- concat <$> mapM
+    (\(mod, (decls, _)) ->
+      let binds = getBindings resolver mod
+      in  concat <$> mapM (translateDecl binds) decls
+    )
+    (Map.toList mmap')
+  let mainBindings = getBindings resolver mmod
+  mainFns <- translateDecl mainBindings mainDecl
+  let mainFn   = head mainFns
+  let extraFns = tail mainFns
+  return $ Program mainFn (extraFns ++ fns) []
