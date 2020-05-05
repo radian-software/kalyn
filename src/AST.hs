@@ -200,7 +200,8 @@ instance Show Symbol where
       ++ show ctorIdx
       ++ " and "
       ++ show numFields
-      ++ " fields"
+      ++ " field"
+      ++ (if numFields == 1 then "" else "s")
 
 instance Show Bundle where
   show (Bundle main modules) =

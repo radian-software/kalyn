@@ -1,2 +1,7 @@
+(public data (List a)
+  Null (Cons a (List a)))
+
+(public data Char (Char Int))
+
 (public def main (IO Empty)
   (print "Hello, world!"))

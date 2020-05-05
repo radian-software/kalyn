@@ -39,12 +39,16 @@ uniquify = uniquify' Set.empty
     (\num -> str ++ show num)
     (iterate (+ 1) (1 :: Int))
 
+getComponents :: FilePath -> [String]
+getComponents = reverse . tail . splitDirectories
+
 sanitizeModuleName :: Int -> FilePath -> FilePath
-sanitizeModuleName n path = sanitize $ concat (take n $ splitPath path)
+sanitizeModuleName n path =
+  sanitize $ concat (reverse . take n $ getComponents path)
 
 sanitizeModuleNames :: [String] -> Map.Map String String
 sanitizeModuleNames fullNames =
-  let maxComponents = maximum $ (map $ length . splitPath) fullNames
+  let maxComponents = maximum $ (map $ length . getComponents) fullNames
       xforms =
           map (\n names -> map (sanitizeModuleName n) names) [1 .. maxComponents]
             ++ [uniquify . map (sanitizeModuleName maxComponents)]
