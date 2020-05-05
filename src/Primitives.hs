@@ -1,7 +1,5 @@
 module Primitives where
 
-import           Control.Exception
-
 import           Assembly
 import           Subroutines
 
@@ -12,7 +10,7 @@ basicOp :: String -> BinOp -> Stateful VirtualFunction
 basicOp name op = do
   temp <- newTemp
   return $ function
-    name
+    (name ++ "__uncurried")
     [ OP MOV $ MR (getArg 1) temp
     , OP op $ MR (getArg 2) temp
     , OP MOV $ RR temp rax
@@ -32,7 +30,7 @@ divOp :: String -> [VirtualInstruction] -> Stateful VirtualFunction
 divOp name post = do
   temp <- newTemp
   return
-    $  function name
+    $  function (name ++ "__uncurried")
     $ [OP MOV $ MR (getArg 2) rax, CQTO, OP MOV $ MR (getArg 1) temp, IDIV temp]
     ++ post
     ++ [RET]
@@ -70,7 +68,7 @@ shiftOp name op = do
         SHR -> True
         SAR -> False
   return $ function
-    name
+    (name ++ "__uncurried")
     [ OP MOV $ MR (getArg 2) arg
     , OP MOV $ MR (getArg 1) rcx
     , OP CMP $ IR 64 rcx
@@ -100,7 +98,7 @@ print :: Stateful VirtualFunction
 print = do
   temp <- newTemp
   return $ function
-    "print"
+    "print__unmonadified"
     [ OP MOV $ MR (getArg 1) temp
     , UN PUSH $ R temp
     , JUMP CALL "memoryPackString"
@@ -124,7 +122,7 @@ writeFile = do
   writeStart <- newLabel
   writeDone  <- newLabel
   return $ function
-    "writeFile"
+    "writeFile__uncurried__unmonadified"
     [ OP MOV $ MR (getArg 2) temp
     , UN PUSH $ R temp
     , JUMP CALL "memoryPackString"
@@ -177,7 +175,7 @@ setFileMode = do
   temp     <- newTemp
   filename <- newTemp
   return $ function
-    "setFileMode"
+    "setFileMode__uncurried__unmonadified"
     [ OP MOV $ MR (getArg 2) temp
     , UN PUSH $ R temp
     , JUMP CALL "memoryPackString"
@@ -192,7 +190,7 @@ setFileMode = do
 
 primitiveError :: Stateful VirtualFunction
 primitiveError = return $ function
-  "error"
+  "error__unmonadified"
   [ UN PUSH $ M (getArg 1)
   , JUMP CALL "memoryPackString"
   , unpush 1
@@ -211,7 +209,7 @@ equals = do
   temp <- newTemp
   yes  <- newLabel
   return $ function
-    "equals"
+    "equals__uncurried"
     [ OP MOV $ MR (getArg 1) temp
     , OP CMP $ MR (getArg 2) temp
     , JUMP JE yes
@@ -227,7 +225,7 @@ lessThan = do
   temp <- newTemp
   yes  <- newLabel
   return $ function
-    "equals"
+    "equals__uncurried"
     [ OP MOV $ MR (getArg 1) temp
     , OP CMP $ MR (getArg 2) temp
     , JUMP JL yes
@@ -239,7 +237,8 @@ lessThan = do
     ]
 
 monadPure :: Stateful VirtualFunction
-monadPure = return $ function "pure" [OP MOV $ MR (getArg 1) rax, RET]
+monadPure =
+  return $ function "pure__unmonadified" [OP MOV $ MR (getArg 1) rax, RET]
 
 monadBind :: Stateful VirtualFunction
 monadBind = do
@@ -249,7 +248,7 @@ monadBind = do
   firstCallCode  <- translateCall monad Nothing
   secondCallCode <- translateCall fn (Just arg)
   return $ function
-    "bind"
+    "bind__uncurried__unmonadified"
     (  [OP MOV $ MR (getArg 1) monad]
     ++ firstCallCode
     ++ [OP MOV $ RR rax arg, OP MOV $ MR (getArg 2) fn]
@@ -263,11 +262,11 @@ monadify numArgs fnName = do
   fnPtr <- newTemp
   arg   <- newTemp
   return $ function
-    (fnName ++ "__monadified")
+    fnName
     (  [ PUSHI (fromIntegral $ (numArgs + 2) * 8)
        , JUMP CALL "memoryAlloc"
        , unpush 1
-       , LEA (memLabel fnName) fnPtr
+       , LEA (memLabel $ fnName ++ "__unmonadified") fnPtr
        , OP MOV $ RM fnPtr (getField 0 rax)
        , OP MOV $ IM (fromIntegral numArgs) (getField 1 rax)
        ]
@@ -280,36 +279,3 @@ monadify numArgs fnName = do
          [1 .. numArgs]
     ++ [RET]
     )
-
-curryify :: Int -> String -> Stateful [VirtualFunction]
-curryify numArgs fnName = do
-  let _ = assert (numArgs >= 2)
-  mapM
-    (\numCurried -> do
-      fnPtr     <- newTemp
-      nextFnPtr <- newTemp
-      arg       <- newTemp
-      let nextFnName = if numCurried == numArgs - 1
-            then fnName
-            else fnName ++ "__curried" ++ show (numCurried + 1)
-      return $ function
-        (fnName ++ "__curried" ++ show numCurried)
-        (  [ PUSHI (fromIntegral $ (numCurried + 3) * 8)
-           , JUMP CALL "memoryAlloc"
-           , unpush 1
-           , OP MOV $ RR rax fnPtr
-           , LEA (memLabel nextFnName) nextFnPtr
-           , OP MOV $ RM nextFnPtr (getField 0 fnPtr)
-           , OP MOV $ IM (fromIntegral $ numCurried + 1) (getField 1 fnPtr)
-           ]
-        ++ concatMap
-             (\i ->
-               [ OP MOV $ MR (getArg i) arg
-               , OP MOV $ RM arg (getField (i + 1) fnPtr)
-               ]
-             )
-             [1 .. numCurried + 1]
-        ++ [OP MOV $ RR fnPtr rax, RET]
-        )
-    )
-    [0 .. numArgs - 1]

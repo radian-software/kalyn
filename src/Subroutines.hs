@@ -1,5 +1,6 @@
 module Subroutines where
 
+import           Control.Exception
 import           Control.Monad.State
 
 import           Assembly
@@ -69,3 +70,39 @@ translateCall lhsTemp rhsTemp = do
          Just _  -> [UN INC $ R popAmt]
        )
     ++ [OP IMUL $ IR 8 popAmt, OP ADD $ RR popAmt rsp]
+
+curryify :: Int -> String -> Stateful [VirtualFunction]
+curryify numArgs fnName = do
+  let _ = assert (numArgs >= 2)
+  mapM
+    (\numCurried -> do
+      fnPtr     <- newTemp
+      nextFnPtr <- newTemp
+      arg       <- newTemp
+      let curFnName = if numCurried == 0
+            then fnName
+            else fnName ++ "__curried" ++ show numCurried
+      let nextFnName = if numCurried == numArgs - 1
+            then fnName ++ "__uncurried"
+            else fnName ++ "__curried" ++ show (numCurried + 1)
+      return $ function
+        curFnName
+        (  [ PUSHI (fromIntegral $ (numCurried + 3) * 8)
+           , JUMP CALL "memoryAlloc"
+           , unpush 1
+           , OP MOV $ RR rax fnPtr
+           , LEA (memLabel nextFnName) nextFnPtr
+           , OP MOV $ RM nextFnPtr (getField 0 fnPtr)
+           , OP MOV $ IM (fromIntegral $ numCurried + 1) (getField 1 fnPtr)
+           ]
+        ++ concatMap
+             (\i ->
+               [ OP MOV $ MR (getArg i) arg
+               , OP MOV $ RM arg (getField (i + 1) fnPtr)
+               ]
+             )
+             [1 .. numCurried + 1]
+        ++ [OP MOV $ RR fnPtr rax, RET]
+        )
+    )
+    [0 .. numArgs - 1]

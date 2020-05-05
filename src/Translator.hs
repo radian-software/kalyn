@@ -14,6 +14,8 @@ import           Subroutines
 
 type Bindings = Map.Map String (Either Symbol VirtualRegister)
 
+type TopLevelBindings = Map.Map String Symbol
+
 data Context = Context
   { bindings :: Bindings
   , fnName :: String
@@ -185,20 +187,48 @@ translateExpr ctx dst (Let name val body) = do
   return (letCode ++ bodyCode, letFns ++ bodyFns)
 
 -- don't handle Derive or Instance for now
-translateDecl :: Bindings -> Decl -> Stateful [VirtualFunction]
-translateDecl _     (Alias _ _ _       ) = return []
-translateDecl _     (Class _ _ _ _     ) = return []
-translateDecl _     (Data _ _ _        ) = undefined
+translateDecl :: TopLevelBindings -> Decl -> Stateful [VirtualFunction]
+translateDecl _     (Alias _ _ _   ) = return []
+translateDecl _     (Class _ _ _ _ ) = return []
+translateDecl binds (Data _ _ ctors) = concat <$> zipWithM
+  (\(ctor, types) ctorIdx -> do
+    arg <- newTemp
+    let mainName =
+          symName (binds Map.! ctor)
+            ++ (if length types >= 2 then "__uncurried" else "")
+    let mainFn = function
+          mainName
+          (if length types == 1
+            then [OP MOV $ MR (getArg 1) rax, RET]
+            else
+              [ PUSHI (fromIntegral $ (length ctor + 1) * 8)
+              , JUMP CALL "memoryAlloc"
+              , unpush 1
+              , OP MOV $ IM ctorIdx (getField 0 rax)
+              ]
+              ++ concatMap
+                   (\argIdx ->
+                     [ OP MOV $ MR (getArg argIdx) arg
+                     , OP MOV $ RM arg (getField (argIdx + 1) rax)
+                     ]
+                   )
+                   [1 .. length types]
+              ++ [RET]
+          )
+    return [mainFn]
+  )
+  ctors
+  (iterate (+ 1) 0)
 translateDecl binds (Def _ name _ value) = do
   dst           <- newTemp
-  (instrs, fns) <- translateExpr (Context binds name) dst value
-  return $ function name (instrs ++ [OP MOV $ RR dst rax, RET]) : fns
+  (instrs, fns) <- translateExpr (Context (Map.map Left binds) name) dst value
+  return
+    $ function (symName $ binds Map.! name)
+               (instrs ++ [OP MOV $ RR dst rax, RET])
+    : fns
 translateDecl _ (Derive _ _) = return []
 translateDecl _ (Import _ _) = error "translator shouldn't be handling imports"
 translateDecl _ (Instance _ _ _ _) = return []
-
-getBindings :: Resolver -> String -> Bindings
-getBindings resolver mod = Map.map Left (resolver Map.! mod)
 
 translateBundle :: Resolver -> Bundle -> Stateful (Program VirtualRegister)
 translateBundle resolver (Bundle mmod mmap) = do
@@ -212,12 +242,10 @@ translateBundle resolver (Bundle mmod mmap) = do
   let mmap' = Map.adjust (first (filter (not . isMain))) mmod mmap
   fns <- concat <$> mapM
     (\(mod, (decls, _)) ->
-      let binds = getBindings resolver mod
-      in  concat <$> mapM (translateDecl binds) decls
+      concat <$> mapM (translateDecl (resolver Map.! mod)) decls
     )
     (Map.toList mmap')
-  let mainBindings = getBindings resolver mmod
-  mainFns <- translateDecl mainBindings mainDecl
+  mainFns <- translateDecl (resolver Map.! mmod) mainDecl
   let mainFn   = head mainFns
   let extraFns = tail mainFns
   return $ Program mainFn (extraFns ++ fns) []
