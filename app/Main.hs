@@ -28,7 +28,7 @@ helloWorld = Program
     , SYSCALL 3 -- write
     , OP MOV $ IR 60 RAX
     , OP MOV $ IR 0 RDI
-    , SYSCALL 1
+    , SYSCALL 1 -- exit
     ]
   )
   []
@@ -47,7 +47,7 @@ printInt = Program
     , SYSCALL 3 -- write
     , OP MOV $ IR 60 RAX
     , OP MOV $ IR 0 RDI
-    , SYSCALL 1
+    , SYSCALL 1 -- exit
     ]
   )
   [ function

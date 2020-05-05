@@ -41,17 +41,17 @@ divide = divOp "divide" []
 modulo :: Stateful VirtualFunction
 modulo = divOp "modulo" [OP MOV $ RR rdx rax]
 
-and :: Stateful VirtualFunction
-and = basicOp "and" AND
+bitAnd :: Stateful VirtualFunction
+bitAnd = basicOp "and" AND
 
-or :: Stateful VirtualFunction
-or = basicOp "or" OR
+bitOr :: Stateful VirtualFunction
+bitOr = basicOp "or" OR
 
 xor :: Stateful VirtualFunction
 xor = basicOp "xor" XOR
 
-bitnot :: Stateful VirtualFunction
-bitnot = do
+bitNot :: Stateful VirtualFunction
+bitNot = do
   temp <- newTemp
   return $ function
     "not"
@@ -94,8 +94,8 @@ sal = shiftOp "sal" SAL
 sar :: Stateful VirtualFunction
 sar = shiftOp "sar" SAR
 
-print :: Stateful VirtualFunction
-print = do
+monadPrint :: Stateful VirtualFunction
+monadPrint = do
   temp <- newTemp
   return $ function
     "print__unmonadified"
@@ -111,8 +111,8 @@ print = do
     , RET
     ]
 
-writeFile :: Stateful VirtualFunction
-writeFile = do
+monadWriteFile :: Stateful VirtualFunction
+monadWriteFile = do
   temp       <- newTemp
   filename   <- newTemp
   contents   <- newTemp
@@ -190,7 +190,7 @@ setFileMode = do
 
 primitiveError :: Stateful VirtualFunction
 primitiveError = return $ function
-  "error__unmonadified"
+  "error"
   [ UN PUSH $ M (getArg 1)
   , JUMP CALL "memoryPackString"
   , unpush 1
@@ -225,7 +225,7 @@ lessThan = do
   temp <- newTemp
   yes  <- newLabel
   return $ function
-    "equals__uncurried"
+    "lessThan__uncurried"
     [ OP MOV $ MR (getArg 1) temp
     , OP CMP $ MR (getArg 2) temp
     , JUMP JL yes

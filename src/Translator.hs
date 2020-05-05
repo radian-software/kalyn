@@ -8,6 +8,7 @@ import           Prelude                 hiding ( mod )
 
 import           AST
 import           Assembly
+import           Bridge
 import           Subroutines
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
@@ -246,6 +247,17 @@ translateBundle resolver (Bundle mmod mmap) = do
     )
     (Map.toList mmap')
   mainFns <- translateDecl (resolver Map.! mmod) mainDecl
-  let mainFn   = head mainFns
-  let extraFns = tail mainFns
-  return $ Program mainFn (extraFns ++ fns) []
+  mainFn  <-
+    let Function instrs = head mainFns
+    in  do
+          let memInitCode = [JUMP CALL "memoryInit"]
+          callCode <- translateCall rax Nothing
+          let exitCode =
+                [ OP MOV $ IR 60 rax
+                , OP MOV $ IR 0 rdi
+                , SYSCALL 1 -- exit
+                ]
+          return $ Function $ memInitCode ++ instrs ++ callCode ++ exitCode
+  let extraMainFns = tail mainFns
+  stdlib <- stdlibFns
+  return $ Program mainFn (extraMainFns ++ fns ++ stdlib) stdlibData
