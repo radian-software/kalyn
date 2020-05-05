@@ -1,6 +1,11 @@
-module Liveness where
+module Liveness
+  ( computeLiveness
+  , showLiveness
+  )
+where
 
 import           Control.Exception
+import           Data.List
 import qualified Data.Map.Strict               as Map
 import qualified Data.Set                      as Set
 
@@ -44,3 +49,22 @@ computeLiveness instrs =
           )
     )
     info
+
+showLiveness :: Program VirtualRegister -> String
+showLiveness (Program mainFn fns _) = concatMap
+  (\(Function instrs) -> intercalate "\n" $ zipWith
+    (\instr (liveIn, liveOut) ->
+      ";; live IN: "
+        ++ (intercalate ", " . map show . Set.toList $ liveIn)
+        ++ "\n"
+        ++ (case instr of
+             LABEL name -> name ++ ":"
+             _          -> "\t" ++ show instr
+           )
+        ++ "\n;; live OUT: "
+        ++ (intercalate ", " . map show . Set.toList $ liveOut)
+    )
+    instrs
+    (Map.elems . computeLiveness $ instrs)
+  )
+  (mainFn : fns)

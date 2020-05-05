@@ -15,6 +15,7 @@ import           Parser
 import           Bundler
 import           Resolver
 import           Translator
+import           Liveness
 import           RegisterAllocator
 import           Boilerplate
 import           Assembler
@@ -77,6 +78,8 @@ compileIncrementally inputFilename = do
   putStrLn "Translator"
   let virtualProgram = translateBundle resolver bundle
   overwriteFile (prefix ++ "Virtual.S") $ show virtualProgram
+  putStrLn "Liveness"
+  overwriteFile (prefix ++ "Liveness") $ showLiveness virtualProgram
   putStrLn "RegisterAllocator"
   let physicalProgram = allocateProgramRegs virtualProgram
   overwriteFile (prefix ++ "Raw.S") $ show physicalProgram
