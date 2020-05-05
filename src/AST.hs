@@ -43,24 +43,24 @@ data Bundle = Bundle String (Map.Map String ([Decl], [String]))
 newtype Resolver = Resolver (Map.Map String (Map.Map String Symbol))
 
 instance Show ClassSpec where
-  show (ClassSpec cls typ) = "(" ++ show cls ++ " " ++ show typ ++ ")"
+  show (ClassSpec cls typ) = "(" ++ cls ++ " " ++ show typ ++ ")"
 
 instance Show TypeSpec where
-  show (TypeSpec name []) = show name
+  show (TypeSpec name []) = name
   show (TypeSpec name args) =
-    "(" ++ show name ++ " " ++ unwords (map show args) ++ ")"
+    "(" ++ name ++ " " ++ unwords (map show args) ++ ")"
 
 instance Show Type where
   show (Type constraints name args) =
     let inner = if null args
-          then show name
-          else "(" ++ show name ++ " " ++ unwords (map show args) ++ ")"
+          then name
+          else "(" ++ name ++ " " ++ unwords (map show args) ++ ")"
     in  if null constraints
           then inner
           else "(with " ++ unwords (map show constraints) ++ " " ++ inner ++ ")"
 
 instance Show Expr where
-  show (Variable name) = show name
+  show (Variable name) = name
   show (Const    i   ) = show i
   show (Call (Variable "Char") (Const c)) =
     show (toEnum $ fromIntegral c :: Char)
@@ -101,8 +101,8 @@ instance Show Expr where
     let (body, bindings) = condenseLets form
     in  "(let ("
           ++ unwords
-               (flip map bindings $ \(name, expr) ->
-                 "(" ++ show name ++ " " ++ show expr ++ ")"
+               ( flip map bindings
+               $ \(name, expr) -> "(" ++ name ++ " " ++ show expr ++ ")"
                )
           ++ ") "
           ++ show body
@@ -127,7 +127,7 @@ instance Show Decl where
         ++ ") "
         ++ unwords
              ( flip map members
-             $ \(name, typ) -> "(" ++ show name ++ " " ++ show typ ++ ")"
+             $ \(name, typ) -> "(" ++ name ++ " " ++ show typ ++ ")"
              )
         ++ ")"
     Data pub spec members ->
@@ -139,8 +139,8 @@ instance Show Decl where
              then ""
              else " " ++ unwords
                (flip map members $ \(name, args) -> if null args
-                 then show name
-                 else show name ++ " " ++ unwords (map show args)
+                 then name
+                 else name ++ " " ++ unwords (map show args)
                )
            )
         ++ ")"
@@ -149,7 +149,7 @@ instance Show Decl where
       in  "("
             ++ showPub pub
             ++ "defn "
-            ++ show name
+            ++ name
             ++ " "
             ++ show typ
             ++ " ("
@@ -164,7 +164,7 @@ instance Show Decl where
       "("
         ++ showPub pub
         ++ "def "
-        ++ show name
+        ++ name
         ++ " "
         ++ show typ
         ++ " "
@@ -184,7 +184,7 @@ instance Show Decl where
         ++ ") "
         ++ unwords
              ( flip map members
-             $ \(name, expr) -> "(" ++ show name ++ " " ++ show expr ++ ")"
+             $ \(name, expr) -> "(" ++ name ++ " " ++ show expr ++ ")"
              )
         ++ ")"
    where

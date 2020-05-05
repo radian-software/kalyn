@@ -73,7 +73,7 @@ compileIncrementally inputFilename = do
   overwriteFile (prefix ++ "Bundle.kalyn") $ show bundle
   putStrLn "Resolver"
   let resolver = resolveBundle bundle
-  overwriteFile (prefix ++ "Resolver") $ show resolver ++ "\n"
+  overwriteFile (prefix ++ "Resolver") $ show resolver
   putStrLn "Translator"
   let virtualProgram = translateBundle resolver bundle
   overwriteFile (prefix ++ "Virtual.S") $ show virtualProgram
