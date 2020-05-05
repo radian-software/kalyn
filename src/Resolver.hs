@@ -76,19 +76,20 @@ resolveBundle (Bundle _ mmap) =
               (\name _ -> error $ "more than one definition for " ++ show name)
             $ concatMap
                 (\mod ->
-                  let
-                    modAbbr = modNames Map.! mod
-                    syms =
-                      map
-                          (mapSymbol
-                            (\name -> "__" ++ modAbbr ++ "__" ++ sanitize name)
-                          )
-                        $     concatMap getDeclSymbols
-                        $     fst
-                        $     mmap
-                        Map.! mod
+                  let modAbbr = modNames Map.! mod
                   in
-                    map (\sym -> (symName sym, sym)) syms
+                    map
+                      (\sym ->
+                        ( symName sym
+                        , mapSymbol
+                          (\name -> "__" ++ modAbbr ++ "__" ++ sanitize name)
+                          sym
+                        )
+                      )
+                    $     concatMap getDeclSymbols
+                    $     fst
+                    $     mmap
+                    Map.! mod
                 )
                 mods
       )
