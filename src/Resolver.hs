@@ -1,4 +1,7 @@
-module Resolver where
+module Resolver
+  ( resolveBundle
+  )
+where
 
 import           Data.Char
 import           Data.Int
@@ -65,7 +68,7 @@ resolveBundle :: Bundle -> Resolver
 resolveBundle (Bundle _ mmap) =
   let modNames = sanitizeModuleNames (map fst $ Map.toList mmap)
   in
-    Map.mapWithKey
+    Resolver $ Map.mapWithKey
       (\mainMod info ->
         let mods = mainMod : snd info
         in

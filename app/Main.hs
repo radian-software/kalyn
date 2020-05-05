@@ -1,123 +1,26 @@
 module Main where
 
 import           Control.Exception
-import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy          as B
+import           System.FilePath
 import           System.IO.Error
 import           System.Posix.Files
 
-import           Assembly
+import           AST
 
 -- import in stack order
 import           Lexer
 import           Reader
 import           Parser
 import           Bundler
+import           Resolver
+import           Translator
+import           RegisterAllocator
+import           Boilerplate
 import           Assembler
 import           Linker
 
 {-# ANN module "HLint: ignore Use tuple-section" #-}
-
-helloWorld :: Program Register
-helloWorld = Program
-  (Function
-    [ OP MOV $ IR 1 RAX
-    , OP MOV $ IR 1 RDI
-    , LEA (memLabel "message") RSI
-    , OP MOV $ IR 14 RDX
-    , SYSCALL 3 -- write
-    , OP MOV $ IR 60 RAX
-    , OP MOV $ IR 0 RDI
-    , SYSCALL 1 -- exit
-    ]
-  )
-  []
-  [("message", toLazyByteString $ stringUtf8 "Hello, world!\n")]
-
-printInt :: Program Register
-printInt = Program
-  (Function
-    [ OP MOV $ IR 42 RDI
-    , OP IMUL $ IR 42 RDI
-    , JUMP CALL "printInt"
-    , OP MOV $ IR 1 RAX
-    , OP MOV $ IR 1 RDI
-    , LEA (memLabel "newline") RSI
-    , OP MOV $ IR 1 RDX
-    , SYSCALL 3 -- write
-    , OP MOV $ IR 60 RAX
-    , OP MOV $ IR 0 RDI
-    , SYSCALL 1 -- exit
-    ]
-  )
-  [ function
-    "printInt"
-    [ OP CMP $ IR 0 RDI
-    , JUMP JGE "printInt1"
-    , LEA (memLabel "minus") RSI
-    , UN PUSH $ R RDI
-    , OP MOV $ IR 1 RAX
-    , OP MOV $ IR 1 RDX
-    , OP MOV $ IR 1 RDI
-    , SYSCALL 3 -- write
-    , UN POP $ R RDI
-    , OP IMUL $ IR (-1) RDI
-    , LABEL "printInt1"
-    , OP CMP $ IR 0 RDI
-    , JUMP JNE "printInt2"
-    , OP MOV $ IR 1 RAX
-    , OP MOV $ IR 1 RDI
-    , LEA (memLabel "digits") RSI
-    , OP MOV $ IR 1 RDX
-    , SYSCALL 3 -- write
-    , RET
-    , LABEL "printInt2"
-    , JUMP CALL "printIntRec"
-    , RET
-    ]
-  , function
-    "printIntRec"
-    [ OP CMP $ IR 0 RDI
-    , JUMP JNE "printIntRec1"
-    , RET
-    , LABEL "printIntRec1"
-    , OP MOV $ RR RDI RAX
-    , CQTO
-    , OP MOV $ IR 10 RSI
-    , IDIV RSI
-    , UN PUSH $ R RDX
-    , OP MOV $ RR RAX RDI
-    , JUMP CALL "printIntRec"
-    , LEA (memLabel "digits") RSI
-    , OP MOV $ IR 1 RAX
-    , UN POP $ R RDX
-    , OP ADD $ RR RDX RSI
-    , OP MOV $ IR 1 RDI
-    , OP MOV $ IR 1 RDX
-    , SYSCALL 3 -- write
-    , RET
-    ]
-  ]
-  [ ("digits" , toLazyByteString (stringUtf8 "0123456789"))
-  , ("minus"  , toLazyByteString (charUtf8 '-'))
-  , ("newline", toLazyByteString (charUtf8 '\n'))
-  ]
-
-test :: Program Register
-test = Program
-  (Function
-    [ SHIFT Nothing  SHL R12
-    , SHIFT Nothing  SAL R12
-    , SHIFT Nothing  SHR R12
-    , SHIFT Nothing  SAR R12
-    , SHIFT (Just 5) SHL R12
-    , SHIFT (Just 5) SAL R12
-    , SHIFT (Just 5) SHR R12
-    , SHIFT (Just 5) SAR R12
-    ]
-  )
-  []
-  []
 
 ignoringDoesNotExist :: IO () -> IO ()
 ignoringDoesNotExist m = do
@@ -126,46 +29,67 @@ ignoringDoesNotExist m = do
     Left err | not . isDoesNotExistError $ err -> ioError err
     _ -> return ()
 
-compileIncrementally :: Program Register -> String -> IO ()
-compileIncrementally prog fname = do
-  putStrLn $ "  compiling " ++ show fname ++ " ..."
-  let path = "out/" ++ fname
-  mapM_ (ignoringDoesNotExist . removeLink) [path, path ++ ".S", path ++ ".o"]
-  writeFile (path ++ ".S") $ show prog
-  let obj@(codeB, dataB) = compile prog
-  B.writeFile (path ++ ".o") (codeB <> dataB)
-  let exec = link obj
-  B.writeFile path exec
-  setFileMode path 0o755
+overwriteFile :: FilePath -> String -> IO ()
+overwriteFile filename str = do
+  ignoringDoesNotExist $ removeLink filename
+  writeFile filename str
 
-parseIncrementally :: String -> IO ()
-parseIncrementally fname = do
-  putStrLn $ "  parsing " ++ show fname ++ " ..."
-  let inpath  = "src-kalyn/" ++ fname ++ ".kalyn"
-  let outpath = "out-kalyn/" ++ fname
-  str <- readFile inpath
-  mapM_
-    (ignoringDoesNotExist . removeLink)
-    [outpath ++ "Tokens", outpath ++ "Forms.kalyn", outpath ++ "AST.kalyn"]
+overwriteBinary :: FilePath -> B.ByteString -> IO ()
+overwriteBinary filename bin = do
+  ignoringDoesNotExist $ removeLink filename
+  B.writeFile filename bin
+
+getPrefix :: String -> String
+getPrefix inputFilename = do
+  let base = dropExtension . takeFileName $ inputFilename
+  let src = takeFileName . takeDirectory $ inputFilename
+  let out  = "out"
+  let root = takeDirectory . takeDirectory $ inputFilename
+  if src /= "src-kalyn-test"
+    then error "Kalyn source files outside src-kalyn-test"
+    else root </> out </> base
+
+readIncrementally :: String -> IO [Decl]
+readIncrementally inputFilename = do
+  let prefix = getPrefix inputFilename
+  str <- readFile inputFilename
+  putStrLn $ "Lexer (" ++ takeFileName inputFilename ++ ")"
   let tokens = tokenize str
-  writeFile (outpath ++ "Tokens") $ concatMap (\t -> show t ++ "\n") tokens
+  overwriteFile (prefix ++ "Tokens") $ concatMap (\t -> show t ++ "\n") tokens
+  putStrLn $ "Reader (" ++ takeFileName inputFilename ++ ")"
   let forms = readModule tokens
-  writeFile (outpath ++ "Forms.kalyn") $ concatMap (\f -> show f ++ "\n") forms
+  overwriteFile (prefix ++ "Forms.kalyn")
+    $ concatMap (\f -> show f ++ "\n") forms
+  putStrLn $ "Parser (" ++ takeFileName inputFilename ++ ")"
   let decls = parseModule forms
-  writeFile (outpath ++ "AST.kalyn") $ concatMap (\d -> show d ++ "\n") decls
+  overwriteFile (prefix ++ "AST.kalyn") $ concatMap (\d -> show d ++ "\n") decls
+  return decls
+
+compileIncrementally :: String -> IO ()
+compileIncrementally inputFilename = do
+  let prefix = getPrefix inputFilename
+  putStrLn "Bundler"
+  bundle <- readBundle readIncrementally inputFilename
+  overwriteFile (prefix ++ "Bundle.kalyn") $ show bundle
+  putStrLn "Resolver"
+  let resolver = resolveBundle bundle
+  overwriteFile (prefix ++ "Resolver") $ show resolver ++ "\n"
+  putStrLn "Translator"
+  let virtualProgram = translateBundle resolver bundle
+  overwriteFile (prefix ++ "Virtual.S") $ show virtualProgram
+  putStrLn "RegisterAllocator"
+  let physicalProgram = allocateProgramRegs virtualProgram
+  overwriteFile (prefix ++ "Raw.S") $ show physicalProgram
+  putStrLn "Boilerplate"
+  let physicalProgram' = addProgramBoilerplate physicalProgram
+  overwriteFile (prefix ++ ".S") $ show physicalProgram'
+  putStrLn "Assembler"
+  let (codeB, dataB) = assemble physicalProgram'
+  overwriteBinary (prefix ++ ".o") (codeB <> dataB)
+  putStrLn "Linker"
+  let binary = link (codeB, dataB)
+  overwriteBinary prefix binary
+  setFileMode prefix 0o755
 
 main :: IO ()
-main = do
-  putStrLn "Running Kalyn ..."
-  compileIncrementally helloWorld "hello"
-  compileIncrementally printInt   "print"
-  compileIncrementally test       "test"
-  parseIncrementally "Linker"
-  parseIncrementally "Main"
-  parseIncrementally "Stdlib"
-  parseIncrementally "Util"
-  ignoringDoesNotExist $ removeLink "out-kalyn/MainFullAST.kalyn"
-  putStrLn "  bundling ..."
-  bundle <- readBundle (parseModule . readModule . tokenize)
-                       "src-kalyn/Main.kalyn"
-  writeFile "out-kalyn/MainFullAST.kalyn" $ show bundle
+main = compileIncrementally "src-kalyn-test/Main.kalyn"

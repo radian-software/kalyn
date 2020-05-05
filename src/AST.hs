@@ -4,6 +4,7 @@ import           Codec.Binary.UTF8.String
 import           Data.Int
 import           Data.List
 import qualified Data.Map                      as Map
+import           Prelude                 hiding ( mod )
 
 {-# ANN module "HLint: ignore Redundant flip" #-}
 {-# ANN module "HLint: ignore Use record patterns" #-}
@@ -39,7 +40,7 @@ symName (SymDef name     ) = name
 symName (SymData name _ _) = name
 
 data Bundle = Bundle String (Map.Map String ([Decl], [String]))
-type Resolver = Map.Map String (Map.Map String Symbol)
+newtype Resolver = Resolver (Map.Map String (Map.Map String Symbol))
 
 instance Show ClassSpec where
   show (ClassSpec cls typ) = "(" ++ show cls ++ " " ++ show typ ++ ")"
@@ -190,6 +191,17 @@ instance Show Decl where
     showPub False = ""
     showPub True  = "public "
 
+instance Show Symbol where
+  show (SymDef name) = "regular symbol " ++ name
+  show (SymData name ctorIdx numFields) =
+    "data constructor "
+      ++ name
+      ++ " with index "
+      ++ show ctorIdx
+      ++ " and "
+      ++ show numFields
+      ++ " fields"
+
 instance Show Bundle where
   show (Bundle main modules) =
     ";; main module: " ++ show main ++ "\n\n" ++ intercalate
@@ -209,3 +221,12 @@ instance Show Bundle where
                else "\n" ++ flip concatMap decls (\d -> show d ++ "\n")
              )
       )
+
+instance Show Resolver where
+  show (Resolver resolver) =
+    concatMap
+        (\(mod, syms) -> "module " ++ show mod ++ "\n" ++ concatMap
+          (\(name, sym) -> "  " ++ name ++ " -> " ++ show sym ++ "\n")
+          (Map.toList syms)
+        )
+      $ Map.toList resolver

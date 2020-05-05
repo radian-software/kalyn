@@ -1,6 +1,11 @@
-module Translator where
+module Translator
+  ( translateBundle
+  )
+where
 
+import           Control.Applicative     hiding ( Const )
 import           Control.Monad
+import           Control.Monad.State
 import           Data.Bifunctor
 import           Data.List
 import qualified Data.Map.Strict               as Map
@@ -42,7 +47,9 @@ translateVar :: Context -> VirtualRegister -> String -> [VirtualInstruction]
 translateVar ctx dst name = case Map.lookup name (bindings ctx) of
   Just (Left  sym) -> [JUMP CALL (symName sym), OP MOV $ RR rax dst]
   Just (Right reg) -> [OP MOV $ RR reg dst]
-  Nothing          -> error $ "reference to free variable: " ++ show name
+  Nothing          -> case Map.lookup name stdlibPublic of
+    Just (internalName, _) -> [JUMP CALL internalName, OP MOV $ RR rax dst]
+    Nothing -> error $ "reference to free variable: " ++ show name
 
 translatePattern
   :: Context
@@ -231,8 +238,8 @@ translateDecl _ (Derive _ _) = return []
 translateDecl _ (Import _ _) = error "translator shouldn't be handling imports"
 translateDecl _ (Instance _ _ _ _) = return []
 
-translateBundle :: Resolver -> Bundle -> Stateful (Program VirtualRegister)
-translateBundle resolver (Bundle mmod mmap) = do
+translateBundle' :: Resolver -> Bundle -> Stateful (Program VirtualRegister)
+translateBundle' (Resolver resolver) (Bundle mmod mmap) = do
   let isMain decl = case decl of
         Def _ name _ _ | name == "main" -> True
         _                               -> False
@@ -261,3 +268,7 @@ translateBundle resolver (Bundle mmod mmap) = do
   let extraMainFns = tail mainFns
   stdlib <- stdlibFns
   return $ Program mainFn (extraMainFns ++ fns ++ stdlib) stdlibData
+
+translateBundle :: Resolver -> Bundle -> Program VirtualRegister
+translateBundle resolver bundle =
+  evalState (translateBundle' resolver bundle) 0

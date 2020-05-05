@@ -1,5 +1,5 @@
 module Assembler
-  ( compile
+  ( assemble
   )
 where
 
@@ -300,8 +300,8 @@ compileInstr labels pc instr =
         SYSCALL _ -> plainInstr [0x0f, 0x05]
         LABEL   _ -> B.empty
 
-compile :: Program Register -> (B.ByteString, B.ByteString)
-compile (Program main fns datums) =
+assemble :: Program Register -> (B.ByteString, B.ByteString)
+assemble (Program main fns datums) =
   let allInstrs = fnInstrs main ++ concatMap fnInstrs fns
       codeB =
           B.concat

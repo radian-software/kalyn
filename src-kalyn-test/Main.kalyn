@@ -1,0 +1,2 @@
+(public def main (IO Empty)
+  (print "Hello, world!"))

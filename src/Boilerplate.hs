@@ -1,9 +1,12 @@
-module Boilerplate where
+module Boilerplate
+  ( addProgramBoilerplate
+  )
+where
 
 import           Assembly
 
-addBoilerplate :: PhysicalFunction -> PhysicalFunction
-addBoilerplate (Function instrs) =
+addFnBoilerplate :: PhysicalFunction -> PhysicalFunction
+addFnBoilerplate (Function instrs) =
   let clobberedRegs =
           filter (\reg -> reg `elem` dataRegisters && reg /= RAX)
             $ concatMap (snd . getRegisters) instrs
@@ -16,3 +19,7 @@ addBoilerplate (Function instrs) =
                _   -> [instr]
              )
              instrs
+
+addProgramBoilerplate :: Program Register -> Program Register
+addProgramBoilerplate (Program mainFn fns datums) =
+  Program mainFn (map addFnBoilerplate fns) datums

@@ -1,4 +1,7 @@
-module Bundler where
+module Bundler
+  ( readBundle
+  )
+where
 
 import           Data.List
 import qualified Data.Map.Strict               as Map
@@ -15,7 +18,7 @@ extractImports (decl : decls) =
   let (files, decls') = extractImports decls in (files, decl : decls')
 
 readBundle'
-  :: (String -> [Decl])
+  :: (String -> IO [Decl])
   -> [FilePath]
   -> [FilePath]
   -> Map.Map FilePath ([Decl], [(FilePath, Bool)])
@@ -25,8 +28,7 @@ readBundle' readDecls alreadyRead (curToRead : restToRead) declsSoFar =
   if curToRead `elem` alreadyRead
     then readBundle' readDecls alreadyRead restToRead declsSoFar
     else do
-      str <- readFile curToRead
-      let (newToRead, newDecls) = extractImports $ readDecls str
+      (newToRead, newDecls) <- extractImports <$> readDecls curToRead
       absNewToRead <- withCurrentDirectory (takeDirectory curToRead) $ mapM
         (\(path, pub) -> do
           absPath <- canonicalizePath path
@@ -52,7 +54,7 @@ transitiveImports modules seen (cur : next) result = if cur `elem` seen
         new       = map fst $ filter snd deps
     in  transitiveImports modules (cur : seen) (new ++ next) (cur : result)
 
-readBundle :: (String -> [Decl]) -> FilePath -> IO Bundle
+readBundle :: (String -> IO [Decl]) -> FilePath -> IO Bundle
 readBundle readDecls filename = do
   absFilename <- canonicalizePath filename
   modules     <- readBundle' readDecls [] [absFilename] Map.empty
