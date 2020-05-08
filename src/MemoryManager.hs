@@ -36,6 +36,7 @@ memoryAlloc = do
   ptr       <- newTemp
   brk       <- newLabel
   done      <- newLabel
+  crash     <- newLabel
   return $ function
     "memoryAlloc"
     [ OP MOV $ MR (memLabel "mmFirstFree") firstFree
@@ -58,9 +59,11 @@ memoryAlloc = do
     , OP MOV $ RR firstFree rdi
     , SYSCALL 1 -- brk
     , OP CMP $ RR firstFree rax
-    , JUMP JLE "crash"
+    , JUMP JLE crash
     , OP MOV $ RM rax (memLabel "mmProgramBreak")
     , JUMP JMP done
+    , LABEL crash
+    , JUMP CALL "crash"
     ]
 
 memoryPackString :: Stateful VirtualFunction

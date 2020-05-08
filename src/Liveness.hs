@@ -14,8 +14,13 @@ import           Util
 
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 
+lookupLabel :: Map.Map Label Int -> Label -> Int
+lookupLabel labelMap label = case label `Map.lookup` labelMap of
+  Nothing  -> error $ "liveness analysis hit unresolved label " ++ show label
+  Just idx -> idx
+
 computeLiveness
-  :: (Eq reg, Ord reg, RegisterLike reg)
+  :: (Eq reg, Ord reg, RegisterLike reg, Show reg)
   => [Instruction reg]
   -> Map.Map Int (Set.Set reg, Set.Set reg)
 computeLiveness instrs =
@@ -35,9 +40,9 @@ computeLiveness instrs =
     (\idx instr -> case getJumpType instr of
       Straightline | idx == length instrs - 1 -> []
       Straightline | otherwise                -> [idx + 1]
-      Jump label                              -> [labelMap Map.! label]
-      Branch label | idx == length instrs - 1 -> [labelMap Map.! label]
-      Branch label | otherwise                -> [labelMap Map.! label, idx + 1]
+      Jump label                              -> [lookupLabel labelMap label]
+      Branch label | idx == length instrs - 1 -> [lookupLabel labelMap label]
+      Branch label | otherwise -> [lookupLabel labelMap label, idx + 1]
     )
     instrMap
   initial = Map.map (const (Set.empty, Set.empty)) instrMap

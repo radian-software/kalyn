@@ -68,7 +68,7 @@ stdlibPublic = Map.fromList
   ]
 
 stdlibPrivate :: [Stateful VirtualFunction]
-stdlibPrivate = [memoryInit, memoryAlloc, memoryPackString]
+stdlibPrivate = [memoryInit, memoryAlloc, memoryPackString, primitiveCrash]
 
 stdlibFns :: Stateful [VirtualFunction]
 stdlibFns = do

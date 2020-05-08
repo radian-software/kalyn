@@ -242,8 +242,7 @@ dataRegisters =
   [RAX, RCX, RDX, RBX, RSI, RDI, R8, R9, R10, R11, R12, R13, R14, R15]
 
 syscallRegisters :: [Register]
-syscallRegisters =
-  [RAX, RDI, RSI, RDX, RCX, R8, R9, error "too many arguments for system call"]
+syscallRegisters = [RAX, RDI, RSI, RDX, RCX, R8, R9]
 
 getMemRegisters :: Mem reg -> [reg]
 getMemRegisters (Mem _ base Nothing          ) = [base]
@@ -282,13 +281,15 @@ getRegisters (IDIV src) =
   ( [src, fromRegister rax, fromRegister rdx]
   , [fromRegister rax, fromRegister rdx]
   )
-getRegisters CQTO      = ([fromRegister rax], [fromRegister rdx])
-getRegisters (PUSHI _) = ([], [])
-getRegisters RET       = ([fromRegister rax], [])
-getRegisters (SYSCALL n) =
-  ( map fromRegister $ take (n + 1) syscallRegisters
-  , map fromRegister syscallRegisters
-  )
+getRegisters CQTO        = ([fromRegister rax], [fromRegister rdx])
+getRegisters (PUSHI _)   = ([], [])
+getRegisters RET         = ([fromRegister rax], [])
+getRegisters (SYSCALL n) = if n + 1 >= length syscallRegisters
+  then error "too many arguments for system call"
+  else
+    ( map fromRegister $ take (n + 1) syscallRegisters
+    , map fromRegister syscallRegisters
+    )
 getRegisters (LABEL _) = ([], [])
 
 data JumpType = Straightline | Jump Label | Branch Label
