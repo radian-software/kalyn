@@ -214,30 +214,34 @@ translateDecl binds (Data _ _ ctors) = concat <$> zipWithM
   (\(ctor, types) ctorIdx -> do
     arg <- newTemp
     let baseName = symName (binds Map.! ctor)
-    let mainName =
-          baseName ++ (if length types >= 2 then "__uncurried" else "")
-    let mainFn = Function
-          mainName
-          (if length types == 1
-            then [OP MOV $ MR (getArg 1) rax, RET]
-            else
-              [ PUSHI (fromIntegral $ (length ctor + 1) * 8)
-              , JUMP CALL "memoryAlloc"
-              , unpush 1
-              , OP MOV $ IM ctorIdx (getField 0 rax)
-              ]
-              ++ concatMap
-                   (\argIdx ->
-                     [ OP MOV $ MR (getArg argIdx) arg
-                     , OP MOV $ RM arg (getField (argIdx + 1) rax)
-                     ]
-                   )
-                   [1 .. length types]
-              ++ [RET]
-          )
-    extraFns <- if length types >= 2
-      then curryify (length types) baseName
-      else return []
+    let mainName = if null types then baseName else baseName ++ "__uncurried"
+    let
+      mainFn = Function
+        mainName
+        (if length ctors == 1 && length types == 1
+          then [OP MOV $ MR (getArg 1) rax, RET]
+          else
+            [ PUSHI (fromIntegral $ (length ctor + 1) * 8)
+            , JUMP CALL "memoryAlloc"
+            , unpush 1
+            ]
+            ++ ([ OP MOV $ IM ctorIdx (getField 0 rax) | length ctors > 1 ])
+            ++ concatMap
+                 (\argIdx ->
+                   [ OP MOV $ MR (getArg argIdx) arg
+                   , OP MOV $ RM
+                     arg
+                     (getField (argIdx + (if length ctors > 1 then 1 else 0))
+                               rax
+                     )
+                   ]
+                 )
+                 [1 .. length types]
+            ++ [RET]
+        )
+    extraFns <- if null types
+      then return []
+      else curryify (length types) baseName
     return $ mainFn : extraFns
   )
   ctors

@@ -10,26 +10,12 @@ import           Subroutines
 
 {-# ANN module "HLint: ignore Use lambda-case" #-}
 
-handleUnary
-  :: String -> Stateful VirtualFunction -> (String, Stateful [VirtualFunction])
-handleUnary name fn = (name, (: []) <$> fn)
-
 handleCurried
   :: Int
   -> String
   -> Stateful VirtualFunction
   -> (String, Stateful [VirtualFunction])
 handleCurried n name fn = (name, (:) <$> fn <*> curryify n name)
-
-handleUnaryM
-  :: String -> Stateful VirtualFunction -> (String, Stateful [VirtualFunction])
-handleUnaryM name fn =
-  ( name
-  , do
-    core       <- fn
-    monadified <- monadify 1 name
-    return [core, monadified]
-  )
 
 handleCurriedM
   :: Int
@@ -55,18 +41,18 @@ stdlibPublic = Map.fromList
   , ("&"          , handleCurried 2 "and" bitAnd)
   , ("|"          , handleCurried 2 "or" bitOr)
   , ("^"          , handleCurried 2 "xor" xor)
-  , ("~"          , handleUnary "not" bitNot)
+  , ("~"          , handleCurried 1 "not" bitNot)
   , ("shl"        , handleCurried 2 "shl" shl)
   , ("shr"        , handleCurried 2 "shr" shr)
   , ("sal"        , handleCurried 2 "sal" sal)
   , ("sar"        , handleCurried 2 "sar" sar)
-  , ("print"      , handleUnaryM "print" monadPrint)
+  , ("print"      , handleCurriedM 1 "print" monadPrint)
   , ("writeFile"  , handleCurriedM 2 "writeFile" monadWriteFile)
   , ("setFileMode", handleCurriedM 2 "setFileMode" setFileMode)
-  , ("error"      , handleUnary "error" primitiveError)
+  , ("error"      , handleCurried 1 "error" primitiveError)
   , ("=="         , handleCurried 2 "equals" equals)
   , ("<"          , handleCurried 2 "lessThan" lessThan)
-  , ("pure"       , handleUnaryM "pure" monadPure)
+  , ("pure"       , handleCurriedM 1 "pure" monadPure)
   , (">>="        , handleCurriedM 2 "bind" monadBind)
   ]
 

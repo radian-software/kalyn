@@ -72,9 +72,9 @@ translateCall lhsTemp rhsTemp = do
 
 curryify :: Int -> String -> Stateful [VirtualFunction]
 curryify numArgs fnName = do
-  if numArgs >= 2
+  if numArgs >= 1
     then return ()
-    else error "can't curry a function with less than two arguments"
+    else error "can't curry a function with no arguments"
   mapM
     (\numCurried -> do
       fnPtr     <- newTemp
@@ -83,7 +83,7 @@ curryify numArgs fnName = do
       let curFnName = if numCurried == 0
             then fnName
             else fnName ++ "__curried" ++ show numCurried
-      let nextFnName = if numCurried == numArgs - 2
+      let nextFnName = if numCurried == numArgs - 1
             then fnName ++ "__uncurried"
             else fnName ++ "__curried" ++ show (numCurried + 1)
       return $ Function
@@ -106,4 +106,4 @@ curryify numArgs fnName = do
         ++ [OP MOV $ RR fnPtr rax, RET]
         )
     )
-    [0 .. numArgs - 2]
+    [0 .. numArgs - 1]
