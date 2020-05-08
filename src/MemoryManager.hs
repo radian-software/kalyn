@@ -43,7 +43,7 @@ memoryAlloc = do
       -- round up to nearest multiple of eight, see
       -- <https://stackoverflow.com/a/9194117/3538165>
     , OP ADD $ IR 7 firstFree
-    , OP AND $ IR (-7) firstFree
+    , OP AND $ IR (-8) firstFree
       -- now to proceed
     , OP MOV $ RR firstFree ptr
     , OP ADD $ MR (getArg 1) firstFree
