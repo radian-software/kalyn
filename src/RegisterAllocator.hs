@@ -44,7 +44,15 @@ tryAllocateFunctionRegs fn@(Function _ instrs) =
           dataRegisters
         )
         intervalMap
-      (spilled, allocation) = allocate [] Map.empty allRegs
+      (spilled, allocation) = allocate
+        []
+        Map.empty
+        -- allocate to smaller live intervals first, hopefully meaning
+        -- we spill less
+        (sortOn
+          (\reg -> let (start, end) = intervalMap Map.! reg in end - start)
+          allRegs
+        )
          where
           allocate spills allocs [] = (spills, allocs)
           allocate spills allocs (cur@(Physical phys) : rst) =
