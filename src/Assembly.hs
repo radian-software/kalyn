@@ -273,10 +273,11 @@ getArgRegisters _ (M _) = ([], [])
 
 -- returns (src, dst)
 getRegisters :: RegisterLike reg => Instruction reg -> ([reg], [reg])
-getRegisters (OP    op args       ) = getArgsRegisters op args
-getRegisters (UN    op arg        ) = getArgRegisters op arg
-getRegisters (JUMP  _  _          ) = ([], [])
-getRegisters (MOV64 _  dst        ) = ([], [dst])
+getRegisters (OP    op   args     ) = getArgsRegisters op args
+getRegisters (UN    op   arg      ) = getArgRegisters op arg
+getRegisters (JUMP  CALL _        ) = ([], [fromRegister rax])
+getRegisters (JUMP  _    _        ) = ([], [])
+getRegisters (MOV64 _    dst      ) = ([], [dst])
 getRegisters (SHIFT Nothing  _ dst) = ([dst, fromRegister rcx], [dst])
 getRegisters (SHIFT (Just _) _ dst) = ([dst], [dst])
 getRegisters (LEA mem dst         ) = (getMemRegisters mem, [dst])

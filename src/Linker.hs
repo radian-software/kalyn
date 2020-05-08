@@ -3,7 +3,6 @@ module Linker
   )
 where
 
-import           Control.Exception
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy          as B
 import           Data.List
@@ -266,20 +265,21 @@ link (codeB, dataB) =
                 shdrData     = sectionHeader info
                 stringList   = collectMaybes (map snd shdrData)
                 shstrtabData = shstrtab stringList
-            in  assert -- sanity check that all entries are same length
-                  (  all (\phe -> B.length phe == phelen) phdr
-                  && all (\she -> B.length she == shelen) shdr
-                  && all (\ste -> B.length ste == stelen) symtabB
-                  )
-                  ( elfHeader info
-                  , programHeader info
-                  , map fst shdrData
-                  , fst shstrtabData
-                  , symtab info
-                  , symstrtab
-                  , snd shstrtabData
-                  , B.pack $ replicate (headerPadding info) 0
-                  )
+            in  if all (\phe -> B.length phe == phelen) phdr
+                     && all (\she -> B.length she == shelen) shdr
+                     && all (\ste -> B.length ste == stelen) symtabB
+                  then
+                    ( elfHeader info
+                    , programHeader info
+                    , map fst shdrData
+                    , fst shstrtabData
+                    , symtab info
+                    , symstrtab
+                    , snd shstrtabData
+                    , B.pack $ replicate (headerPadding info) 0
+                    )
+                  else error "ELF header entries are not same length"
+
   -- assume the assembler already put the appropriate padding between
   -- code and data so they don't share a page
   in  toLazyByteString

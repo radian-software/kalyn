@@ -1,6 +1,5 @@
 module Subroutines where
 
-import           Control.Exception
 import           Control.Monad.State
 
 import           Assembly
@@ -73,7 +72,9 @@ translateCall lhsTemp rhsTemp = do
 
 curryify :: Int -> String -> Stateful [VirtualFunction]
 curryify numArgs fnName = do
-  let _ = assert (numArgs >= 2)
+  if numArgs >= 2
+    then return ()
+    else error "can't curry a function with less than two arguments"
   mapM
     (\numCurried -> do
       fnPtr     <- newTemp

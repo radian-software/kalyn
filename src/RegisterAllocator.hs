@@ -25,7 +25,7 @@ intervalsIntersect (a, b) (c, d) = not (b <= c || d <= a)
 tryAllocateFunctionRegs
   :: VirtualFunction -> Either [Temporary] PhysicalFunction
 tryAllocateFunctionRegs fn@(Function _ instrs) =
-  let liveness = computeLiveness instrs
+  let liveness = assertNoFreeVariables . computeLiveness $ instrs
       allRegs =
           ( nub
           $ concatMap
