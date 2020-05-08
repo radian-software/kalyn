@@ -187,9 +187,12 @@ opInstr8U
   :: [Word8] -> Register -> Either Word8 Register -> Maybe Word8 -> B.ByteString
 opInstr8U = opInstr' word8
 
-opInstr64
-  :: [Word8] -> Register -> Either Word8 Register -> Maybe Int64 -> B.ByteString
-opInstr64 = opInstr' int64LE
+compressedInstr64 :: Word8 -> Register -> Maybe Int64 -> B.ByteString
+compressedInstr64 opcode reg mimm =
+  toLazyByteString
+    $  word8 (rex Nothing (Just reg) Nothing)
+    <> word8 (opcode + (snd . regCode $ reg))
+    <> maybe mempty int64LE mimm
 
 plainInstr :: [Word8] -> B.ByteString
 plainInstr opcode = toLazyByteString $ mconcat (map word8 opcode)
@@ -282,8 +285,7 @@ compileInstr labels pc instr =
                 SHR -> (0xd3, 5)
                 SAR -> (0xd3, 7)
           in  opInstr [op] dst (Left ext) Nothing
-        MOV64 imm dst ->
-          opInstr64 [0xb8 + (snd . regCode $ dst)] dst (Left 0) (Just imm)
+        MOV64 imm dst -> compressedInstr64 0xb8 dst (Just imm)
         SHIFT (Just amt) shift dst ->
           let (op, ext) = case shift of
                 SHL -> (0xc1, 4)
