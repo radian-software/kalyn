@@ -18,8 +18,9 @@ addFnBoilerplate (Function name instrs) =
         ++ map (UN PUSH . R) clobberedRegs
         ++ concatMap
              (\instr -> case instr of
-               RET -> map (UN POP . R) (RBP : clobberedRegs) ++ [instr]
-               _   -> [instr]
+               RET ->
+                 map (UN POP . R) (reverse $ RBP : clobberedRegs) ++ [instr]
+               _ -> [instr]
              )
              instrs
 
