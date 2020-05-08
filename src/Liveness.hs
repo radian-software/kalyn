@@ -81,6 +81,7 @@ showLiveness (Program mainFn fns _) = concatMap
              )
           ++ "\n;; live OUT: "
           ++ (intercalate ", " . map show . Set.toList $ liveOut)
+          ++ "\n"
       )
       instrs
       (Map.elems . computeLiveness $ instrs)
