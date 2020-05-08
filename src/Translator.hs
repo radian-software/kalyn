@@ -201,9 +201,9 @@ translateDecl _     (Class _ _ _ _ ) = return []
 translateDecl binds (Data _ _ ctors) = concat <$> zipWithM
   (\(ctor, types) ctorIdx -> do
     arg <- newTemp
+    let baseName = symName (binds Map.! ctor)
     let mainName =
-          symName (binds Map.! ctor)
-            ++ (if length types >= 2 then "__uncurried" else "")
+          baseName ++ (if length types >= 2 then "__uncurried" else "")
     let mainFn = Function
           mainName
           (if length types == 1
@@ -223,7 +223,10 @@ translateDecl binds (Data _ _ ctors) = concat <$> zipWithM
                    [1 .. length types]
               ++ [RET]
           )
-    return [mainFn]
+    extraFns <- if length types >= 2
+      then curryify (length types) baseName
+      else return []
+    return $ mainFn : extraFns
   )
   ctors
   (iterate (+ 1) 0)

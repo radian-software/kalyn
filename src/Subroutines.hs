@@ -83,7 +83,7 @@ curryify numArgs fnName = do
       let curFnName = if numCurried == 0
             then fnName
             else fnName ++ "__curried" ++ show numCurried
-      let nextFnName = if numCurried == numArgs - 1
+      let nextFnName = if numCurried == numArgs - 2
             then fnName ++ "__uncurried"
             else fnName ++ "__curried" ++ show (numCurried + 1)
       return $ Function
@@ -106,4 +106,4 @@ curryify numArgs fnName = do
         ++ [OP MOV $ RR fnPtr rax, RET]
         )
     )
-    [0 .. numArgs - 1]
+    [0 .. numArgs - 2]
