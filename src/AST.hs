@@ -41,12 +41,12 @@ data Decl = Alias Bool TypeSpec Type
           | Instance Bool [ClassSpec] ClassSpec [(VarName, Expr)]
   deriving (Show)
 
--- SymData (name) (ctor index) (num fields)
-data Symbol = SymDef String | SymData String Int Int
+-- SymData (name) (ctor index) (num fields) (should box?) (use header word?)
+data Symbol = SymDef String | SymData String Int Int Bool Bool
 
 symName :: Symbol -> String
-symName (SymDef name     ) = name
-symName (SymData name _ _) = name
+symName (SymDef name         ) = name
+symName (SymData name _ _ _ _) = name
 
 data Bundle = Bundle String (Map.Map String ([Decl], [String]))
 newtype Resolver = Resolver (Map.Map String (Map.Map String Symbol))
@@ -215,7 +215,7 @@ instance Pretty Decl where
 
 instance Pretty Symbol where
   pretty (SymDef name) = "regular symbol " ++ name
-  pretty (SymData name ctorIdx numFields) =
+  pretty (SymData name ctorIdx numFields shouldBox withHeaderWord) =
     "data constructor "
       ++ name
       ++ " with index "
@@ -224,6 +224,11 @@ instance Pretty Symbol where
       ++ show numFields
       ++ " field"
       ++ (if numFields == 1 then "" else "s")
+      ++ " ("
+      ++ (if shouldBox then "boxed" else "unboxed")
+      ++ ", "
+      ++ (if withHeaderWord then "with" else "without")
+      ++ " header word)"
 
 instance Pretty Bundle where
   pretty (Bundle main modules) =

@@ -58,7 +58,7 @@ translatePattern
   -> Stateful ([VirtualInstruction], Map.Map String VirtualRegister)
 translatePattern ctx _ temp (Variable name) =
   case Map.lookup name (bindings ctx) of
-    Just (Left (SymData _ numFields _)) -> case numFields of
+    Just (Left (SymData _ numFields _ _ _)) -> case numFields of
       0 -> return ([], Map.empty)
       _ ->
         error
@@ -74,7 +74,7 @@ translatePattern ctx nextBranch obj expr@(Call _ _) =
   in
     case ctor of
       Variable name -> case Map.lookup name (bindings ctx) of
-        Just (Left (SymData _ numFields ctorIdx)) ->
+        Just (Left (SymData _ numFields ctorIdx boxed withHeaderWord)) ->
           if numFields /= length args
             then
               error
@@ -86,19 +86,32 @@ translatePattern ctx nextBranch obj expr@(Call _ _) =
               ++ show numFields
             else do
               fieldTemps <- replicateM numFields newTemp
-              let extractCodes = zipWith
-                    (\temp idx -> [OP MOV $ MR (getField (idx + 1) obj) temp])
+              let
+                extractCode = if boxed
+                  then concat $ zipWith
+                    (\temp idx ->
+                      [ OP MOV $ MR
+                          (getField (idx + (if withHeaderWord then 1 else 0))
+                                    obj
+                          )
+                          temp
+                      ]
+                    )
                     fieldTemps
                     (iterate (+ 1) 0)
-              let mainCheck =
-                    [ OP CMP $ IM (fromIntegral ctorIdx) (getField 0 obj)
-                    , JUMP JNE nextBranch
-                    ]
+                  -- only one fieldTemp in this case
+                  else [OP MOV $ RR obj (head fieldTemps)]
+              let mainCheck = if withHeaderWord
+                    then
+                      [ OP CMP $ IM (fromIntegral ctorIdx) (getField 0 obj)
+                      , JUMP JNE nextBranch
+                      ]
+                    else []
               fieldChecks <- zipWithM (translatePattern ctx nextBranch)
                                       fieldTemps
                                       args
               return
-                ( concat extractCodes ++ mainCheck ++ concatMap fst fieldChecks
+                ( extractCode ++ mainCheck ++ concatMap fst fieldChecks
                 , foldr
                   ( Map.unionWithKey
                       (\var _ _ ->
