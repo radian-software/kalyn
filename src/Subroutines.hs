@@ -75,15 +75,28 @@ curryify numArgs fnName = do
   if numArgs >= 1
     then return ()
     else error "can't curry a function with no arguments"
-  mapM
+  topFn <- do
+    fnPtr     <- newTemp
+    nextFnPtr <- newTemp
+    return $ Function
+      fnName
+      [ PUSHI 16
+      , JUMP CALL "memoryAlloc"
+      , unpush 1
+      , OP MOV $ RR rax fnPtr
+      , LEA (memLabel $ fnName ++ "__curried0") nextFnPtr
+      , OP MOV $ RM nextFnPtr (getField 0 fnPtr)
+      , OP MOV $ IM 0 (getField 1 fnPtr)
+      , OP MOV $ RR fnPtr rax
+      , RET
+      ]
+  subFns <- mapM
     (\numCurried -> do
       fnPtr     <- newTemp
       nextFnPtr <- newTemp
       arg       <- newTemp
-      let curFnName = if numCurried == 0
-            then fnName
-            else fnName ++ "__curried" ++ show numCurried
-      let nextFnName = if numCurried == numArgs - 1
+      let curFnName = fnName ++ "__curried" ++ show numCurried
+      let nextFnName = if numCurried == numArgs - 2
             then fnName ++ "__uncurried"
             else fnName ++ "__curried" ++ show (numCurried + 1)
       return $ Function
@@ -106,4 +119,5 @@ curryify numArgs fnName = do
         ++ [OP MOV $ RR fnPtr rax, RET]
         )
     )
-    [0 .. numArgs - 1]
+    [0 .. numArgs - 2]
+  return $ topFn : subFns
