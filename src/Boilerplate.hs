@@ -6,11 +6,11 @@ where
 import           Assembly
 
 addFnBoilerplate :: PhysicalFunction -> PhysicalFunction
-addFnBoilerplate (Function instrs) =
+addFnBoilerplate (Function name instrs) =
   let clobberedRegs =
           filter (\reg -> reg `elem` dataRegisters && reg /= RAX)
             $ concatMap (snd . getRegisters) instrs
-  in  Function
+  in  Function name
         $  [UN PUSH $ R RBP, LEA (Mem (Right 8) RSP Nothing) RBP]
         ++ map (UN PUSH . R) clobberedRegs
         ++ concatMap

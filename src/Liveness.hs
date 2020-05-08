@@ -59,19 +59,22 @@ computeLiveness instrs =
 
 showLiveness :: Program VirtualRegister -> String
 showLiveness (Program mainFn fns _) = concatMap
-  (\(Function instrs) -> intercalate "\n" $ zipWith
-    (\instr (liveIn, liveOut) ->
-      ";; live IN: "
-        ++ (intercalate ", " . map show . Set.toList $ liveIn)
-        ++ "\n"
-        ++ (case instr of
-             LABEL name -> name ++ ":"
-             _          -> "\t" ++ show instr
-           )
-        ++ "\n;; live OUT: "
-        ++ (intercalate ", " . map show . Set.toList $ liveOut)
+  (\(Function name instrs) -> name ++ ":\n" ++ intercalate
+    "\n"
+    (zipWith
+      (\instr (liveIn, liveOut) ->
+        ";; live IN: "
+          ++ (intercalate ", " . map show . Set.toList $ liveIn)
+          ++ "\n"
+          ++ (case instr of
+               LABEL lname -> lname ++ ":"
+               _           -> "\t" ++ show instr
+             )
+          ++ "\n;; live OUT: "
+          ++ (intercalate ", " . map show . Set.toList $ liveOut)
+      )
+      instrs
+      (Map.elems . computeLiveness $ instrs)
     )
-    instrs
-    (Map.elems . computeLiveness $ instrs)
   )
   (mainFn : fns)

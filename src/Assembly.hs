@@ -331,39 +331,41 @@ mapInstr _ RET                   = RET
 mapInstr _ (SYSCALL n   )        = SYSCALL n
 mapInstr _ (LABEL   name)        = LABEL name
 
-newtype Function reg = Function [Instruction reg]
+data Function reg = Function Label [Instruction reg]
 
 type VirtualFunction = Function VirtualRegister
 type PhysicalFunction = Function Register
 
 instance Show reg => Show (Function reg) where
-  show (Function instrs) = concatMap
-    (\instr ->
-      (case instr of
-          LABEL name -> name ++ ":"
-          _          -> "\t" ++ show instr
-        )
-        ++ "\n"
-    )
-    instrs
-
-function :: String -> [Instruction reg] -> Function reg
-function name = Function . (LABEL name :)
+  show (Function name instrs) =
+    name
+      ++ ":\n"
+      ++ concatMap
+           (\instr ->
+             (case instr of
+                 LABEL lname -> lname ++ ":"
+                 _           -> "\t" ++ show instr
+               )
+               ++ "\n"
+           )
+           instrs
 
 fnInstrs :: Function reg -> [Instruction reg]
-fnInstrs (Function instrs) = instrs
+fnInstrs (Function _ instrs) = instrs
 
 mapFunction :: (reg1 -> reg2) -> Function reg1 -> Function reg2
-mapFunction f (Function instrs) = Function (map (mapInstr f) instrs)
+mapFunction f (Function name instrs) = Function name (map (mapInstr f) instrs)
 
 type Datum = (Label, B.ByteString)
 
 data Program reg = Program (Function reg) [Function reg] [Datum]
 
 instance Show reg => Show (Program reg) where
-  show (Program main fns datums) =
-    ".text\n.globl main\nmain:\n"
-      ++ show main
+  show (Program mainFn@(Function mainLabel _) fns datums) =
+    ".text\n.globl "
+      ++ mainLabel
+      ++ "\n"
+      ++ show mainFn
       ++ concatMap show fns
       ++ ".data\n"
       ++ concat

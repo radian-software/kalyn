@@ -85,7 +85,7 @@ curryify numArgs fnName = do
       let nextFnName = if numCurried == numArgs - 1
             then fnName ++ "__uncurried"
             else fnName ++ "__curried" ++ show (numCurried + 1)
-      return $ function
+      return $ Function
         curFnName
         (  [ PUSHI (fromIntegral $ (numCurried + 3) * 8)
            , JUMP CALL "memoryAlloc"

@@ -19,7 +19,7 @@ heap = ("heap", B.empty)
 memoryInit :: Stateful VirtualFunction
 memoryInit = do
   temp <- newTemp
-  return $ function
+  return $ Function
     "memoryInit"
     [ OP MOV $ IR 12 rax
     , OP MOV $ IR 0 rdi
@@ -37,7 +37,7 @@ memoryAlloc = do
   brk       <- newLabel
   done      <- newLabel
   crash     <- newLabel
-  return $ function
+  return $ Function
     "memoryAlloc"
     [ OP MOV $ MR (memLabel "mmFirstFree") firstFree
       -- round up to nearest multiple of eight, see
@@ -79,7 +79,7 @@ memoryPackString = do
   lengthDone  <- newLabel
   copyStart   <- newLabel
   copyDone    <- newLabel
-  return $ function
+  return $ Function
     "memoryPackString"
     [ OP MOV $ MR (getArg 1) arg
     , OP MOV $ IR 0 strLength

@@ -186,7 +186,7 @@ translateExpr ctx dst form@(Lambda name body) = do
          varTemps
          (iterate (+ 1) 0)
     ++ [OP MOV $ RR fnPtr dst]
-    , function lambdaName (bodyCode ++ [OP MOV $ RR bodyDst rax]) : bodyFns
+    , Function lambdaName (bodyCode ++ [OP MOV $ RR bodyDst rax]) : bodyFns
     )
 translateExpr ctx dst (Let name val body) = do
   temp                <- newTemp
@@ -204,7 +204,7 @@ translateDecl binds (Data _ _ ctors) = concat <$> zipWithM
     let mainName =
           symName (binds Map.! ctor)
             ++ (if length types >= 2 then "__uncurried" else "")
-    let mainFn = function
+    let mainFn = Function
           mainName
           (if length types == 1
             then [OP MOV $ MR (getArg 1) rax, RET]
@@ -231,7 +231,7 @@ translateDecl binds (Def _ name _ value) = do
   dst           <- newTemp
   (instrs, fns) <- translateExpr (Context (Map.map Left binds) name) dst value
   return
-    $ function (symName $ binds Map.! name)
+    $ Function (symName $ binds Map.! name)
                (instrs ++ [OP MOV $ RR dst rax, RET])
     : fns
 translateDecl _ (Derive _ _) = return []
@@ -255,7 +255,7 @@ translateBundle' (Resolver resolver) (Bundle mmod mmap) = do
     (Map.toList mmap')
   mainFns <- translateDecl (resolver Map.! mmod) mainDecl
   mainFn  <-
-    let Function instrs = head mainFns
+    let Function name instrs = head mainFns
     in  do
           let memInitCode = [JUMP CALL "memoryInit"]
           callCode <- translateCall rax Nothing
@@ -264,7 +264,7 @@ translateBundle' (Resolver resolver) (Bundle mmod mmap) = do
                 , OP MOV $ IR 0 rdi
                 , SYSCALL 1 -- exit
                 ]
-          return $ Function $ memInitCode ++ instrs ++ callCode ++ exitCode
+          return $ Function name $ memInitCode ++ instrs ++ callCode ++ exitCode
   let extraMainFns = tail mainFns
   stdlib <- stdlibFns
   return $ Program mainFn (extraMainFns ++ fns ++ stdlib) stdlibData
