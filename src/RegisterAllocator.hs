@@ -122,7 +122,7 @@ spillFunction dir ind (Function name instrs) =
 spillTemporary :: Int -> Temporary -> VirtualFunction -> VirtualFunction
 spillTemporary numSpilled temp = spillFunction
   (Virtual temp)
-  (Mem (Right . fromIntegral $ (-numSpilled - 1) * 8) rbp Nothing)
+  (Mem (Right . fromIntegral $ -(numSpilled + 1) * 8) rbp Nothing)
 
 allocateFunctionRegs :: Int -> VirtualFunction -> PhysicalFunction
 allocateFunctionRegs numSpilled fn = case tryAllocateFunctionRegs fn of
