@@ -3,12 +3,15 @@ module Boilerplate
   )
 where
 
+import           Data.List
+
 import           Assembly
 
 addFnBoilerplate :: PhysicalFunction -> PhysicalFunction
 addFnBoilerplate (Function name instrs) =
   let clobberedRegs =
-          filter (\reg -> reg `elem` dataRegisters && reg /= RAX)
+          nub
+            $ filter (\reg -> reg `elem` dataRegisters && reg /= RAX)
             $ concatMap (snd . getRegisters) instrs
   in  Function name
         $  [UN PUSH $ R RBP, LEA (Mem (Right 8) RSP Nothing) RBP]

@@ -269,7 +269,7 @@ getArgRegisters :: UnOp -> Arg reg -> ([reg], [reg])
 getArgRegisters op (R reg) | op `elem` [PUSH, ICALL] = ([reg], [])
                            | op == POP               = ([], [reg])
                            | otherwise               = ([reg], [reg])
-getArgRegisters _ (M _) = ([], [])
+getArgRegisters _ (M mem) = (getMemRegisters mem, [])
 
 -- returns (src, dst)
 getRegisters :: RegisterLike reg => Instruction reg -> ([reg], [reg])
