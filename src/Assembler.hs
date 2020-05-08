@@ -299,31 +299,52 @@ compileInstr labels pc instr =
         RET       -> plainInstr [0xc3]
         SYSCALL _ -> plainInstr [0x0f, 0x05]
         LABEL   _ -> B.empty
+        SYMBOL  _ -> B.empty
 
-assemble :: Program Register -> (B.ByteString, B.ByteString)
+-- assumes the data section will be placed right after the code
+-- section (with padding to make them both start on page boundaries)
+assemble
+  :: Program Register
+  -> (B.ByteString, B.ByteString, Map.Map String Int, Map.Map String Int)
 assemble (Program main fns datums) =
-  let allInstrs = fnInstrs main ++ concatMap fnInstrs fns
-      codeB =
-          B.concat
-            $ fixedPoint (replicate (length allInstrs) B.empty)
-            $ \binInstrs ->
-                let codeOffsets =
-                        scanl (+) 0 $ map (fromIntegral . B.length) binInstrs
-                    dataOffsets =
-                        scanl (+)
-                              (roundUp (fromIntegral pageSize) $ last codeOffsets)
-                          $ map (fromIntegral . B.length . snd) datums
-                    labels =
-                        foldr
-                            (\(label, offset) ls -> Map.insert label offset ls)
-                            ( foldr
-                                (\(instr, offset) ls -> case instr of
-                                  LABEL name -> Map.insert name offset ls
-                                  _          -> ls
-                                )
-                                Map.empty
-                            $ zip allInstrs codeOffsets
+  let
+    allInstrs = fnInstrs main ++ concatMap fnInstrs fns
+    (binInstrs', codeSymbols', dataSymbols') =
+      fixedPoint (replicate (length allInstrs) B.empty, Map.empty, Map.empty)
+        $ \(binInstrs, _, _) ->
+            let
+              codeOffsets =
+                scanl (+) 0 $ map (fromIntegral . B.length) binInstrs
+              dataOffsets =
+                scanl (+) (roundUp (fromIntegral pageSize) $ last codeOffsets)
+                  $ map (fromIntegral . B.length . snd) datums
+              (labels, codeSymbols, dataSymbols) =
+                foldr
+                    (\(name, offset) (ls, cs, ds) ->
+                      (Map.insert name offset ls, cs, Map.insert name offset ds)
+                    )
+                    ( foldr
+                        (\(instr, offset) (ls, cs, ds) -> case instr of
+                          LABEL name -> (Map.insert name offset ls, cs, ds)
+                          SYMBOL name ->
+                            ( Map.insert name offset ls
+                            , Map.insert name offset cs
+                            , ds
                             )
-                          $ zip (map fst datums) dataOffsets
-                in  zipWith (compileInstr labels) (tail codeOffsets) allInstrs
-  in  (codeB, B.concat $ map snd datums)
+                          _ -> (ls, cs, ds)
+                        )
+                        (Map.empty, Map.empty, Map.empty)
+                    $ zip allInstrs codeOffsets
+                    )
+                  $ zip (map fst datums) dataOffsets
+            in
+              ( zipWith (compileInstr labels) (tail codeOffsets) allInstrs
+              , codeSymbols
+              , dataSymbols
+              )
+  in
+    ( B.concat binInstrs'
+    , B.concat $ map snd datums
+    , Map.map fromIntegral codeSymbols'
+    , Map.map fromIntegral dataSymbols'
+    )

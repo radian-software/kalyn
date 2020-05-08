@@ -138,6 +138,7 @@ data Instruction reg = OP BinOp (Args reg)
                      | RET
                      | SYSCALL Int
                      | LABEL Label
+                     | SYMBOL Label
 
 type VirtualInstruction = Instruction VirtualRegister
 type PhysicalInstruction = Instruction Register
@@ -229,13 +230,14 @@ instance Show reg => Show (Instruction reg) where
       ++ maybe "%cx" (\val -> "$" ++ show val) amt
       ++ ", "
       ++ show dst
-  show (LEA src dst)   = "leaq " ++ show src ++ ", " ++ show dst
-  show (IDIV src   )   = "idivq " ++ show src
-  show CQTO            = "cqto"
-  show (PUSHI imm)     = "pushq " ++ show imm
-  show RET             = "retq"
-  show (SYSCALL _    ) = "syscall"
-  show (LABEL   label) = label ++ ":"
+  show (LEA src dst)  = "leaq " ++ show src ++ ", " ++ show dst
+  show (IDIV src   )  = "idivq " ++ show src
+  show CQTO           = "cqto"
+  show (PUSHI imm)    = "pushq " ++ show imm
+  show RET            = "retq"
+  show (SYSCALL _   ) = "syscall"
+  show (LABEL   name) = name ++ ":"
+  show (SYMBOL  name) = name ++ ":"
 
 dataRegisters :: [Register]
 dataRegisters =
@@ -294,7 +296,8 @@ getRegisters (SYSCALL n) = if n + 1 >= length syscallRegisters
     ( map fromRegister $ take (n + 1) syscallRegisters
     , map fromRegister syscallRegisters
     )
-getRegisters (LABEL _) = ([], [])
+getRegisters (LABEL  _) = ([], [])
+getRegisters (SYMBOL _) = ([], [])
 
 data JumpType = Straightline | Jump Label | Branch Label
 
@@ -331,28 +334,27 @@ mapInstr _ (PUSHI imm)           = PUSHI imm
 mapInstr _ RET                   = RET
 mapInstr _ (SYSCALL n   )        = SYSCALL n
 mapInstr _ (LABEL   name)        = LABEL name
+mapInstr _ (SYMBOL  name)        = SYMBOL name
 
 data Function reg = Function Label [Instruction reg]
 
 type VirtualFunction = Function VirtualRegister
 type PhysicalFunction = Function Register
 
-instance Show reg => Show (Function reg) where
-  show (Function name instrs) =
-    name
-      ++ ":\n"
-      ++ concatMap
-           (\instr ->
-             (case instr of
-                 LABEL lname -> lname ++ ":"
-                 _           -> "\t" ++ show instr
-               )
-               ++ "\n"
-           )
-           instrs
-
 fnInstrs :: Function reg -> [Instruction reg]
-fnInstrs (Function name instrs) = LABEL name : instrs
+fnInstrs (Function name instrs) = SYMBOL name : instrs
+
+instance Show reg => Show (Function reg) where
+  show fn = concatMap
+    (\instr ->
+      (case instr of
+          LABEL  lname -> lname ++ ":"
+          SYMBOL sname -> ".globl " ++ sname ++ "\n" ++ sname ++ ":"
+          _            -> "\t" ++ show instr
+        )
+        ++ "\n"
+    )
+    (fnInstrs fn)
 
 mapFunction :: (reg1 -> reg2) -> Function reg1 -> Function reg2
 mapFunction f (Function name instrs) = Function name (map (mapInstr f) instrs)
@@ -362,16 +364,10 @@ type Datum = (Label, B.ByteString)
 data Program reg = Program (Function reg) [Function reg] [Datum]
 
 instance Show reg => Show (Program reg) where
-  show (Program mainFn@(Function mainLabel _) fns datums) =
-    ".text\n.globl "
-      ++ mainLabel
-      ++ "\n"
-      ++ show mainFn
-      ++ concatMap show fns
-      ++ ".data\n"
-      ++ concat
-           (flip map datums $ \(label, datum) -> label ++ ":\n" ++ concat
-             ( flip map (B.unpack datum)
-             $ \byte -> "\t.byte 0x" ++ showHex byte "" ++ "\n"
-             )
-           )
+  show (Program mainFn fns datums) =
+    ".text\n" ++ show mainFn ++ concatMap show fns ++ ".data\n" ++ concat
+      (flip map datums $ \(label, datum) -> label ++ ":\n" ++ concat
+        ( flip map (B.unpack datum)
+        $ \byte -> "\t.byte 0x" ++ showHex byte "" ++ "\n"
+        )
+      )

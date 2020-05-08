@@ -9,6 +9,7 @@ import           System.Posix.Files
 import           Text.Pretty.Simple             ( pShowNoColor )
 
 import           AST
+import           OS
 import           Util
 
 -- import in stack order
@@ -95,10 +96,16 @@ compileIncrementally inputFilename = do
   let physicalProgram' = addProgramBoilerplate physicalProgram
   overwriteFile (prefix ++ ".S") $ show physicalProgram'
   putStrLn "Assembler"
-  let (codeB, dataB) = assemble physicalProgram'
-  overwriteBinary (prefix ++ ".o") (codeB <> dataB)
+  let assembled@(codeB, dataB, _, _) = assemble physicalProgram'
+  overwriteBinary
+    (prefix ++ ".o")
+    (  codeB
+    <> B.pack
+         (replicate (leftover pageSize (fromIntegral $ B.length codeB)) 0)
+    <> dataB
+    )
   putStrLn "Linker"
-  let binary = link (codeB, dataB)
+  let binary = link assembled
   overwriteBinary prefix binary
   setFileMode prefix 0o755
 

@@ -6,7 +6,6 @@ where
 import           Control.Applicative     hiding ( Const )
 import           Control.Monad
 import           Control.Monad.State
-import           Data.Bifunctor
 import           Data.List
 import qualified Data.Map.Strict               as Map
 import           Prelude                 hiding ( mod )
@@ -243,35 +242,23 @@ translateDecl _ (Instance _ _ _ _) = return []
 
 translateBundle' :: Resolver -> Bundle -> Stateful (Program VirtualRegister)
 translateBundle' (Resolver resolver) (Bundle mmod mmap) = do
-  let isMain decl = case decl of
-        Def _ name _ _ | name == "main" -> True
-        _                               -> False
-  let mainDecl = case filter isMain (fst $ mmap Map.! mmod) of
-        []     -> error "no main function declared"
-        [main] -> main
-        _      -> error "more than one main function declared"
-  let mmap' = Map.adjust (first (filter (not . isMain))) mmod mmap
+  let mainName = symName $ (resolver Map.! mmod) Map.! "main"
   fns <- concat <$> mapM
     (\(mod, (decls, _)) ->
       concat <$> mapM (translateDecl (resolver Map.! mod)) decls
     )
-    (Map.toList mmap')
-  mainFns <- translateDecl (resolver Map.! mmod) mainDecl
-  mainFn  <-
-    let Function name instrs = head mainFns
-    in  do
-          let memInitCode = [JUMP CALL "memoryInit"]
-          callCode <- translateCall rax Nothing
-          let exitCode =
-                [ OP MOV $ IR 60 rax
-                , OP MOV $ IR 0 rdi
-                , SYSCALL 1 -- exit
-                ]
-          return $ Function name $ memInitCode ++ instrs ++ callCode ++ exitCode
-  let extraMainFns = tail mainFns
-  let userFns      = extraMainFns ++ fns
-  stdlib <- stdlibFns (mainFn : userFns)
-  return $ Program mainFn (userFns ++ stdlib) stdlibData
+    (Map.toList mmap)
+  mainFn <- do
+    let setupCode = [JUMP CALL "memoryInit", JUMP CALL mainName]
+    callCode <- translateCall rax Nothing
+    let teardownCode =
+          [ OP MOV $ IR 60 rax
+          , OP MOV $ IR 0 rdi
+          , SYSCALL 1 -- exit
+          ]
+    return $ Function "main" $ setupCode ++ callCode ++ teardownCode
+  stdlib <- stdlibFns fns
+  return $ Program mainFn (fns ++ stdlib) stdlibData
 
 translateBundle :: Resolver -> Bundle -> Program VirtualRegister
 translateBundle resolver bundle =

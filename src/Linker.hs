@@ -120,9 +120,9 @@ programHeader info =
     <> word64LE 0 -- alignment, none required
   ]
 
--- see page 24
-sectionHeader :: HeaderInfo -> [(B.ByteString, Maybe String)]
-sectionHeader info =
+-- see page 24 and page 28 and page 66
+sectionHeader :: HeaderInfo -> Int -> [(B.ByteString, Maybe String)]
+sectionHeader info numSymbols =
   let getIdx name =
           fromIntegral $ Map.findWithDefault 0 name (shstrtabIndices info)
   in  [ ( toLazyByteString -- index 0 (see page 27)
@@ -159,7 +159,7 @@ sectionHeader info =
           <> word64LE (fromIntegral $ symtabOffset info) -- file address
           <> word64LE (fromIntegral $ symtabLen info) -- segment length
           <> word32LE 3 -- index of associated string table in section header
-          <> word32LE 2 -- index after last local symbol in symbol table
+          <> word32LE (fromIntegral $ numSymbols + 1) -- index after last local symbol in symbol table
           <> word64LE 0 -- alignment, none required
           <> word64LE (fromIntegral $ symtabEntryLen info) -- table entry size
         , Just ".symtab"
@@ -205,9 +205,48 @@ sectionHeader info =
         )
       ]
 
+-- see page 32
+symtab
+  :: HeaderInfo
+  -> Map.Map String Int
+  -> Map.Map String Int
+  -> Map.Map String Int
+  -> [B.ByteString]
+symtab info codeSymbols dataSymbols indices =
+  let getIdx = fromIntegral . (indices Map.!)
+  in
+    toLazyByteString
+      (word32LE 0 <> word8 0 <> word8 0 <> word16LE 0 <> word64LE 0 <> word64LE
+        0
+      )
+    :  map
+         (\(name, offset) ->
+           let va = fromIntegral $ offset + codeOffset info + vaOffset
+           in  toLazyByteString -- main
+                 $  word32LE (getIdx name) -- symbol name in symstrtab
+                 <> word8 2 -- symbol type and binding, locally bound function
+                 <> word8 0 -- unused field
+                 <> word16LE 4 -- index of code section from section header
+                 <> word64LE va -- symbol value, virtual address
+                 <> word64LE 0 -- symbol size, not specified
+         )
+         (Map.toList codeSymbols)
+    ++ map
+         (\(name, offset) ->
+           let va = fromIntegral $ offset + codeOffset info + vaOffset
+           in  toLazyByteString -- main
+                 $  word32LE (getIdx name) -- symbol name in symstrtab
+                 <> word8 2 -- symbol type and binding, locally bound function
+                 <> word8 0 -- unused field
+                 <> word16LE 5 -- index of code section from section header
+                 <> word64LE va -- symbol value, virtual address
+                 <> word64LE 0 -- symbol size, not specified
+         )
+         (Map.toList dataSymbols)
+
 -- see page 31
-shstrtab :: [String] -> (B.ByteString, Map.Map String Int)
-shstrtab strs =
+strtab :: [String] -> (B.ByteString, Map.Map String Int)
+strtab strs =
   let uniqStrs = nub strs
       indices  = scanl (+) 1 $ map ((+ 1) . length) uniqStrs
       table    = toLazyByteString $ word8 0 <> mconcat
@@ -215,40 +254,20 @@ shstrtab strs =
       tableM = foldr (uncurry Map.insert) Map.empty $ zip uniqStrs indices
   in  (table, tableM)
 
--- see page 32
-symtab :: HeaderInfo -> [B.ByteString]
-symtab info =
-  [ toLazyByteString -- index 0 (see page 35)
-    $  word32LE 0
-    <> word8 0
-    <> word8 0
-    <> word16LE 0
-    <> word64LE 0
-    <> word64LE 0
-  , toLazyByteString -- main
-    $  word32LE 1 -- symbol name in symstrtab
-    <> word8 2 -- symbol type and binding, locally bound function
-    <> word8 0 -- unused field
-    <> word16LE 4 -- index of relevant section from section header
-    <> word64LE (fromIntegral $ codeOffset info + vaOffset) -- symbol value, virtual address
-    <> word64LE 0 -- symbol size, not specified
-  ]
-
--- see page 31
-symstrtab :: B.ByteString
-symstrtab = toLazyByteString $ word8 0 <> stringUtf8 "main" <> word8 0
-
 -- see page 15
-link :: (B.ByteString, B.ByteString) -> B.ByteString
-link (codeB, dataB) =
+link
+  :: (B.ByteString, B.ByteString, Map.Map String Int, Map.Map String Int)
+  -> B.ByteString
+link (codeB, dataB, codeSymbols, dataSymbols) =
   let
     (ehdr', phdr', shdr', shstrtabB', symtabB', symstrtabB', _, hpad') =
       fixedPoint (B.empty, [], [], B.empty, [], B.empty, Map.empty, B.empty)
         $ \(ehdr, phdr, shdr, shstrtabB, symtabB, symstrtabB, shstrtabIndicesM, _) ->
-            let phelen = maybe 0 B.length $ listToMaybe phdr
-                shelen = maybe 0 B.length $ listToMaybe shdr
-                stelen = maybe 0 B.length $ listToMaybe symtabB
-                info   = HeaderInfo
+            let phelen     = maybe 0 B.length $ listToMaybe phdr
+                shelen     = maybe 0 B.length $ listToMaybe shdr
+                stelen     = maybe 0 B.length $ listToMaybe symtabB
+                allSymbols = Map.keys codeSymbols ++ Map.keys dataSymbols
+                info       = HeaderInfo
                   { elfHeaderLen     = fromIntegral $ B.length ehdr
                   , phEntryLen       = fromIntegral phelen
                   , phNumEntries     = length phdr
@@ -262,9 +281,10 @@ link (codeB, dataB) =
                   , codeLen          = fromIntegral $ B.length codeB
                   , dataLen          = fromIntegral $ B.length dataB
                   }
-                shdrData     = sectionHeader info
-                stringList   = collectMaybes (map snd shdrData)
-                shstrtabData = shstrtab stringList
+                shdrData      = sectionHeader info (length allSymbols)
+                shStringList  = collectMaybes (map snd shdrData)
+                shstrtabData  = strtab shStringList
+                symstrtabData = strtab allSymbols
             in  if all (\phe -> B.length phe == phelen) phdr
                      && all (\she -> B.length she == shelen) shdr
                      && all (\ste -> B.length ste == stelen) symtabB
@@ -273,8 +293,8 @@ link (codeB, dataB) =
                     , programHeader info
                     , map fst shdrData
                     , fst shstrtabData
-                    , symtab info
-                    , symstrtab
+                    , symtab info codeSymbols dataSymbols (snd symstrtabData)
+                    , fst symstrtabData
                     , snd shstrtabData
                     , B.pack $ replicate (headerPadding info) 0
                     )
