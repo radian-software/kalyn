@@ -267,7 +267,7 @@ translateBundle' (Resolver resolver) (Bundle mmod mmap) = do
           return $ Function name $ memInitCode ++ instrs ++ callCode ++ exitCode
   let extraMainFns = tail mainFns
   let userFns      = extraMainFns ++ fns
-  stdlib <- stdlibFns userFns
+  stdlib <- stdlibFns (mainFn : userFns)
   return $ Program mainFn (userFns ++ stdlib) stdlibData
 
 translateBundle :: Resolver -> Bundle -> Program VirtualRegister

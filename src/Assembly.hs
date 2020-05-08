@@ -352,7 +352,7 @@ instance Show reg => Show (Function reg) where
            instrs
 
 fnInstrs :: Function reg -> [Instruction reg]
-fnInstrs (Function _ instrs) = instrs
+fnInstrs (Function name instrs) = LABEL name : instrs
 
 mapFunction :: (reg1 -> reg2) -> Function reg1 -> Function reg2
 mapFunction f (Function name instrs) = Function name (map (mapInstr f) instrs)
