@@ -244,6 +244,9 @@ dataRegisters =
 syscallRegisters :: [Register]
 syscallRegisters = [RAX, RDI, RSI, RDX, RCX, R8, R9]
 
+specialRegisters :: [Register]
+specialRegisters = [RSP, RBP, RIP]
+
 getMemRegisters :: Mem reg -> [reg]
 getMemRegisters (Mem _ base Nothing          ) = [base]
 getMemRegisters (Mem _ base (Just (_, index))) = [base, index]

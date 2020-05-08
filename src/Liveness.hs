@@ -49,7 +49,9 @@ computeLiveness instrs =
   propagate info = Map.mapWithKey
     (\idx (_, liveOut) ->
       let (used, defined) = getRegisters $ instrMap Map.! idx
-      in  ( (liveOut Set.\\ Set.fromList defined) `Set.union` Set.fromList used
+      in  ( ((liveOut Set.\\ Set.fromList defined) `Set.union` Set.fromList used
+            )
+            Set.\\ Set.fromList (map fromRegister specialRegisters)
           , Set.unions (map (\s -> fst (info Map.! s)) (flowGraph Map.! idx))
           )
     )
