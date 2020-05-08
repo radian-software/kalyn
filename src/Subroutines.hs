@@ -84,7 +84,12 @@ curryify numArgs fnName = do
       , JUMP CALL "memoryAlloc"
       , unpush 1
       , OP MOV $ RR rax fnPtr
-      , LEA (memLabel $ fnName ++ "__curried0") nextFnPtr
+      , LEA
+        (  memLabel
+        $  fnName
+        ++ (if numArgs >= 2 then "__curried0" else "__uncurried")
+        )
+        nextFnPtr
       , OP MOV $ RM nextFnPtr (getField 0 fnPtr)
       , OP MOV $ IM 0 (getField 1 fnPtr)
       , OP MOV $ RR fnPtr rax
@@ -120,4 +125,4 @@ curryify numArgs fnName = do
         )
     )
     [0 .. numArgs - 2]
-  return $ topFn : subFns
+  return . reverse $ topFn : subFns
