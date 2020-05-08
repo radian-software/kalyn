@@ -24,7 +24,7 @@ intervalsIntersect (a, b) (c, d) = not (b <= c || d <= a)
 
 tryAllocateFunctionRegs
   :: VirtualFunction -> Either [Temporary] PhysicalFunction
-tryAllocateFunctionRegs fn@(Function _ instrs) =
+tryAllocateFunctionRegs fn@(Function _ _ instrs) =
   let liveness = assertNoFreeVariables . computeLiveness $ instrs
       allRegs =
           ( nub
@@ -129,31 +129,18 @@ spillInstr dir ind (IDIV src) | src == dir = [OP MOV $ MR ind dir, IDIV dir]
 spillInstr _ _ instr                       = [instr]
 
 spillFunction :: Eq reg => reg -> Mem reg -> Function reg -> Function reg
-spillFunction dir ind (Function name instrs) =
-  Function name . concatMap (spillInstr dir ind) $ instrs
+spillFunction dir ind (Function name stackSpace instrs) =
+  Function name stackSpace . concatMap (spillInstr dir ind) $ instrs
 
 spillTemporary :: Int -> Temporary -> VirtualFunction -> VirtualFunction
-spillTemporary numSpilled temp = spillFunction
+spillTemporary spillIdx temp = spillFunction
   (Virtual temp)
-  (Mem (Right . fromIntegral $ -(numSpilled + 1) * 8) rbp Nothing)
+  (Mem (Right . fromIntegral $ -(spillIdx + 1) * 8) rbp Nothing)
 
 allocateFunctionRegs :: Int -> VirtualFunction -> PhysicalFunction
 allocateFunctionRegs numSpilled fn = case tryAllocateFunctionRegs fn of
-  Right fn' -> if numSpilled == 0
-    then fn'
-    else
-      let (Function name instrs) = fn'
-      in
-        Function
-          name
-          ( OP SUB (IR (fromIntegral $ numSpilled * 8) rsp)
-          : concatMap
-              (\instr -> case instr of
-                RET -> [OP ADD $ IR (fromIntegral $ numSpilled * 8) rsp, RET]
-                _   -> [instr]
-              )
-              instrs
-          )
+  Right (Function stackSpace name instrs) ->
+    Function (stackSpace + numSpilled * 8) name instrs
   Left spilled -> allocateFunctionRegs (numSpilled + length spilled) $ foldr
     (uncurry spillTemporary)
     fn

@@ -336,13 +336,16 @@ mapInstr _ (SYSCALL n   )        = SYSCALL n
 mapInstr _ (LABEL   name)        = LABEL name
 mapInstr _ (SYMBOL  name)        = SYMBOL name
 
-data Function reg = Function Label [Instruction reg]
+data Function reg = Function Int Label [Instruction reg]
+
+function :: Label -> [Instruction reg] -> Function reg
+function = Function 0
 
 type VirtualFunction = Function VirtualRegister
 type PhysicalFunction = Function Register
 
 fnInstrs :: Function reg -> [Instruction reg]
-fnInstrs (Function name instrs) = SYMBOL name : instrs
+fnInstrs (Function _ name instrs) = SYMBOL name : instrs
 
 instance Show reg => Show (Function reg) where
   show fn = concatMap
@@ -357,7 +360,8 @@ instance Show reg => Show (Function reg) where
     (fnInstrs fn)
 
 mapFunction :: (reg1 -> reg2) -> Function reg1 -> Function reg2
-mapFunction f (Function name instrs) = Function name (map (mapInstr f) instrs)
+mapFunction f (Function name stackSpace instrs) =
+  Function name stackSpace (map (mapInstr f) instrs)
 
 type Datum = (Label, B.ByteString)
 

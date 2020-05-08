@@ -9,7 +9,7 @@ import           Subroutines
 basicOp :: String -> BinOp -> Stateful VirtualFunction
 basicOp name op = do
   temp <- newTemp
-  return $ Function
+  return $ function
     (name ++ "__uncurried")
     [ OP MOV $ MR (getArg 1) temp
     , OP op $ MR (getArg 2) temp
@@ -30,7 +30,7 @@ divOp :: String -> [VirtualInstruction] -> Stateful VirtualFunction
 divOp name post = do
   temp <- newTemp
   return
-    $  Function (name ++ "__uncurried")
+    $  function (name ++ "__uncurried")
     $ [OP MOV $ MR (getArg 2) rax, CQTO, OP MOV $ MR (getArg 1) temp, IDIV temp]
     ++ post
     ++ [RET]
@@ -53,7 +53,7 @@ xor = basicOp "xor" XOR
 bitNot :: Stateful VirtualFunction
 bitNot = do
   temp <- newTemp
-  return $ Function
+  return $ function
     "not"
     [OP MOV $ MR (getArg 1) temp, UN NOT $ R temp, OP MOV $ RR temp rax]
 
@@ -67,7 +67,7 @@ shiftOp name op = do
         SAL -> True
         SHR -> True
         SAR -> False
-  return $ Function
+  return $ function
     (name ++ "__uncurried")
     [ OP MOV $ MR (getArg 2) arg
     , OP MOV $ MR (getArg 1) rcx
@@ -97,7 +97,7 @@ sar = shiftOp "sar" SAR
 monadPrint :: Stateful VirtualFunction
 monadPrint = do
   temp <- newTemp
-  return $ Function
+  return $ function
     "print__uncurried__unmonadified"
     [ OP MOV $ MR (getArg 1) temp
     , UN PUSH $ R temp
@@ -122,7 +122,7 @@ monadWriteFile = do
   writeStart <- newLabel
   writeDone  <- newLabel
   crash      <- newLabel
-  return $ Function
+  return $ function
     "writeFile__uncurried__unmonadified"
     [ OP MOV $ MR (getArg 2) temp
     , UN PUSH $ R temp
@@ -177,7 +177,7 @@ setFileMode :: Stateful VirtualFunction
 setFileMode = do
   temp     <- newTemp
   filename <- newTemp
-  return $ Function
+  return $ function
     "setFileMode__uncurried__unmonadified"
     [ OP MOV $ MR (getArg 2) temp
     , UN PUSH $ R temp
@@ -192,7 +192,7 @@ setFileMode = do
     ]
 
 primitiveError :: Stateful VirtualFunction
-primitiveError = return $ Function
+primitiveError = return $ function
   "error__uncurried"
   [ UN PUSH $ M (getArg 1)
   , JUMP CALL "memoryPackString"
@@ -209,7 +209,7 @@ equals :: Stateful VirtualFunction
 equals = do
   temp <- newTemp
   yes  <- newLabel
-  return $ Function
+  return $ function
     "equals__uncurried"
     [ OP MOV $ MR (getArg 1) temp
     , OP CMP $ MR (getArg 2) temp
@@ -225,7 +225,7 @@ lessThan :: Stateful VirtualFunction
 lessThan = do
   temp <- newTemp
   yes  <- newLabel
-  return $ Function
+  return $ function
     "lessThan__uncurried"
     [ OP MOV $ MR (getArg 1) temp
     , OP CMP $ MR (getArg 2) temp
@@ -239,7 +239,7 @@ lessThan = do
 
 monadPure :: Stateful VirtualFunction
 monadPure = return
-  $ Function "pure__uncurried__unmonadified" [OP MOV $ MR (getArg 1) rax, RET]
+  $ function "pure__uncurried__unmonadified" [OP MOV $ MR (getArg 1) rax, RET]
 
 monadBind :: Stateful VirtualFunction
 monadBind = do
@@ -248,7 +248,7 @@ monadBind = do
   fn             <- newTemp
   firstCallCode  <- translateCall monad Nothing
   secondCallCode <- translateCall fn (Just arg)
-  return $ Function
+  return $ function
     "bind__uncurried__unmonadified"
     (  [OP MOV $ MR (getArg 1) monad]
     ++ firstCallCode
@@ -259,7 +259,7 @@ monadBind = do
     )
 
 primitiveCrash :: Stateful VirtualFunction
-primitiveCrash = return $ Function
+primitiveCrash = return $ function
   "crash"
   [ OP MOV $ IR 60 rax
   , OP MOV $ IR 1 rdi
@@ -270,7 +270,7 @@ monadify :: Int -> String -> Stateful VirtualFunction
 monadify numArgs fnName = do
   fnPtr <- newTemp
   arg   <- newTemp
-  return $ Function
+  return $ function
     fnName
     (  [ PUSHI (fromIntegral $ (numArgs + 2) * 8)
        , JUMP CALL "memoryAlloc"

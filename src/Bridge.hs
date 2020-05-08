@@ -60,7 +60,7 @@ stdlibPrivate :: [Stateful VirtualFunction]
 stdlibPrivate = [memoryInit, memoryAlloc, memoryPackString, primitiveCrash]
 
 getCalls :: VirtualFunction -> Set.Set String
-getCalls (Function _ instrs) = Set.fromList $ concatMap
+getCalls (Function _ _ instrs) = Set.fromList $ concatMap
   (\instr -> case instr of
     JUMP CALL label -> [label]
     _               -> []

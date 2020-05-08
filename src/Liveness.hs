@@ -67,7 +67,7 @@ computeLiveness instrs = fixedPoint initial propagate
 showLiveness
   :: (Eq reg, Ord reg, RegisterLike reg, Show reg) => Program reg -> String
 showLiveness (Program mainFn fns _) = concatMap
-  (\(Function name instrs) -> name ++ ":\n" ++ concat
+  (\(Function _ name instrs) -> name ++ ":\n" ++ concat
     (zipWith
       (\instr (liveIn, liveOut) ->
         ";; live IN: "

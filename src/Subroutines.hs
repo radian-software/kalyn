@@ -35,7 +35,7 @@ unpush n = OP ADD $ IR (fromIntegral $ 8 * n) rsp
 
 -- warning: gets arguments in reverse order! indexed from 1
 getArg :: Int -> Mem VirtualRegister
-getArg n = getField (n - 1) rbp
+getArg n = getField (n - 3) rbp
 
 translateCall
   :: VirtualRegister -> Maybe VirtualRegister -> Stateful [VirtualInstruction]
@@ -78,7 +78,7 @@ curryify numArgs fnName = do
   topFn <- do
     fnPtr     <- newTemp
     nextFnPtr <- newTemp
-    return $ Function
+    return $ function
       fnName
       [ PUSHI 16
       , JUMP CALL "memoryAlloc"
@@ -104,7 +104,7 @@ curryify numArgs fnName = do
       let nextFnName = if numCurried == numArgs - 2
             then fnName ++ "__uncurried"
             else fnName ++ "__curried" ++ show (numCurried + 1)
-      return $ Function
+      return $ function
         curFnName
         (  [ PUSHI (fromIntegral $ (numCurried + 3) * 8)
            , JUMP CALL "memoryAlloc"

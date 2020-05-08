@@ -8,18 +8,23 @@ import           Data.List
 import           Assembly
 
 addFnBoilerplate :: PhysicalFunction -> PhysicalFunction
-addFnBoilerplate (Function name instrs) =
+addFnBoilerplate (Function stackSpace name instrs) =
   let clobberedRegs =
           nub
             $ filter (\reg -> reg `elem` dataRegisters && reg /= RAX)
             $ concatMap (snd . getRegisters) instrs
-  in  Function name
-        $  [UN PUSH $ R RBP, LEA (Mem (Right 16) RSP Nothing) RBP]
+  in  function name
+        $  [UN PUSH $ R RBP, OP MOV $ RR RSP RBP]
+        ++ [ OP SUB $ IR (fromIntegral stackSpace) RSP | stackSpace /= 0 ]
         ++ map (UN PUSH . R) clobberedRegs
         ++ concatMap
              (\instr -> case instr of
                RET ->
-                 map (UN POP . R) (reverse $ RBP : clobberedRegs) ++ [instr]
+                 map (UN POP . R) (reverse clobberedRegs)
+                   ++ [ OP ADD $ IR (fromIntegral stackSpace) RSP
+                      | stackSpace /= 0
+                      ]
+                   ++ [UN POP $ R RBP, instr]
                _ -> [instr]
              )
              instrs
