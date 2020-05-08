@@ -26,8 +26,8 @@ handleCurriedM n name fn =
   ( name
   , do
     core       <- fn
-    curried    <- curryify n (name ++ "__unmonadified")
-    monadified <- monadify n name
+    monadified <- monadify n (name ++ "__uncurried")
+    curried    <- curryify n name
     return ([core, monadified] ++ curried)
   )
 

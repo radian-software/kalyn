@@ -98,7 +98,7 @@ monadPrint :: Stateful VirtualFunction
 monadPrint = do
   temp <- newTemp
   return $ Function
-    "print__unmonadified"
+    "print__uncurried__unmonadified"
     [ OP MOV $ MR (getArg 1) temp
     , UN PUSH $ R temp
     , JUMP CALL "memoryPackString"
@@ -193,7 +193,7 @@ setFileMode = do
 
 primitiveError :: Stateful VirtualFunction
 primitiveError = return $ Function
-  "error"
+  "error__uncurried"
   [ UN PUSH $ M (getArg 1)
   , JUMP CALL "memoryPackString"
   , unpush 1
@@ -238,8 +238,8 @@ lessThan = do
     ]
 
 monadPure :: Stateful VirtualFunction
-monadPure =
-  return $ Function "pure__unmonadified" [OP MOV $ MR (getArg 1) rax, RET]
+monadPure = return
+  $ Function "pure__uncurried__unmonadified" [OP MOV $ MR (getArg 1) rax, RET]
 
 monadBind :: Stateful VirtualFunction
 monadBind = do
