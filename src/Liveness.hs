@@ -1,5 +1,6 @@
 module Liveness
-  ( computeLiveness
+  ( assertNoFreeVariables
+  , computeLiveness
   , showLiveness
   )
 where
@@ -14,19 +15,26 @@ import           Util
 
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 
+type Liveness reg = Map.Map Int (Set.Set reg, Set.Set reg)
+
 lookupLabel :: Map.Map Label Int -> Label -> Int
 lookupLabel labelMap label = case label `Map.lookup` labelMap of
   Nothing  -> error $ "liveness analysis hit unresolved label " ++ show label
   Just idx -> idx
 
+assertNoFreeVariables :: Show reg => Liveness reg -> Liveness reg
+assertNoFreeVariables analysis = if Set.null . fst . (Map.! 0) $ analysis
+  then analysis
+  else
+    error
+    $  "free variables: "
+    ++ (show . Set.toList . fst . (Map.! 0) $ analysis)
+
 computeLiveness
   :: (Eq reg, Ord reg, RegisterLike reg, Show reg)
   => [Instruction reg]
-  -> Map.Map Int (Set.Set reg, Set.Set reg)
-computeLiveness instrs =
-  -- check no free variables at beginning of function
-  let analysis = fixedPoint initial propagate
-  in  assert (Set.null . fst . (Map.! 0) $ analysis) analysis
+  -> Liveness reg
+computeLiveness instrs = fixedPoint initial propagate
  where
   instrMap = Map.fromList $ zip (iterate (+ 1) 0) instrs
   labelMap = foldr
@@ -57,7 +65,8 @@ computeLiveness instrs =
     )
     info
 
-showLiveness :: Program VirtualRegister -> String
+showLiveness
+  :: (Eq reg, Ord reg, RegisterLike reg, Show reg) => Program reg -> String
 showLiveness (Program mainFn fns _) = concatMap
   (\(Function name instrs) -> name ++ ":\n" ++ intercalate
     "\n"
