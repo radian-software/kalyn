@@ -46,7 +46,7 @@ tryAllocateFunctionRegs fn@(Function _ instrs) =
         intervalMap
       (spilled, allocation) = allocate
         []
-        Map.empty
+        (Map.fromList (map (\reg -> (fromRegister reg, reg)) specialRegisters))
         -- allocate to smaller live intervals first, hopefully meaning
         -- we spill less
         (sortOn
