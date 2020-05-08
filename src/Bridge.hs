@@ -1,11 +1,14 @@
 module Bridge where
 
 import qualified Data.Map                      as Map
+import qualified Data.Set                      as Set
 
 import           Assembly
 import           MemoryManager
 import           Primitives
 import           Subroutines
+
+{-# ANN module "HLint: ignore Use lambda-case" #-}
 
 handleUnary
   :: String -> Stateful VirtualFunction -> (String, Stateful [VirtualFunction])
@@ -70,9 +73,24 @@ stdlibPublic = Map.fromList
 stdlibPrivate :: [Stateful VirtualFunction]
 stdlibPrivate = [memoryInit, memoryAlloc, memoryPackString, primitiveCrash]
 
-stdlibFns :: Stateful [VirtualFunction]
-stdlibFns = do
-  public  <- concat <$> (mapM snd . Map.elems $ stdlibPublic)
+getCalls :: VirtualFunction -> Set.Set String
+getCalls (Function _ instrs) = Set.fromList $ concatMap
+  (\instr -> case instr of
+    JUMP CALL label -> [label]
+    _               -> []
+  )
+  instrs
+
+stdlibFns :: [VirtualFunction] -> Stateful [VirtualFunction]
+stdlibFns fns = do
+  let calls = Set.unions . map getCalls $ fns
+  public <-
+    concat
+      <$> ( mapM snd
+          . filter (\(name, _) -> name `Set.member` calls)
+          . Map.elems
+          $ stdlibPublic
+          )
   private <- sequence stdlibPrivate
   return $ public ++ private
 
