@@ -154,7 +154,7 @@ instance Show Scale where
 instance Show reg => Show (Mem reg) where
   show (Mem disp base msi) =
     (case disp of
-        Left  label -> show label
+        Left  label -> label
         Right 0     -> ""
         Right imm   -> show imm
       )
@@ -369,7 +369,7 @@ instance Show reg => Show (Program reg) where
       ++ concatMap show fns
       ++ ".data\n"
       ++ concat
-           (flip map datums $ \(label, datum) -> show label ++ ":\n" ++ concat
+           (flip map datums $ \(label, datum) -> label ++ ":\n" ++ concat
              ( flip map (B.unpack datum)
              $ \byte -> "\t.byte 0x" ++ showHex byte "" ++ "\n"
              )
