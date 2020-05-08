@@ -77,8 +77,13 @@ tryAllocateFunctionRegs fn@(Function _ instrs) =
                 []       -> allocate (temp : spills) allocs rst
                 free : _ -> allocate spills (Map.insert cur free allocs) rst
   in  case spilled of
-        [] -> Right $ mapFunction (allocation Map.!) fn
-        _  -> Left spilled
+        [] -> Right $ mapFunction
+          (\reg -> case reg `Map.lookup` allocation of
+            Nothing   -> error $ "register " ++ show reg ++ " was never live"
+            Just reg' -> reg'
+          )
+          fn
+        _ -> Left spilled
 
 spillMem :: Eq reg => reg -> Mem reg -> Bool
 spillMem reg (Mem _ base msi) =
