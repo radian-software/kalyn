@@ -36,8 +36,10 @@ tryAllocateFunctionRegs fn@(Function _ instrs) =
         $ map (\reg -> (reg, computeLivenessInterval liveness reg)) allRegs
       disallowed = Map.mapWithKey
         (\reg _ -> Set.fromList $ filter
-          (\dataReg -> intervalsIntersect (intervalMap Map.! reg)
-                                          (intervalMap Map.! Physical dataReg)
+          (\dataReg ->
+            Physical dataReg `Map.member` intervalMap && intervalsIntersect
+              (intervalMap Map.! reg)
+              (intervalMap Map.! Physical dataReg)
           )
           dataRegisters
         )
