@@ -2,11 +2,14 @@ module Main where
 
 import           Control.Exception
 import qualified Data.ByteString.Lazy          as B
+import qualified Data.Text.Lazy                as T
 import           System.FilePath
 import           System.IO.Error
 import           System.Posix.Files
+import           Text.Pretty.Simple             ( pShowNoColor )
 
 import           AST
+import           Util
 
 -- import in stack order
 import           Lexer
@@ -59,11 +62,16 @@ readIncrementally inputFilename = do
   overwriteFile (prefix ++ "Tokens") $ concatMap (\t -> show t ++ "\n") tokens
   putStrLn $ "Reader (" ++ takeFileName inputFilename ++ ")"
   let forms = readModule tokens
+  overwriteFile (prefix ++ "Forms")
+    $ concatMap (\f -> (T.unpack . pShowNoColor $ f) ++ "\n") forms
   overwriteFile (prefix ++ "Forms.kalyn")
-    $ concatMap (\f -> show f ++ "\n") forms
+    $ concatMap (\f -> pretty f ++ "\n") forms
   putStrLn $ "Parser (" ++ takeFileName inputFilename ++ ")"
   let decls = parseModule forms
-  overwriteFile (prefix ++ "AST.kalyn") $ concatMap (\d -> show d ++ "\n") decls
+  overwriteFile (prefix ++ "AST")
+    $ concatMap (\d -> (T.unpack . pShowNoColor $ d) ++ "\n") decls
+  overwriteFile (prefix ++ "AST.kalyn")
+    $ concatMap (\d -> pretty d ++ "\n") decls
   return decls
 
 compileIncrementally :: String -> IO ()
@@ -71,10 +79,10 @@ compileIncrementally inputFilename = do
   let prefix = getPrefix inputFilename
   putStrLn "Bundler"
   bundle <- readBundle readIncrementally inputFilename
-  overwriteFile (prefix ++ "Bundle.kalyn") $ show bundle
+  overwriteFile (prefix ++ "Bundle.kalyn") $ pretty bundle
   putStrLn "Resolver"
   let resolver = resolveBundle bundle
-  overwriteFile (prefix ++ "Resolver") $ show resolver
+  overwriteFile (prefix ++ "Resolver") $ pretty resolver
   putStrLn "Translator"
   let virtualProgram = translateBundle resolver bundle
   overwriteFile (prefix ++ "Virtual.S") $ show virtualProgram

@@ -4,6 +4,9 @@ import           Control.Arrow
 import           Data.List
 import qualified Data.Map                      as Map
 
+class Pretty a where
+  pretty :: a -> String
+
 fixedPoint :: Eq a => a -> (a -> a) -> a
 fixedPoint x f = let fx = f x in if x == fx then x else fixedPoint fx f
 

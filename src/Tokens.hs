@@ -2,6 +2,8 @@ module Tokens where
 
 import           Data.Int
 
+import           Util
+
 data Token = LPAREN
            | RPAREN
            | LBRACKET
@@ -18,11 +20,12 @@ data Form = RoundList [Form]
           | IntAtom Int64
           | CharAtom Char
           | StrAtom String
+  deriving (Show)
 
-instance Show Form where
-  show (RoundList  forms) = "(" ++ unwords (map show forms) ++ ")"
-  show (SquareList forms) = "[" ++ unwords (map show forms) ++ "]"
-  show (Symbol     s    ) = s
-  show (IntAtom    i    ) = show i
-  show (CharAtom   c    ) = show c
-  show (StrAtom    s    ) = show s
+instance Pretty Form where
+  pretty (RoundList  forms) = "(" ++ unwords (map pretty forms) ++ ")"
+  pretty (SquareList forms) = "[" ++ unwords (map pretty forms) ++ "]"
+  pretty (Symbol     s    ) = s
+  pretty (IntAtom    i    ) = show i
+  pretty (CharAtom   c    ) = show c
+  pretty (StrAtom    s    ) = show s

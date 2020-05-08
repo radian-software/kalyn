@@ -13,6 +13,8 @@ dependencies:
   - mtl
   - regex-base
   - regex-tdfa
+  - pretty-simple
+  - text
   - unix
   - utf8-string
 
