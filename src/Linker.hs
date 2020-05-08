@@ -63,7 +63,7 @@ codeOffset :: HeaderInfo -> Int
 codeOffset info = headerEndOffset info + headerPadding info
 
 dataOffset :: HeaderInfo -> Int
-dataOffset info = codeOffset info + codeLen info
+dataOffset info = codeOffset info + roundUp pageSize (codeLen info)
 
 -- see page 20
 elfIdent :: B.ByteString
@@ -282,13 +282,18 @@ link (codeB, dataB) =
 
   -- assume the assembler already put the appropriate padding between
   -- code and data so they don't share a page
-  in  toLazyByteString
-        $  lazyByteString ehdr'
-        <> lazyByteString (mconcat phdr')
-        <> lazyByteString (mconcat shdr')
-        <> lazyByteString shstrtabB'
-        <> lazyByteString (mconcat symtabB')
-        <> lazyByteString symstrtabB'
-        <> lazyByteString hpad'
-        <> lazyByteString codeB
-        <> lazyByteString dataB
+  in
+    toLazyByteString
+    $  lazyByteString ehdr'
+    <> lazyByteString (mconcat phdr')
+    <> lazyByteString (mconcat shdr')
+    <> lazyByteString shstrtabB'
+    <> lazyByteString (mconcat symtabB')
+    <> lazyByteString symstrtabB'
+    <> lazyByteString hpad'
+    <> lazyByteString codeB
+    <> mconcat
+         (replicate (leftover pageSize (fromIntegral $ B.length codeB))
+                    (word8 0)
+         )
+    <> lazyByteString dataB

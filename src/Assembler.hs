@@ -326,7 +326,4 @@ assemble (Program main fns datums) =
                             )
                           $ zip (map fst datums) dataOffsets
                 in  zipWith (compileInstr labels) (tail codeOffsets) allInstrs
-  in  ( codeB <> B.pack
-        (replicate (leftover pageSize (fromIntegral $ B.length codeB)) 0)
-      , B.concat $ map snd datums
-      )
+  in  (codeB, B.concat $ map snd datums)
