@@ -14,7 +14,7 @@ addFnBoilerplate (Function name instrs) =
             $ filter (\reg -> reg `elem` dataRegisters && reg /= RAX)
             $ concatMap (snd . getRegisters) instrs
   in  Function name
-        $  [UN PUSH $ R RBP, LEA (Mem (Right 8) RSP Nothing) RBP]
+        $  [UN PUSH $ R RBP, LEA (Mem (Right 16) RSP Nothing) RBP]
         ++ map (UN PUSH . R) clobberedRegs
         ++ concatMap
              (\instr -> case instr of
