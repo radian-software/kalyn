@@ -83,10 +83,10 @@ elfHeader :: HeaderInfo -> B.ByteString
 elfHeader info =
   toLazyByteString
     $  lazyByteString elfIdent
-    <> word16LE 3 -- file type, relocatable executable (called "shared object file")
+    <> word16LE 2 -- file type, non-relocatable executable
     <> word16LE 62 -- architecture, x86_64
     <> word32LE 1 -- object file version
-    <> word64LE (fromIntegral $ codeOffset info) -- entry point in virtual memory
+    <> word64LE (fromIntegral $ codeOffset info + vaOffset) -- entry point in virtual memory
     <> word64LE (fromIntegral $ phOffset info) -- program header offset
     <> word64LE (fromIntegral $ shOffset info) -- section header offset
     <> word32LE 0 -- processor-specific flags, none needed
@@ -104,7 +104,7 @@ programHeader info =
     $  word32LE 1 -- segment type, loadable code/data
     <> word32LE 0x5 -- permissions, read/execute only (see page 73)
     <> word64LE (fromIntegral $ codeOffset info) -- offset from beginning of file
-    <> word64LE (fromIntegral $ codeOffset info) -- virtual address at which to map code/data
+    <> word64LE (fromIntegral $ codeOffset info + vaOffset) -- virtual address at which to map code/data
     <> word64LE 0 -- physical address at which to map, unused
     <> word64LE (fromIntegral $ codeLen info) -- number of bytes listed in file image
     <> word64LE (fromIntegral $ codeLen info) -- number of bytes to reserve in memory
@@ -113,7 +113,7 @@ programHeader info =
     $  word32LE 1 -- segment type, loadable code/data
     <> word32LE 0x6 -- permissions, read/write only (see page 73)
     <> word64LE (fromIntegral $ dataOffset info) -- offset from beginning of file
-    <> word64LE (fromIntegral $ dataOffset info) -- virtual address at which to map code/data
+    <> word64LE (fromIntegral $ dataOffset info + vaOffset) -- virtual address at which to map code/data
     <> word64LE 0 -- physical address at which to map, unused
     <> word64LE (fromIntegral $ dataLen info) -- number of bytes listed in file image
     <> word64LE (fromIntegral $ dataLen info) -- number of bytes to reserve in memory
@@ -181,7 +181,7 @@ sectionHeader info =
           $  word32LE (getIdx ".text") -- section name in shstrtab
           <> word32LE 1 -- section type, program information
           <> word64LE 0x6 -- section attribute flags, executable memory
-          <> word64LE (fromIntegral $ codeOffset info) -- memory address
+          <> word64LE (fromIntegral $ codeOffset info + vaOffset) -- memory address
           <> word64LE (fromIntegral $ codeOffset info) -- file address
           <> word64LE (fromIntegral $ codeLen info) -- segment length
           <> word32LE 0 -- section header table index link, unused
@@ -194,7 +194,7 @@ sectionHeader info =
           $  word32LE (getIdx ".data") -- section name in shstrtab
           <> word32LE 1 -- section type, program information
           <> word64LE 0x3 -- section attribute flags, writeable memory
-          <> word64LE (fromIntegral $ dataOffset info) -- memory address
+          <> word64LE (fromIntegral $ dataOffset info + vaOffset) -- memory address
           <> word64LE (fromIntegral $ dataOffset info) -- file address
           <> word64LE (fromIntegral $ dataLen info) -- segment length
           <> word32LE 0 -- section header table index link, unused
@@ -230,7 +230,7 @@ symtab info =
     <> word8 2 -- symbol type and binding, locally bound function
     <> word8 0 -- unused field
     <> word16LE 4 -- index of relevant section from section header
-    <> word64LE (fromIntegral $ codeOffset info) -- symbol value, virtual address
+    <> word64LE (fromIntegral $ codeOffset info + vaOffset) -- symbol value, virtual address
     <> word64LE 0 -- symbol size, not specified
   ]
 
