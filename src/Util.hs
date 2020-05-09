@@ -3,6 +3,7 @@ module Util where
 import           Control.Arrow
 import           Data.List
 import qualified Data.Map                      as Map
+import           Data.Maybe
 
 class Pretty a where
   pretty :: a -> String
@@ -29,3 +30,6 @@ listUnique ks = nub ks == ks
 
 mapUnionsWithKey :: Ord k => (k -> v -> v -> v) -> [Map.Map k v] -> Map.Map k v
 mapUnionsWithKey f = foldl' (Map.unionWithKey f) Map.empty
+
+mapLookupKey :: (Eq v, Ord k) => v -> Map.Map k v -> Maybe k
+mapLookupKey v = listToMaybe . map fst . filter ((== v) . snd) . Map.toList

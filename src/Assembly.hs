@@ -2,6 +2,8 @@ module Assembly where
 
 import qualified Data.ByteString.Lazy          as B
 import           Data.Int
+import qualified Data.Map.Strict               as Map
+import           Data.Ord
 import           Data.Word
 import           Numeric
 import           Text.Read
@@ -12,12 +14,42 @@ import           Text.Read
 class RegisterLike reg where
   fromRegister :: Register -> reg
 
+-- order is important! for register allocation, try to avoid using
+-- system registers because this will likely result in spilling, so
+-- put them at the end of the list.
+allRegisters :: [Register]
+allRegisters =
+  [ R8
+  , R9
+  , R10
+  , R11
+  , R12
+  , R13
+  , R14
+  , R15
+  , RBX
+  , RCX
+  , RDX
+  , RSI
+  , RDI
+  , RAX
+  , RSP
+  , RBP
+  , RIP
+  ]
+
+registerPrecedence :: Map.Map Register Int
+registerPrecedence = Map.fromList $ zip allRegisters (iterate (+ 1) 0)
+
 data Register = RAX | RCX | RDX | RBX
               | RSP | RBP | RSI | RDI
               | R8  | R9  | R10 | R11
               | R12 | R13 | R14 | R15
               | RIP
-  deriving (Eq, Ord)
+  deriving (Eq)
+
+instance Ord Register where
+  compare = comparing (registerPrecedence Map.!)
 
 instance Show Register where
   show RAX = "%rax"

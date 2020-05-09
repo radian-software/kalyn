@@ -2,6 +2,6 @@
 
 set -e
 
-make build
+stack build --profile
 mkdir -p out
-stack exec kalyn -- "$@"
+stack exec --profile kalyn -- "$@"

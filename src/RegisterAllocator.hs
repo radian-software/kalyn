@@ -10,6 +10,7 @@ import           Data.List
 import qualified Data.Map                      as Map
 import           Data.Maybe
 import qualified Data.Set                      as Set
+import           Data.Tuple
 
 import           Assembly
 import           Liveness
@@ -25,65 +26,125 @@ computeLivenessInterval intervalMap reg =
                        (Map.keys intervalMap)
   in  (head indices, last indices + 1)
 
-intervalsIntersect :: (Int, Int) -> (Int, Int) -> Bool
-intervalsIntersect (a, b) (c, d) = not (b <= c || d <= a)
-
 tryAllocateFunctionRegs
   :: Liveness VirtualRegister -> Either [Temporary] Allocation
 tryAllocateFunctionRegs liveness =
-  let allRegs =
-          ( nub
-          $ concatMap
-              (\(liveIn, liveOut) -> Set.toList liveIn ++ Set.toList liveOut)
-          $ Map.elems liveness
+  let
+    allLiveIntervals =
+      Map.fromListWithKey
+          (\t1 t2 int ->
+            error
+              $  "registers "
+              ++ show t1
+              ++ " and "
+              ++ show t2
+              ++ " have the same live interval "
+              ++ show int
           )
-      intervalMap = Map.fromList
-        $ map (\reg -> (reg, computeLivenessInterval liveness reg)) allRegs
-      disallowed = Map.mapWithKey
-        (\reg _ -> Set.fromList $ filter
-          (\dataReg ->
-            Physical dataReg `Map.member` intervalMap && intervalsIntersect
-              (intervalMap Map.! reg)
-              (intervalMap Map.! Physical dataReg)
-          )
-          dataRegisters
-        )
-        intervalMap
-      (spilled, allocation) = allocate
-        []
-        (Map.fromList (map (\reg -> (fromRegister reg, reg)) specialRegisters))
-        -- allocate to smaller live intervals first, hopefully meaning
-        -- we spill less
-        (sortOn
-          (\reg -> let (start, end) = intervalMap Map.! reg in end - start)
-          allRegs
-        )
-         where
-          allocate spills allocs [] = (spills, allocs)
-          allocate spills allocs (cur@(Physical phys) : rst) =
-            allocate spills (Map.insert cur phys allocs) rst
-          allocate spills allocs (cur@(Virtual temp) : rst) =
-            case
-                filter
-                  (\dataReg ->
-                    not (dataReg `Set.member` (disallowed Map.! cur)) && not
-                      (any
-                        (\other ->
-                          Map.lookup other allocs
-                            == Just dataReg
-                            && intervalsIntersect (intervalMap Map.! cur)
-                                                  (intervalMap Map.! other)
-                        )
-                        allRegs
-                      )
-                  )
-                  dataRegisters
-              of
-                []       -> allocate (temp : spills) allocs rst
-                free : _ -> allocate spills (Map.insert cur free allocs) rst
-  in  case spilled of
-        [] -> Right allocation
-        _  -> Left spilled
+        . map (\reg -> (computeLivenessInterval liveness reg, reg))
+        . concatMap
+            (\(liveIn, liveOut) -> Set.toList liveIn ++ Set.toList liveOut)
+        . Map.elems
+        $ liveness
+    -- nb intervals in active set are flipped to sort by end point
+    allocate liveIntervals activeIntervals freeRegisters allocation spilledTemps
+      = case Map.minViewWithKey liveIntervals of
+        Nothing -> (allocation, spilledTemps)
+        Just ((liveInterval, virtualRegister), liveIntervals') ->
+          -- I don't *think* we need to worry about Map.split
+          -- dropping keys that compare equal. I could be wrong
+          -- though.
+          let
+            (expiredIntervals, activeIntervals') =
+              Map.split liveInterval activeIntervals
+            freeRegisters' =
+              foldr (Set.insert . (allocation Map.!)) freeRegisters
+                . Map.elems
+                $ expiredIntervals
+          in
+            case virtualRegister of
+              Virtual temporary -> case Set.minView freeRegisters' of
+                Just (freeRegister, freeRegisters'') ->
+                  let allocation' =
+                          Map.insert virtualRegister freeRegister allocation
+                      activeIntervals'' = Map.insert (swap liveInterval)
+                                                     virtualRegister
+                                                     activeIntervals'
+                  in  allocate liveIntervals'
+                               activeIntervals''
+                               freeRegisters''
+                               allocation'
+                               spilledTemps
+                Nothing ->
+                  let (spilledInterval, potentialSpill) =
+                          Map.findMin activeIntervals'
+                      stolenRegister = allocation Map.! potentialSpill
+                  in  case
+                          (potentialSpill, fst spilledInterval > snd liveInterval)
+                        of
+                          -- we can only spill retroactively if the
+                          -- active virtual register is actually a
+                          -- temporary
+                          (Virtual spilledTemp, True) ->
+                            let
+                              allocation' = Map.insert virtualRegister
+                                                       stolenRegister
+                                                       allocation
+                              spilledTemps' = spilledTemp : spilledTemps
+                              activeIntervals'' =
+                                Map.delete spilledInterval activeIntervals'
+                              activeIntervals''' = Map.insert
+                                (swap liveInterval)
+                                virtualRegister
+                                activeIntervals''
+                            in
+                              allocate liveIntervals'
+                                       activeIntervals'''
+                                       freeRegisters'
+                                       allocation'
+                                       spilledTemps'
+                          _ ->
+                            let spilledTemps' = temporary : spilledTemps
+                            in  allocate liveIntervals'
+                                         activeIntervals'
+                                         freeRegisters'
+                                         allocation
+                                         spilledTemps'
+              -- handle preallocations, see section 6.4
+              Physical usedRegister ->
+                case
+                    find
+                      ((== Just usedRegister) . (`Map.lookup` allocation) . snd)
+                    . Map.toList
+                    $ activeIntervals'
+                  of
+                    Nothing -> allocate liveIntervals'
+                                        activeIntervals'
+                                        freeRegisters'
+                                        allocation
+                                        spilledTemps
+                    Just (_, Virtual spilledTemp) ->
+                      let spilledTemps' = spilledTemp : spilledTemps
+                      in  allocate liveIntervals'
+                                   activeIntervals'
+                                   freeRegisters'
+                                   allocation
+                                   spilledTemps'
+                    Just (_, Physical _) ->
+                      error
+                        "same physical register somehow has two live intervals"
+    initialAllocation =
+      Map.fromList . map (\reg -> (fromRegister reg, reg)) $ allRegisters
+  in
+    case
+      allocate allLiveIntervals
+               Map.empty
+               (Set.fromList dataRegisters)
+               initialAllocation
+               []
+    of
+      (allocation, []     ) -> Right allocation
+      (_         , spilled) -> Left spilled
 
 spillMem :: Eq reg => reg -> Mem reg -> Bool
 spillMem reg (Mem _ base msi) =
@@ -135,7 +196,7 @@ spillFunction dir ind (Function name stackSpace instrs) =
 spillTemporary :: Int -> Temporary -> VirtualFunction -> VirtualFunction
 spillTemporary spillIdx temp = spillFunction
   (Virtual temp)
-  (Mem (Right . fromIntegral $ -(spillIdx + 1) * 8) rbp Nothing)
+  (Mem (Right . fromIntegral $ (spillIdx + 1) * 8) rbp Nothing)
 
 allocateFunctionRegs
   :: Maybe (Liveness VirtualRegister)
