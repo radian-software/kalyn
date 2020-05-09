@@ -58,17 +58,15 @@ computeLiveness instrs = fixedPoint initial propagate
   initial = Map.map (const (Set.empty, Set.empty)) instrMap
   propagate origInfo = foldr
     (\idx info ->
-      let (_   , liveOut) = info Map.! idx
-          (used, defined) = getRegisters $ instrMap Map.! idx
-      in  Map.insert
-            idx
-            ( (           (liveOut Set.\\ Set.fromList defined)
-              `Set.union` Set.fromList used
-              )
-              Set.\\ Set.fromList (map fromRegister specialRegisters)
-            , Set.unions (map (\s -> fst (info Map.! s)) (flowGraph Map.! idx))
-            )
-            info
+      let
+        (used, defined) = getRegisters $ instrMap Map.! idx
+        liveOut =
+          Set.unions (map (\s -> fst (info Map.! s)) (flowGraph Map.! idx))
+        liveIn =
+          ((liveOut Set.\\ Set.fromList defined) `Set.union` Set.fromList used)
+            Set.\\ Set.fromList (map fromRegister specialRegisters)
+      in
+        Map.insert idx (liveIn, liveOut) info
     )
     origInfo
     (Map.keys origInfo)
