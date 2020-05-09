@@ -32,8 +32,10 @@ tryAllocateFunctionRegs liveness =
   let
     allLiveIntervals =
       Map.fromListWithKey
-          (\t1 t2 int ->
-            error
+          (\int t1 t2 -> if t1 == t2
+            then t1
+            else
+              error
               $  "registers "
               ++ show t1
               ++ " and "
