@@ -35,7 +35,7 @@ unpush n = OP ADD $ IR (fromIntegral $ 8 * n) rsp
 
 -- warning: gets arguments in reverse order! indexed from 1
 getArg :: Int -> Mem VirtualRegister
-getArg n = getField (n - 3) rbp
+getArg n = getField (n + 1) rbp
 
 translateCall
   :: VirtualRegister -> Maybe VirtualRegister -> Stateful [VirtualInstruction]

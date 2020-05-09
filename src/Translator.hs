@@ -266,8 +266,10 @@ translateBundle' (Resolver resolver) (Bundle mmod mmap) = do
     )
     (Map.toList mmap)
   mainFn <- do
-    let setupCode = [JUMP CALL "memoryInit", JUMP CALL mainName]
-    callCode <- translateCall rax Nothing
+    fnPtr <- newTemp
+    let setupCode =
+          [JUMP CALL "memoryInit", JUMP CALL mainName, OP MOV $ RR rax fnPtr]
+    callCode <- translateCall fnPtr Nothing
     let teardownCode =
           [ OP MOV $ IR 60 rax
           , OP MOV $ IR 0 rdi
