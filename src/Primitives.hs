@@ -97,16 +97,18 @@ sar = shiftOp "sar" SAR
 monadPrint :: Stateful VirtualFunction
 monadPrint = do
   temp <- newTemp
+  str  <- newTemp
   return $ function
     "print__uncurried__unmonadified"
     [ OP MOV $ MR (getArg 1) temp
     , UN PUSH $ R temp
     , JUMP CALL "memoryPackString"
+    , OP MOV $ RR rax str
     , unpush 1
     , OP MOV $ IR 1 rax
     , OP MOV $ IR 1 rdi
-    , LEA (Mem (Right 8) rax Nothing) rsi
-    , OP MOV $ MR (deref rax) rdx
+    , LEA (Mem (Right 8) str Nothing) rsi
+    , OP MOV $ MR (deref str) rdx
     , SYSCALL 3 -- write
     , RET
     ]
