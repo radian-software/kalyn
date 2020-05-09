@@ -10,7 +10,7 @@ newTemp :: Stateful VirtualRegister
 newTemp = do
   count <- get
   put $ count + 1
-  return $ Virtual $ Temporary $ "%t" ++ show count
+  return $ Virtual $ Temporary count
 
 newLabel :: Stateful Label
 newLabel = do

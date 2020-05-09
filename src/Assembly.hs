@@ -5,7 +5,6 @@ import           Data.Int
 import           Data.Ord
 import           Data.Word
 import           Numeric
-import           Text.Read
 
 {-# ANN module "HLint: ignore Use lambda-case" #-}
 {-# ANN module "HLint: ignore Use tuple-section" #-}
@@ -67,23 +66,11 @@ instance Show Register where
   show R15 = "%r15"
   show RIP = "%rip"
 
-newtype Temporary = Temporary String
-  deriving (Eq)
-
-readTemporary :: Temporary -> Maybe Int
-readTemporary (Temporary ('%' : 't' : num)) = readMaybe num
-readTemporary _                             = Nothing
-
-instance Ord Temporary where
-  t1 <= t2 = case (readTemporary t1, readTemporary t2) of
-    (Just n1, Just n2) -> n1 <= n2
-    _ ->
-      let (Temporary s1) = t1
-          (Temporary s2) = t2
-      in  s1 <= s2
+newtype Temporary = Temporary Int
+  deriving (Eq, Ord)
 
 instance Show Temporary where
-  show (Temporary name) = name
+  show (Temporary num) = "%t" ++ show num
 
 data VirtualRegister = Physical Register | Virtual Temporary
   deriving (Eq, Ord)
