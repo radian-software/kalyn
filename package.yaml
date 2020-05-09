@@ -17,6 +17,7 @@ dependencies:
   - text
   - unix
   - utf8-string
+  - vector
 
 library:
   source-dirs: src

@@ -10,13 +10,14 @@ where
 import           Data.List
 import qualified Data.Map.Strict               as Map
 import qualified Data.Set                      as Set
+import qualified Data.Vector                   as V
 
 import           Assembly
 import           Util
 
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 
-type Liveness reg = Map.Map Int (Set.Set reg, Set.Set reg)
+type Liveness reg = V.Vector (Set.Set reg, Set.Set reg)
 type ProgramLiveness reg = [(Function reg, Liveness reg)]
 
 lookupLabel :: Map.Map Label Int -> Label -> Int
@@ -25,12 +26,10 @@ lookupLabel labelMap label = case label `Map.lookup` labelMap of
   Just idx -> idx
 
 assertNoFreeVariables :: Show reg => Liveness reg -> Liveness reg
-assertNoFreeVariables analysis = if Set.null . fst . (Map.! 0) $ analysis
+assertNoFreeVariables analysis = if Set.null . fst . V.head $ analysis
   then analysis
   else
-    error
-    $  "free variables: "
-    ++ (show . Set.toList . fst . (Map.! 0) $ analysis)
+    error $ "free variables: " ++ (show . Set.toList . fst . V.head $ analysis)
 
 computeLiveness
   :: (Eq reg, Ord reg, RegisterLike reg, Show reg)
@@ -38,15 +37,15 @@ computeLiveness
   -> Liveness reg
 computeLiveness instrs = fixedPoint initial propagate
  where
-  instrMap = Map.fromList $ zip (iterate (+ 1) 0) instrs
-  labelMap = foldr
-    (\(idx, instr) lm -> case instr of
+  instrMap = V.fromList instrs
+  labelMap = V.ifoldr
+    (\idx instr lm -> case instr of
       LABEL name -> Map.insert name idx lm
       _          -> lm
     )
     Map.empty
-    (Map.toList instrMap)
-  flowGraph = Map.mapWithKey
+    instrMap
+  flowGraph = V.imap
     (\idx instr -> case getJumpType instr of
       Straightline | idx == length instrs - 1 -> []
       Straightline | otherwise                -> [idx + 1]
@@ -55,21 +54,20 @@ computeLiveness instrs = fixedPoint initial propagate
       Branch label | otherwise -> [lookupLabel labelMap label, idx + 1]
     )
     instrMap
-  initial = Map.map (const (Set.empty, Set.empty)) instrMap
-  propagate origInfo = foldr
-    (\idx info ->
+  initial = V.replicate (V.length instrMap) (Set.empty, Set.empty)
+  propagate origInfo = foldl
+    (\info idx ->
       let
-        (used, defined) = getRegisters $ instrMap Map.! idx
-        liveOut =
-          Set.unions (map (\s -> fst (info Map.! s)) (flowGraph Map.! idx))
+        (used, defined) = getRegisters $ instrMap V.! idx
+        liveOut = Set.unions (map (\s -> fst (info V.! s)) (flowGraph V.! idx))
         liveIn =
           ((liveOut Set.\\ Set.fromList defined) `Set.union` Set.fromList used)
             Set.\\ Set.fromList (map fromRegister specialRegisters)
       in
-        Map.insert idx (liveIn, liveOut) info
+        info V.// [(idx, (liveIn, liveOut))]
     )
     origInfo
-    (reverse $ Map.keys origInfo)
+    (take (V.length origInfo) (iterate (\i -> i - 1) (V.length origInfo - 1)))
 
 showLiveness
   :: (Eq reg, Ord reg, RegisterLike reg, Show reg)
@@ -92,6 +90,6 @@ showLiveness = concatMap
             ++ "\n"
         )
         instrs
-        (Map.elems liveness)
+        (V.toList liveness)
       )
   )

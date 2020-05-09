@@ -11,6 +11,7 @@ import qualified Data.Map                      as Map
 import           Data.Maybe
 import qualified Data.Set                      as Set
 import           Data.Tuple
+import qualified Data.Vector                   as V
 
 import           Assembly
 import           Liveness
@@ -19,12 +20,10 @@ import           Liveness
 
 type Allocation = Map.Map VirtualRegister Register
 
-computeLivenessInterval
-  :: Ord reg => Map.Map Int (Set.Set reg, Set.Set reg) -> reg -> (Int, Int)
+computeLivenessInterval :: Ord reg => Liveness reg -> reg -> (Int, Int)
 computeLivenessInterval intervalMap reg =
-  let indices = filter (\idx -> reg `Set.member` fst (intervalMap Map.! idx))
-                       (Map.keys intervalMap)
-  in  (head indices, last indices + 1)
+  let indices = V.findIndices (\int -> reg `Set.member` fst int) intervalMap
+  in  (V.head indices, V.last indices + 1)
 
 tryAllocateFunctionRegs
   :: Liveness VirtualRegister -> Either [Temporary] Allocation
@@ -46,7 +45,7 @@ tryAllocateFunctionRegs liveness =
         . map (\reg -> (computeLivenessInterval liveness reg, reg))
         . concatMap
             (\(liveIn, liveOut) -> Set.toList liveIn ++ Set.toList liveOut)
-        . Map.elems
+        . V.toList
         $ liveness
     -- nb intervals in active set are flipped to sort by end point
     allocate liveIntervals activeIntervals freeRegisters allocation spilledTemps
