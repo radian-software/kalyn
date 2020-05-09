@@ -26,3 +26,6 @@ groupBy k = Map.fromListWith (++) . map (k &&& pure)
 
 listUnique :: (Eq k, Ord k) => [k] -> Bool
 listUnique ks = nub ks == ks
+
+mapUnionsWithKey :: Ord k => (k -> v -> v -> v) -> [Map.Map k v] -> Map.Map k v
+mapUnionsWithKey f = foldl' (Map.unionWithKey f) Map.empty

@@ -1,16 +1,22 @@
 module RegisterAllocator
-  ( allocateProgramRegs
+  ( Allocation
+  , allocateProgramRegs
+  , showAllocation
   )
 where
 
+import           Control.Applicative
 import           Data.List
 import qualified Data.Map                      as Map
+import           Data.Maybe
 import qualified Data.Set                      as Set
 
 import           Assembly
 import           Liveness
 
 -- http://web.cs.ucla.edu/~palsberg/course/cs132/linearscan.pdf
+
+type Allocation = Map.Map VirtualRegister Register
 
 computeLivenessInterval
   :: Ord reg => Map.Map Int (Set.Set reg, Set.Set reg) -> reg -> (Int, Int)
@@ -23,10 +29,9 @@ intervalsIntersect :: (Int, Int) -> (Int, Int) -> Bool
 intervalsIntersect (a, b) (c, d) = not (b <= c || d <= a)
 
 tryAllocateFunctionRegs
-  :: VirtualFunction -> Either [Temporary] PhysicalFunction
-tryAllocateFunctionRegs fn@(Function _ _ instrs) =
-  let liveness = assertNoFreeVariables . computeLiveness $ instrs
-      allRegs =
+  :: Liveness VirtualRegister -> Either [Temporary] Allocation
+tryAllocateFunctionRegs liveness =
+  let allRegs =
           ( nub
           $ concatMap
               (\(liveIn, liveOut) -> Set.toList liveIn ++ Set.toList liveOut)
@@ -77,13 +82,8 @@ tryAllocateFunctionRegs fn@(Function _ _ instrs) =
                 []       -> allocate (temp : spills) allocs rst
                 free : _ -> allocate spills (Map.insert cur free allocs) rst
   in  case spilled of
-        [] -> Right $ mapFunction
-          (\reg -> case reg `Map.lookup` allocation of
-            Nothing   -> error $ "register " ++ show reg ++ " was never live"
-            Just reg' -> reg'
-          )
-          fn
-        _ -> Left spilled
+        [] -> Right allocation
+        _  -> Left spilled
 
 spillMem :: Eq reg => reg -> Mem reg -> Bool
 spillMem reg (Mem _ base msi) =
@@ -137,17 +137,73 @@ spillTemporary spillIdx temp = spillFunction
   (Virtual temp)
   (Mem (Right . fromIntegral $ -(spillIdx + 1) * 8) rbp Nothing)
 
-allocateFunctionRegs :: Int -> VirtualFunction -> PhysicalFunction
-allocateFunctionRegs numSpilled fn = case tryAllocateFunctionRegs fn of
-  Right (Function stackSpace name instrs) ->
-    Function (stackSpace + numSpilled * 8) name instrs
-  Left spilled -> allocateFunctionRegs (numSpilled + length spilled) $ foldr
-    (uncurry spillTemporary)
-    fn
-    (zip (iterate (+ 1) numSpilled) spilled)
+allocateFunctionRegs
+  :: Maybe (Liveness VirtualRegister)
+  -> Set.Set Temporary
+  -> VirtualFunction
+  -> ( PhysicalFunction
+     , Liveness VirtualRegister
+     , Allocation
+     , Set.Set Temporary
+     )
+allocateFunctionRegs origLiveness allSpilled fn@(Function stackSpace name instrs)
+  = let liveness = assertNoFreeVariables . computeLiveness $ instrs
+    in
+      case tryAllocateFunctionRegs liveness of
+        Right allocation ->
+          ( Function
+            (stackSpace + length allSpilled * 8)
+            name
+            (map
+              (mapInstr
+                (\reg -> case reg `Map.lookup` allocation of
+                  Nothing ->
+                    error $ "register " ++ show reg ++ " was never live"
+                  Just reg' -> reg'
+                )
+              )
+              instrs
+            )
+          , fromMaybe liveness origLiveness
+          , allocation
+          , allSpilled
+          )
+        Left spilled ->
+          allocateFunctionRegs (origLiveness <|> Just liveness)
+                               (allSpilled `Set.union` Set.fromList spilled)
+            $ foldr (uncurry spillTemporary)
+                    fn
+                    (zip (iterate (+ 1) (Set.size allSpilled)) spilled)
 
-allocateProgramRegs :: Program VirtualRegister -> Program Register
-allocateProgramRegs (Program main fns datums) = Program
-  (allocateFunctionRegs 0 main)
-  (map (allocateFunctionRegs 0) fns)
-  datums
+allocateProgramRegs
+  :: Program VirtualRegister
+  -> ( Program Register
+     , ProgramLiveness VirtualRegister
+     , Allocation
+     , Set.Set Temporary
+     )
+allocateProgramRegs (Program main fns datums) =
+  let
+    allocate = allocateFunctionRegs Nothing Set.empty
+    (main', mainLiveness, mainAllocation, mainSpilled) = allocate main
+    (fns', restLiveness, restAllocation, restSpilled) =
+      unzip4 (map allocate fns)
+    liveness   = (main, mainLiveness) : zip fns restLiveness
+    allocation = Map.unions (mainAllocation : restAllocation)
+    spilled    = Set.unions (mainSpilled : restSpilled)
+  in
+    (Program main' fns' datums, liveness, allocation, spilled)
+
+showAllocation :: Allocation -> Set.Set Temporary -> String
+showAllocation allocation spilled = concatMap
+  (\(virt, phys) ->
+    show virt
+      ++ " -> "
+      ++ show phys
+      ++ (case virt of
+           Virtual temp | temp `Set.member` spilled -> " (spilled)"
+           _ -> ""
+         )
+      ++ "\n"
+  )
+  (Map.toList allocation)

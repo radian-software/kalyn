@@ -4,6 +4,7 @@ import qualified Data.ByteString.Lazy          as B
 import           Data.Int
 import           Data.Word
 import           Numeric
+import           Text.Read
 
 {-# ANN module "HLint: ignore Use lambda-case" #-}
 {-# ANN module "HLint: ignore Use tuple-section" #-}
@@ -38,7 +39,19 @@ instance Show Register where
   show RIP = "%rip"
 
 newtype Temporary = Temporary String
-  deriving (Eq, Ord)
+  deriving (Eq)
+
+readTemporary :: Temporary -> Maybe Int
+readTemporary (Temporary ('%' : 't' : num)) = readMaybe num
+readTemporary _                             = Nothing
+
+instance Ord Temporary where
+  t1 <= t2 = case (readTemporary t1, readTemporary t2) of
+    (Just n1, Just n2) -> n1 <= n2
+    _ ->
+      let (Temporary s1) = t1
+          (Temporary s2) = t2
+      in  s1 <= s2
 
 instance Show Temporary where
   show (Temporary name) = name
@@ -358,10 +371,6 @@ instance Show reg => Show (Function reg) where
         ++ "\n"
     )
     (fnInstrs fn)
-
-mapFunction :: (reg1 -> reg2) -> Function reg1 -> Function reg2
-mapFunction f (Function name stackSpace instrs) =
-  Function name stackSpace (map (mapInstr f) instrs)
 
 type Datum = (Label, B.ByteString)
 

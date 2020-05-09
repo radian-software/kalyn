@@ -1,5 +1,7 @@
 module Liveness
-  ( assertNoFreeVariables
+  ( Liveness
+  , ProgramLiveness
+  , assertNoFreeVariables
   , computeLiveness
   , showLiveness
   )
@@ -15,6 +17,7 @@ import           Util
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 
 type Liveness reg = Map.Map Int (Set.Set reg, Set.Set reg)
+type ProgramLiveness reg = [(Function reg, Liveness reg)]
 
 lookupLabel :: Map.Map Label Int -> Label -> Int
 lookupLabel labelMap label = case label `Map.lookup` labelMap of
@@ -65,24 +68,26 @@ computeLiveness instrs = fixedPoint initial propagate
     info
 
 showLiveness
-  :: (Eq reg, Ord reg, RegisterLike reg, Show reg) => Program reg -> String
-showLiveness (Program mainFn fns _) = concatMap
-  (\(Function _ name instrs) -> name ++ ":\n" ++ concat
-    (zipWith
-      (\instr (liveIn, liveOut) ->
-        ";; live IN: "
-          ++ (intercalate ", " . map show . Set.toList $ liveIn)
-          ++ "\n"
-          ++ (case instr of
-               LABEL lname -> lname ++ ":"
-               _           -> "\t" ++ show instr
-             )
-          ++ "\n;; live OUT: "
-          ++ (intercalate ", " . map show . Set.toList $ liveOut)
-          ++ "\n"
+  :: (Eq reg, Ord reg, RegisterLike reg, Show reg)
+  => ProgramLiveness reg
+  -> String
+showLiveness = concatMap
+  (\((Function _ name instrs), liveness) ->
+    ".globl " ++ name ++ "\n" ++ name ++ ":\n" ++ concat
+      (zipWith
+        (\instr (liveIn, liveOut) ->
+          ";; live IN: "
+            ++ (intercalate ", " . map show . Set.toList $ liveIn)
+            ++ "\n"
+            ++ (case instr of
+                 LABEL lname -> lname ++ ":"
+                 _           -> "\t" ++ show instr
+               )
+            ++ "\n;; live OUT: "
+            ++ (intercalate ", " . map show . Set.toList $ liveOut)
+            ++ "\n"
+        )
+        instrs
+        (Map.elems liveness)
       )
-      instrs
-      (Map.elems . computeLiveness $ instrs)
-    )
   )
-  (mainFn : fns)
