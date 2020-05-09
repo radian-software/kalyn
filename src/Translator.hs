@@ -228,7 +228,7 @@ translateDecl binds (Data _ _ ctors) = concat <$> zipWithM
             ++ [ OP MOV $ IM ctorIdx (getField 0 rax) | length ctors > 1 ]
             ++ concatMap
                  (\argIdx ->
-                   [ OP MOV $ MR (getArg argIdx) arg
+                   [ OP MOV $ MR (getArg $ length types - argIdx) arg
                    , OP MOV $ RM
                      arg
                      (getField (argIdx + (if length ctors > 1 then 1 else 0))
@@ -236,7 +236,7 @@ translateDecl binds (Data _ _ ctors) = concat <$> zipWithM
                      )
                    ]
                  )
-                 [1 .. length types]
+                 [0 .. length types - 1]
             ++ [RET]
         )
     extraFns <- if null types

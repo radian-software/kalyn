@@ -106,6 +106,7 @@ memoryPackString = do
     , OP MOV $ RM temp (deref mptr)
     , OP MOV $ MR (getField 2 ptr) ptr
     , UN INC $ R mptr
+    , JUMP JMP copyStart
     , LABEL copyDone
     , OP MOV $ IM 0 (deref mptr)
     , OP MOV $ RR result rax

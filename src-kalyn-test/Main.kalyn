@@ -4,4 +4,4 @@
 (public data Char (Char Int))
 
 (public def main (IO Empty)
-  (print "Hello, world!"))
+  (print "Hello, world!\n"))
