@@ -69,7 +69,7 @@ computeLiveness instrs = fixedPoint initial propagate
         Map.insert idx (liveIn, liveOut) info
     )
     origInfo
-    (Map.keys origInfo)
+    (reverse $ Map.keys origInfo)
 
 showLiveness
   :: (Eq reg, Ord reg, RegisterLike reg, Show reg)
