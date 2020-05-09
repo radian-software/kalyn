@@ -74,7 +74,7 @@ translatePattern ctx nextBranch obj expr@(Call _ _) =
   in
     case ctor of
       Variable name -> case Map.lookup name (bindings ctx) of
-        Just (Left (SymData _ numFields ctorIdx boxed withHeaderWord)) ->
+        Just (Left (SymData _ ctorIdx numFields boxed withHeaderWord)) ->
           if numFields /= length args
             then
               error
@@ -152,23 +152,27 @@ translateExpr ctx dst (Call lhs rhs ) = do
 translateExpr ctx dst (Case arg branches) = do
   argTemp           <- newTemp
   (argCode, argFns) <- translateExpr ctx argTemp arg
+  endLabel          <- newLabel
   nextBranches      <- replicateM (length branches) newLabel
   branchCodes       <- zipWithM (\label -> translatePattern ctx label argTemp)
                                 nextBranches
                                 (map fst branches)
-  endLabel  <- newLabel
   exprCodes <- zipWithM
-    (\branch ctx' -> do
-      (code, fns) <- translateExpr ctx' dst branch
-      return (code ++ [JUMP JMP endLabel], fns)
-    )
+    (\branch ctx' -> translateExpr ctx' dst branch)
     (map snd branches)
     (map (foldr (uncurry withBinding) ctx . Map.toList . snd) branchCodes)
   return
     ( argCode
-    ++ concatMap fst branchCodes
-    ++ concatMap fst exprCodes
-    ++ [LABEL endLabel]
+    ++ concat
+         (zipWith3
+           (\(branchCode, _) (exprCode, _) nextBranch ->
+             branchCode ++ exprCode ++ [JUMP JMP endLabel, LABEL nextBranch]
+           )
+           branchCodes
+           exprCodes
+           nextBranches
+         )
+    ++ [JUMP CALL "fail", LABEL endLabel]
     , argFns ++ concatMap snd exprCodes
     )
 translateExpr ctx dst form@(Lambda name body) = do
