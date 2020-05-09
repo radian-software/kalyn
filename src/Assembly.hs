@@ -2,7 +2,6 @@ module Assembly where
 
 import qualified Data.ByteString.Lazy          as B
 import           Data.Int
-import qualified Data.Map.Strict               as Map
 import           Data.Ord
 import           Data.Word
 import           Numeric
@@ -17,29 +16,27 @@ class RegisterLike reg where
 -- order is important! for register allocation, try to avoid using
 -- system registers because this will likely result in spilling, so
 -- put them at the end of the list.
-allRegisters :: [Register]
-allRegisters =
-  [ R8
-  , R9
-  , R10
-  , R11
-  , R12
-  , R13
-  , R14
-  , R15
-  , RBX
-  , RCX
-  , RDX
-  , RSI
-  , RDI
-  , RAX
-  , RSP
-  , RBP
-  , RIP
-  ]
-
-registerPrecedence :: Map.Map Register Int
-registerPrecedence = Map.fromList $ zip allRegisters (iterate (+ 1) 0)
+--
+-- also we can't use a map for this because it causes infinite
+-- recursion, sigh
+registerPrecedence :: Register -> Int
+registerPrecedence R8  = 0
+registerPrecedence R9  = 1
+registerPrecedence R10 = 2
+registerPrecedence R11 = 3
+registerPrecedence R12 = 4
+registerPrecedence R13 = 5
+registerPrecedence R14 = 6
+registerPrecedence R15 = 7
+registerPrecedence RBX = 8
+registerPrecedence RCX = 9
+registerPrecedence RDX = 10
+registerPrecedence RSI = 11
+registerPrecedence RDI = 12
+registerPrecedence RAX = 13
+registerPrecedence RSP = 14
+registerPrecedence RBP = 15
+registerPrecedence RIP = 16
 
 data Register = RAX | RCX | RDX | RBX
               | RSP | RBP | RSI | RDI
@@ -49,7 +46,7 @@ data Register = RAX | RCX | RDX | RBX
   deriving (Eq)
 
 instance Ord Register where
-  compare = comparing (registerPrecedence Map.!)
+  compare = comparing registerPrecedence
 
 instance Show Register where
   show RAX = "%rax"
@@ -283,6 +280,27 @@ instance Show reg => Show (Instruction reg) where
   show (SYSCALL _   ) = "syscall"
   show (LABEL   name) = name ++ ":"
   show (SYMBOL  name) = name ++ ":"
+
+allRegisters :: [Register]
+allRegisters =
+  [ RAX
+  , RCX
+  , RDX
+  , RBX
+  , RSP
+  , RBP
+  , RSI
+  , RDI
+  , R8
+  , R9
+  , R10
+  , R11
+  , R12
+  , R13
+  , R14
+  , R15
+  , RIP
+  ]
 
 dataRegisters :: [Register]
 dataRegisters =
