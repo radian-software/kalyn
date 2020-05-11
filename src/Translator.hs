@@ -8,6 +8,7 @@ import           Control.Monad
 import           Control.Monad.State
 import           Data.List
 import qualified Data.Map.Strict               as Map
+import           Data.Maybe
 import           Prelude                 hiding ( mod )
 
 import           AST
@@ -195,11 +196,15 @@ translateExpr ctx dst form@(Lambda name body) = do
   fnPtr      <- newTemp
   temp       <- newTemp
   lambdaName <- newLambda (fnName ctx)
-  let vars = nub (freeVariables form)
-  varTemps <- replicateM (length vars) newTemp
-  let varCodes = zipWith (translateVar ctx) varTemps vars
+  let possibleVars = nub (freeVariables form)
+  let vars = mapMaybe
+        (\var -> case Map.lookup name (bindings ctx) of
+          Just (Right reg) -> Just (var, reg)
+          _                -> Nothing
+        )
+        possibleVars
   argTemps <- replicateM (length vars + 1) newTemp
-  let argNames = vars ++ [name]
+  let argNames = map fst vars ++ [name]
   let bodyCtx = foldr (uncurry withBinding) ctx (zip argNames argTemps)
   let argsCode = zipWith
         (\argTemp argIdx -> OP MOV $ MR (getArg argIdx) argTemp)
@@ -216,10 +221,9 @@ translateExpr ctx dst form@(Lambda name body) = do
       , OP MOV $ RM temp (getField 0 fnPtr)
       , OP MOV $ IM (fromIntegral $ length vars) (getField 1 fnPtr)
       ]
-    ++ concat varCodes
     ++ zipWith
          (\varTemp idx -> OP MOV $ RM varTemp (getField (idx + 2) fnPtr))
-         varTemps
+         (map snd vars)
          (iterate (+ 1) 0)
     ++ [OP MOV $ RR fnPtr dst]
     , function lambdaName (argsCode ++ bodyCode ++ [OP MOV $ RR bodyDst rax])
