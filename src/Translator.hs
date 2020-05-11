@@ -286,12 +286,12 @@ translateDecl binds (Data _ _ ctors) = concat <$> zipWithM
   ctors
   (iterate (+ 1) 0)
 translateDecl binds (Def _ name _ value) = do
+  let mangledName = symName $ binds Map.! name
   dst           <- newTemp
-  (instrs, fns) <- translateExpr (Context (Map.map Left binds) name) dst value
-  return
-    $ function (symName $ binds Map.! name)
-               (instrs ++ [OP MOV $ RR dst rax, RET])
-    : fns
+  (instrs, fns) <- translateExpr (Context (Map.map Left binds) mangledName)
+                                 dst
+                                 value
+  return $ function mangledName (instrs ++ [OP MOV $ RR dst rax, RET]) : fns
 translateDecl _ (Derive _ _) = return []
 translateDecl _ (Import _ _) = error "translator shouldn't be handling imports"
 translateDecl _ (Instance _ _ _ _) = return []
