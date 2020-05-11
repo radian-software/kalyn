@@ -58,13 +58,15 @@ translatePattern
   -> Stateful ([VirtualInstruction], Map.Map String VirtualRegister)
 translatePattern ctx _ temp (Variable name) =
   case Map.lookup name (bindings ctx) of
-    Just (Left (SymData _ numFields _ _ _)) -> case numFields of
+    Just (Left (SymData _ _ numFields _ _)) -> case numFields of
       0 -> return ([], Map.empty)
       _ ->
         error
           $  "data constructor "
           ++ name
-          ++ " used with too many fields in case pattern"
+          ++ " used with no fields in case pattern (needs "
+          ++ show numFields
+          ++ ")"
     _ -> return ([], Map.fromList [(name, temp)])
 translatePattern _ nextBranch temp (Const val) = do
   imm <- newTemp
