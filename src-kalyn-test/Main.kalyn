@@ -1,15 +1,13 @@
-(public data (List a)
+(data (List a)
   Null (Cons a (List a)))
 
-(public data Char (Char Int))
+(data Char (Char Int))
 
 (data Bool False True)
 
+(defn subr (IO Empty)
+  (msg)
+  (print msg))
+
 (public def main (IO Empty)
-  (let ((false False)
-        (true True))
-    (case true
-      (True
-       (print "yay\n"))
-      (False
-       (print "oh noes\n")))))
+  (subr "Hello, world!\n"))
