@@ -58,14 +58,14 @@ translatePattern
   -> Stateful ([VirtualInstruction], Map.Map String VirtualRegister)
 translatePattern ctx _ temp (Variable name) =
   case Map.lookup name (bindings ctx) of
-    Just (Left (SymData _ _ numFields _ _)) -> case numFields of
+    Just (Left sd@(SymData _ _ _ _)) -> case sdNumFields sd of
       0 -> return ([], Map.empty)
       _ ->
         error
           $  "data constructor "
           ++ name
           ++ " used with no fields in case pattern (needs "
-          ++ show numFields
+          ++ show (sdNumFields sd)
           ++ ")"
     _ -> return ([], Map.fromList [(name, temp)])
 translatePattern _ nextBranch temp (Const val) = do
@@ -76,57 +76,56 @@ translatePattern ctx nextBranch obj expr@(Call _ _) =
   in
     case ctor of
       Variable name -> case Map.lookup name (bindings ctx) of
-        Just (Left (SymData _ ctorIdx numFields boxed withHeaderWord)) ->
-          if numFields /= length args
-            then
-              error
-              $  "data constructor "
-              ++ name
-              ++ " used with "
-              ++ show (length args)
-              ++ " fields but needs "
-              ++ show numFields
-            else do
-              fieldTemps <- replicateM numFields newTemp
-              let
-                extractCode = if boxed
-                  then concat $ zipWith
-                    (\temp idx ->
-                      [ OP MOV $ MR
-                          (getField (idx + (if withHeaderWord then 1 else 0))
-                                    obj
-                          )
-                          temp
-                      ]
-                    )
-                    fieldTemps
-                    (iterate (+ 1) 0)
-                  -- only one fieldTemp in this case
-                  else [OP MOV $ RR obj (head fieldTemps)]
-              let mainCheck = if withHeaderWord
-                    then
-                      [ OP CMP $ IM (fromIntegral ctorIdx) (getField 0 obj)
-                      , JUMP JNE nextBranch
-                      ]
-                    else []
-              fieldChecks <- zipWithM (translatePattern ctx nextBranch)
-                                      fieldTemps
-                                      args
-              return
-                ( extractCode ++ mainCheck ++ concatMap fst fieldChecks
-                , foldr
-                  ( Map.unionWithKey
-                      (\var _ _ ->
-                        error
-                          $  "two bindings for "
-                          ++ show var
-                          ++ " in same case pattern"
-                      )
-                  . snd
+        Just (Left sd@(SymData _ _ _ _)) -> if sdNumFields sd /= length args
+          then
+            error
+            $  "data constructor "
+            ++ name
+            ++ " used with "
+            ++ show (length args)
+            ++ " field"
+            ++ (if length args == 1 then "" else "s")
+            ++ " but needs "
+            ++ show (sdNumFields sd)
+          else do
+            fieldTemps <- replicateM (sdNumFields sd) newTemp
+            let
+              extractCode = if sdBoxed sd
+                then concat $ zipWith
+                  (\temp idx ->
+                    [ OP MOV $ MR
+                        (getField (idx + (if sdHasHeader sd then 1 else 0)) obj)
+                        temp
+                    ]
                   )
-                  Map.empty
-                  fieldChecks
+                  fieldTemps
+                  (iterate (+ 1) 0)
+                -- only one fieldTemp in this case
+                else [OP MOV $ RR obj (head fieldTemps)]
+            let mainCheck = if sdHasHeader sd
+                  then
+                    [ OP CMP $ IM (fromIntegral $ sdCtorIdx sd) (getField 0 obj)
+                    , JUMP JNE nextBranch
+                    ]
+                  else []
+            fieldChecks <- zipWithM (translatePattern ctx nextBranch)
+                                    fieldTemps
+                                    args
+            return
+              ( extractCode ++ mainCheck ++ concatMap fst fieldChecks
+              , foldr
+                ( Map.unionWithKey
+                    (\var _ _ ->
+                      error
+                        $  "two bindings for "
+                        ++ show var
+                        ++ " in same case pattern"
+                    )
+                . snd
                 )
+                Map.empty
+                fieldChecks
+              )
         _ -> error $ show name ++ " is not a data constructor"
       _ -> error "malformed data list in case pattern"
  where

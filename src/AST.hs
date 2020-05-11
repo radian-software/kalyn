@@ -41,12 +41,25 @@ data Decl = Alias Bool TypeSpec Type
           | Instance Bool [ClassSpec] ClassSpec [(VarName, Expr)]
   deriving (Show)
 
--- SymData (name) (ctor index) (num fields) (should box?) (use header word?)
-data Symbol = SymDef String | SymData String Int Int Bool Bool
+data Symbol = SymDef String
+            | SymData { sdName :: String
+                      , sdCtorIdx :: Int
+                      , sdNumFields :: Int
+                      , sdNumCtors :: Int
+                      }
+
+sdHasHeader :: Symbol -> Bool
+sdHasHeader SymData { sdNumCtors = numCtors } = numCtors > 1
+sdHasHeader _ = error "can only call sdHasHeader on SymDef"
+
+sdBoxed :: Symbol -> Bool
+sdBoxed SymData { sdNumFields = numFields, sdNumCtors = numCtors } =
+  numFields <= 1 && numCtors <= 1
+sdBoxed _ = error "can only call sdBoxed on SymDef"
 
 symName :: Symbol -> String
-symName (SymDef name         ) = name
-symName (SymData name _ _ _ _) = name
+symName (SymDef name       ) = name
+symName (SymData name _ _ _) = name
 
 data Bundle = Bundle String (Map.Map String ([Decl], [String]))
 newtype Resolver = Resolver (Map.Map String (Map.Map String Symbol))
@@ -215,19 +228,21 @@ instance Pretty Decl where
 
 instance Pretty Symbol where
   pretty (SymDef name) = "regular symbol " ++ name
-  pretty (SymData name ctorIdx numFields shouldBox withHeaderWord) =
+  pretty sd@(SymData _ _ _ _) =
     "data constructor "
-      ++ name
+      ++ sdName sd
       ++ " with index "
-      ++ show ctorIdx
+      ++ show (sdCtorIdx sd)
+      ++ " out of "
+      ++ show (sdNumCtors sd)
       ++ " and "
-      ++ show numFields
+      ++ show (sdNumFields sd)
       ++ " field"
-      ++ (if numFields == 1 then "" else "s")
+      ++ (if sdNumFields sd == 1 then "" else "s")
       ++ " ("
-      ++ (if shouldBox then "boxed" else "unboxed")
+      ++ (if sdBoxed sd then "boxed" else "unboxed")
       ++ ", "
-      ++ (if withHeaderWord then "with" else "without")
+      ++ (if sdHasHeader sd then "with" else "no")
       ++ " header word)"
 
 instance Pretty Bundle where
