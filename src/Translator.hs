@@ -58,7 +58,7 @@ translatePattern
   -> Stateful ([VirtualInstruction], Map.Map String VirtualRegister)
 translatePattern ctx nextBranch temp (Variable name) =
   case Map.lookup name (bindings ctx) of
-    Just (Left sd@(SymData _ _ _ _)) -> case sdNumFields sd of
+    Just (Left sd@(SymData _ _ _ _ _)) -> case sdNumFields sd of
       0 -> case sdNumCtors sd of
         0 -> error "somehow a nonexistent data constructor has appeared"
         1 -> return ([], Map.empty)
@@ -86,7 +86,7 @@ translatePattern ctx nextBranch obj expr@(Call _ _) =
   in
     case ctor of
       Variable name -> case Map.lookup name (bindings ctx) of
-        Just (Left sd@(SymData _ _ _ _)) -> if sdNumFields sd /= length args
+        Just (Left sd@(SymData _ _ _ _ _)) -> if sdNumFields sd /= length args
           then
             error
             $  "data constructor "
@@ -240,6 +240,7 @@ translateDecl binds (Data _ _ ctors) = concat <$> zipWithM
                    , sdCtorIdx   = ctorIdx
                    , sdNumFields = length types
                    , sdNumCtors  = length ctors
+                   , sdBoxed     = shouldBox ctors
                    }
       mainFn = function
         mainName

@@ -17,8 +17,8 @@ import           Util
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 
 mapSymbol :: (String -> String) -> Symbol -> Symbol
-mapSymbol f (SymDef name       ) = SymDef (f name)
-mapSymbol f (SymData name a b c) = SymData (f name) a b c
+mapSymbol f (SymDef name         ) = SymDef (f name)
+mapSymbol f (SymData name a b c d) = SymData (f name) a b c d
 
 userAllowedChars :: String
 userAllowedChars = ['A' .. 'Z'] ++ ['a' .. 'z'] ++ ['0' .. '9']
@@ -64,6 +64,7 @@ getDeclSymbols (Data _ _ ctors) = zipWith
                                  , sdCtorIdx   = idx
                                  , sdNumFields = length types
                                  , sdNumCtors  = length ctors
+                                 , sdBoxed     = shouldBox ctors
                                  }
   )
   ctors

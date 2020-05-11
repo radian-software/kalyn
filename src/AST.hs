@@ -46,20 +46,23 @@ data Symbol = SymDef String
                       , sdCtorIdx :: Int
                       , sdNumFields :: Int
                       , sdNumCtors :: Int
+                      , sdBoxed :: Bool
                       }
+
+shouldBox :: [(VarName, [Type])] -> Bool
+shouldBox ctors =
+  let multipleCtors  = length ctors > 1
+      multipleFields = any (\(_, fields) -> length fields > 1) ctors
+      anyFields      = any (\(_, fields) -> not . null $ fields) ctors
+  in  multipleFields || multipleCtors && anyFields
 
 sdHasHeader :: Symbol -> Bool
 sdHasHeader SymData { sdNumCtors = numCtors } = numCtors > 1
 sdHasHeader _ = error "can only call sdHasHeader on SymDef"
 
-sdBoxed :: Symbol -> Bool
-sdBoxed SymData { sdNumFields = numFields, sdNumCtors = numCtors } =
-  numFields > 0 && numCtors > 1 || numFields > 1
-sdBoxed _ = error "can only call sdBoxed on SymDef"
-
 symName :: Symbol -> String
-symName (SymDef name       ) = name
-symName (SymData name _ _ _) = name
+symName (SymDef name         ) = name
+symName (SymData name _ _ _ _) = name
 
 data Bundle = Bundle String (Map.Map String ([Decl], [String]))
 newtype Resolver = Resolver (Map.Map String (Map.Map String Symbol))
@@ -228,7 +231,7 @@ instance Pretty Decl where
 
 instance Pretty Symbol where
   pretty (SymDef name) = "regular symbol " ++ name
-  pretty sd@(SymData _ _ _ _) =
+  pretty sd@(SymData _ _ _ _ _) =
     "data constructor "
       ++ sdName sd
       ++ " with index "
