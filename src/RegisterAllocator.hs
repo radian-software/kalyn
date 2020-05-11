@@ -18,11 +18,17 @@ import           Liveness
 
 type Allocation = Map.Map VirtualRegister Register
 
-computeLivenessInterval
-  :: Ord reg => Map.Map Int (Set.Set reg, Set.Set reg) -> reg -> (Int, Int)
+computeLivenessInterval :: Ord reg => Liveness reg -> reg -> (Int, Int)
 computeLivenessInterval intervalMap reg =
-  let indices = filter (\idx -> reg `Set.member` fst (intervalMap Map.! idx))
-                       (Map.keys intervalMap)
+  let indices = filter
+        (\idx ->
+          let liveness = (intervalMap Map.! idx)
+          in  reg
+                `Set.member` instrLiveIn liveness
+                ||           reg
+                `Set.member` instrDefined liveness
+        )
+        (Map.keys intervalMap)
   in  (head indices, last indices + 1)
 
 intervalsIntersect :: (Int, Int) -> (Int, Int) -> Bool
@@ -31,59 +37,62 @@ intervalsIntersect (a, b) (c, d) = not (b <= c || d <= a)
 tryAllocateFunctionRegs
   :: Liveness VirtualRegister -> Either [Temporary] Allocation
 tryAllocateFunctionRegs liveness =
-  let allRegs =
-          ( nub
-          $ concatMap
-              (\(liveIn, liveOut) -> Set.toList liveIn ++ Set.toList liveOut)
+  let
+    allRegs =
+      nub
+          ( concatMap
+              (\il -> Set.toList (instrUsed il) ++ Set.toList (instrDefined il))
           $ Map.elems liveness
           )
-      intervalMap = Map.fromList
-        $ map (\reg -> (reg, computeLivenessInterval liveness reg)) allRegs
-      disallowed = Map.mapWithKey
-        (\reg _ -> Set.fromList $ filter
-          (\dataReg ->
-            Physical dataReg `Map.member` intervalMap && intervalsIntersect
-              (intervalMap Map.! reg)
-              (intervalMap Map.! Physical dataReg)
-          )
-          dataRegisters
+        \\ map fromRegister specialRegisters
+    intervalMap = Map.fromList
+      $ map (\reg -> (reg, computeLivenessInterval liveness reg)) allRegs
+    disallowed = Map.mapWithKey
+      (\reg _ -> Set.fromList $ filter
+        (\dataReg ->
+          Physical dataReg `Map.member` intervalMap && intervalsIntersect
+            (intervalMap Map.! reg)
+            (intervalMap Map.! Physical dataReg)
         )
-        intervalMap
-      (spilled, allocation) = allocate
-        []
-        (Map.fromList (map (\reg -> (fromRegister reg, reg)) specialRegisters))
-        -- allocate to smaller live intervals first, hopefully meaning
-        -- we spill less
-        (sortOn
-          (\reg -> let (start, end) = intervalMap Map.! reg in end - start)
-          allRegs
-        )
-         where
-          allocate spills allocs [] = (spills, allocs)
-          allocate spills allocs (cur@(Physical phys) : rst) =
-            allocate spills (Map.insert cur phys allocs) rst
-          allocate spills allocs (cur@(Virtual temp) : rst) =
-            case
-                filter
-                  (\dataReg ->
-                    not (dataReg `Set.member` (disallowed Map.! cur)) && not
-                      (any
-                        (\other ->
-                          Map.lookup other allocs
-                            == Just dataReg
-                            && intervalsIntersect (intervalMap Map.! cur)
-                                                  (intervalMap Map.! other)
-                        )
-                        allRegs
-                      )
+        dataRegisters
+      )
+      intervalMap
+    (spilled, allocation) = allocate
+      []
+      (Map.fromList (map (\reg -> (fromRegister reg, reg)) specialRegisters))
+      -- allocate to smaller live intervals first, hopefully meaning
+      -- we spill less
+      (sortOn
+        (\reg -> let (start, end) = intervalMap Map.! reg in end - start)
+        allRegs
+      )
+     where
+      allocate spills allocs [] = (spills, allocs)
+      allocate spills allocs (cur@(Physical phys) : rst) =
+        allocate spills (Map.insert cur phys allocs) rst
+      allocate spills allocs (cur@(Virtual temp) : rst) =
+        case
+            filter
+              (\dataReg ->
+                not (dataReg `Set.member` (disallowed Map.! cur)) && not
+                  (any
+                    (\other ->
+                      Map.lookup other allocs
+                        == Just dataReg
+                        && intervalsIntersect (intervalMap Map.! cur)
+                                              (intervalMap Map.! other)
+                    )
+                    allRegs
                   )
-                  dataRegisters
-              of
-                []       -> allocate (temp : spills) allocs rst
-                free : _ -> allocate spills (Map.insert cur free allocs) rst
-  in  case spilled of
-        [] -> Right allocation
-        _  -> Left spilled
+              )
+              dataRegisters
+          of
+            []       -> allocate (temp : spills) allocs rst
+            free : _ -> allocate spills (Map.insert cur free allocs) rst
+  in
+    case spilled of
+      [] -> Right allocation
+      _  -> Left spilled
 
 spillMem :: Eq reg => reg -> Mem reg -> Bool
 spillMem reg (Mem _ base msi) =

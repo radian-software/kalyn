@@ -1,8 +1,13 @@
 module Liveness
-  ( Liveness
+  ( InstrLiveness
+  , Liveness
   , ProgramLiveness
   , assertNoFreeVariables
   , computeLiveness
+  , instrDefined
+  , instrLiveIn
+  , instrLiveOut
+  , instrUsed
   , showLiveness
   )
 where
@@ -16,7 +21,15 @@ import           Util
 
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 
-type Liveness reg = Map.Map Int (Set.Set reg, Set.Set reg)
+data InstrLiveness reg = InstrLiveness
+  { instrLiveIn :: Set.Set reg
+  , instrLiveOut :: Set.Set reg
+  , instrUsed :: Set.Set reg
+  , instrDefined :: Set.Set reg
+  }
+  deriving (Eq)
+
+type Liveness reg = Map.Map Int (InstrLiveness reg)
 type ProgramLiveness reg = [(Function reg, Liveness reg)]
 
 lookupLabel :: Map.Map Label Int -> Label -> Int
@@ -25,12 +38,13 @@ lookupLabel labelMap label = case label `Map.lookup` labelMap of
   Just idx -> idx
 
 assertNoFreeVariables :: Show reg => Liveness reg -> Liveness reg
-assertNoFreeVariables analysis = if Set.null . fst . (Map.! 0) $ analysis
-  then analysis
-  else
-    error
-    $  "free variables: "
-    ++ (show . Set.toList . fst . (Map.! 0) $ analysis)
+assertNoFreeVariables analysis =
+  if Set.null . instrLiveIn . (Map.! 0) $ analysis
+    then analysis
+    else
+      error
+      $  "free variables: "
+      ++ (show . Set.toList . instrLiveIn . (Map.! 0) $ analysis)
 
 computeLiveness
   :: (Eq reg, Ord reg, RegisterLike reg, Show reg)
@@ -55,21 +69,39 @@ computeLiveness instrs = fixedPoint initial propagate
       Branch label | otherwise -> [lookupLabel labelMap label, idx + 1]
     )
     instrMap
-  initial = Map.map (const (Set.empty, Set.empty)) instrMap
+  initial = Map.map
+    (const InstrLiveness { instrLiveIn  = Set.empty
+                         , instrLiveOut = Set.empty
+                         , instrUsed    = Set.empty
+                         , instrDefined = Set.empty
+                         }
+    )
+    instrMap
   propagate origInfo = foldr
     (\idx info ->
       let
         (used, defined) = getRegisters $ instrMap Map.! idx
-        liveOut =
-          Set.unions (map (\s -> fst (info Map.! s)) (flowGraph Map.! idx))
+        liveOut         = Set.unions
+          (map (\s -> instrLiveIn (info Map.! s)) (flowGraph Map.! idx))
         liveIn =
           ((liveOut Set.\\ Set.fromList defined) `Set.union` Set.fromList used)
             Set.\\ Set.fromList (map fromRegister specialRegisters)
       in
-        Map.insert idx (liveIn, liveOut) info
+        Map.insert
+          idx
+          InstrLiveness { instrLiveIn  = liveIn
+                        , instrLiveOut = liveOut
+                        , instrUsed    = Set.fromList used
+                        , instrDefined = Set.fromList defined
+                        }
+          info
     )
     origInfo
     (Map.keys origInfo)
+
+orNone :: String -> String
+orNone ""  = "(none)"
+orNone str = str
 
 showLiveness
   :: (Eq reg, Ord reg, RegisterLike reg, Show reg)
@@ -79,16 +111,24 @@ showLiveness = concatMap
   (\((Function _ name instrs), liveness) ->
     ".globl " ++ name ++ "\n" ++ name ++ ":\n" ++ concat
       (zipWith
-        (\instr (liveIn, liveOut) ->
-          ";; live IN: "
-            ++ (intercalate ", " . map show . Set.toList $ liveIn)
+        (\instr il ->
+          "\n;; live IN: "
+            ++ orNone
+                 (intercalate ", " . map show . Set.toList . instrLiveIn $ il)
+            ++ "\n;; used: "
+            ++ orNone
+                 (intercalate ", " . map show . Set.toList . instrUsed $ il)
             ++ "\n"
             ++ (case instr of
                  LABEL lname -> lname ++ ":"
                  _           -> "\t" ++ show instr
                )
+            ++ "\n;; defined: "
+            ++ orNone
+                 (intercalate ", " . map show . Set.toList . instrDefined $ il)
             ++ "\n;; live OUT: "
-            ++ (intercalate ", " . map show . Set.toList $ liveOut)
+            ++ orNone
+                 (intercalate ", " . map show . Set.toList . instrLiveOut $ il)
             ++ "\n"
         )
         instrs
