@@ -121,7 +121,7 @@ showLiveness
   :: (Eq reg, Ord reg, RegisterLike reg, Show reg)
   => ProgramLiveness reg
   -> String
-showLiveness = concatMap
+showLiveness = intercalate "\n" . map
   (\((Function _ name instrs), liveness) ->
     ".globl " ++ name ++ "\n" ++ name ++ ":\n" ++ concat
       (zipWith
