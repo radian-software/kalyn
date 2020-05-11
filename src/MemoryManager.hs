@@ -60,7 +60,7 @@ memoryAlloc = do
     , OP MOV $ RR firstFree rdi
     , SYSCALL 1 -- brk
     , OP CMP $ RR firstFree rax
-    , JUMP JLE crash
+    , JUMP JL crash
     , OP MOV $ RM rax (memLabel "mmProgramBreak")
     , JUMP JMP done
     , LABEL crash
