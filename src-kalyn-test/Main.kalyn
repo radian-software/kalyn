@@ -3,10 +3,13 @@
 
 (public data Char (Char Int))
 
+(data Bool False True)
+
 (public def main (IO Empty)
-  (let ((str "Hello, world!\n"))
-    (case str
-      (Null
+  (let ((false False)
+        (true True))
+    (case true
+      (False
        (print "oh noes\n"))
-      (rst
+      (True
        (print "yay\n")))))
