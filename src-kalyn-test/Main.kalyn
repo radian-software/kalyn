@@ -7,6 +7,6 @@
   (let ((str "Hello, world!\n"))
     (case str
       (Null
-       (error "oh noes"))
-      ((Cons fst rst)
-       (print [fst])))))
+       (print "oh noes\n"))
+      (rst
+       (print "yay\n")))))
