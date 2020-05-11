@@ -299,13 +299,15 @@ getRegisters (SYSCALL n) = if n + 1 >= length syscallRegisters
 getRegisters (LABEL  _) = ([], [])
 getRegisters (SYMBOL _) = ([], [])
 
-data JumpType = Straightline | Jump Label | Branch Label
+data JumpType = Straightline | Jump Label | Branch Label | Return
 
 getJumpType :: Instruction reg -> JumpType
-getJumpType (JUMP JMP  label) = Jump label
-getJumpType (JUMP CALL _    ) = Straightline
-getJumpType (JUMP _    label) = Branch label
-getJumpType _                 = Straightline
+getJumpType (JUMP JMP  label  ) = Jump label
+getJumpType (JUMP CALL "crash") = Return
+getJumpType (JUMP CALL _      ) = Straightline
+getJumpType (JUMP _    label  ) = Branch label
+getJumpType RET                 = Return
+getJumpType _                   = Straightline
 
 mapMem :: (reg1 -> reg2) -> Mem reg1 -> Mem reg2
 mapMem f (Mem disp reg msi) = Mem disp (f reg) ((f <$>) <$> msi)

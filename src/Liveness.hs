@@ -69,10 +69,11 @@ computeLiveness instrs = fixedPoint initial propagate
   flowGraph = Map.mapWithKey
     (\idx instr -> case getJumpType instr of
       Straightline | idx == length instrs - 1 -> []
-      Straightline | otherwise                -> [idx + 1]
-      Jump label                              -> [lookupLabel labelMap label]
+      Straightline | otherwise -> [idx + 1]
+      Jump label               -> [lookupLabel labelMap label]
       Branch label | idx == length instrs - 1 -> [lookupLabel labelMap label]
       Branch label | otherwise -> [lookupLabel labelMap label, idx + 1]
+      Return                   -> []
     )
     instrMap
   initial = Map.map
