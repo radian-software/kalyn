@@ -81,4 +81,4 @@ stdlibFns fns = do
   return $ public ++ private
 
 stdlibData :: [Datum]
-stdlibData = [memoryFirstFree, memoryProgramBreak, heap] ++ msgDatums
+stdlibData = [memoryFirstFree, memoryProgramBreak] ++ msgDatums ++ [heap]
