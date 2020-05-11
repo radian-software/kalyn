@@ -56,10 +56,18 @@ translatePattern
   -> VirtualRegister
   -> Expr
   -> Stateful ([VirtualInstruction], Map.Map String VirtualRegister)
-translatePattern ctx _ temp (Variable name) =
+translatePattern ctx nextBranch temp (Variable name) =
   case Map.lookup name (bindings ctx) of
     Just (Left sd@(SymData _ _ _ _)) -> case sdNumFields sd of
-      0 -> return ([], Map.empty)
+      0 -> case sdNumCtors sd of
+        0 -> error "somehow a nonexistent data constructor has appeared"
+        1 -> return ([], Map.empty)
+        _ -> return
+          ( [ OP CMP $ IM (fromIntegral $ sdCtorIdx sd) (deref temp)
+            , JUMP JNE nextBranch
+            ]
+          , Map.empty
+          )
       _ ->
         error
           $  "data constructor "
