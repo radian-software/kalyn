@@ -124,6 +124,7 @@ monadWriteFile = do
   writeStart <- newLabel
   writeDone  <- newLabel
   crash      <- newLabel
+  msg        <- newTemp
   return $ function
     "writeFile__uncurried__unmonadified"
     [ OP MOV $ MR (getArg 2) temp
@@ -172,6 +173,8 @@ monadWriteFile = do
     , JUMP JL crash
     , RET
     , LABEL crash
+    , LEA (memLabel "msgWriteFileFailed") msg
+    , UN PUSH $ R msg
     , JUMP CALL "crash"
     ]
 
@@ -179,6 +182,8 @@ setFileMode :: Stateful VirtualFunction
 setFileMode = do
   temp     <- newTemp
   filename <- newTemp
+  crash    <- newLabel
+  msg      <- newTemp
   return $ function
     "setFileMode__uncurried__unmonadified"
     [ OP MOV $ MR (getArg 2) temp
@@ -190,7 +195,13 @@ setFileMode = do
     , LEA (getField 1 filename) rdi
     , OP MOV $ MR (getArg 1) rsi
     , SYSCALL 2 -- chmod
+    , OP CMP $ IR 0 rax
+    , JUMP JL crash
     , RET
+    , LABEL crash
+    , LEA (memLabel "msgSetFileModeFailed") msg
+    , UN PUSH $ R msg
+    , JUMP CALL "crash"
     ]
 
 primitiveError :: Stateful VirtualFunction
@@ -199,11 +210,7 @@ primitiveError = return $ function
   [ UN PUSH $ M (getArg 1)
   , JUMP CALL "memoryPackString"
   , unpush 1
-  , OP MOV $ MR (deref rax) rsi
-  , OP MOV $ IR 2 rdi
-  , LEA (Mem (Right 8) rax Nothing) rdx
-  , OP MOV $ IR 1 rax
-  , SYSCALL 3 -- write
+  , UN PUSH $ R rax
   , JUMP CALL "crash"
   ]
 
@@ -261,12 +268,20 @@ monadBind = do
     )
 
 primitiveCrash :: Stateful VirtualFunction
-primitiveCrash = return $ function
-  "crash"
-  [ OP MOV $ IR 60 rax
-  , OP MOV $ IR 1 rdi
-  , SYSCALL 1 -- exit
-  ]
+primitiveCrash = do
+  msg <- newTemp
+  return $ function
+    "crash"
+    [ OP MOV $ MR (getArg 1) msg
+    , OP MOV $ MR (deref msg) rsi
+    , OP MOV $ IR 2 rdi
+    , LEA (Mem (Right 8) msg Nothing) rdx
+    , OP MOV $ IR 1 rax
+    , SYSCALL 3 -- write
+    , OP MOV $ IR 60 rax
+    , OP MOV $ IR 1 rdi
+    , SYSCALL 1 -- exit
+    ]
 
 monadify :: Int -> String -> Stateful VirtualFunction
 monadify numArgs fnName = do

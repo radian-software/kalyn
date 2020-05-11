@@ -1,6 +1,8 @@
 module Subroutines where
 
 import           Control.Monad.State
+import qualified Data.ByteString.Lazy          as B
+import           Data.ByteString.Lazy.Builder
 
 import           Assembly
 
@@ -126,3 +128,15 @@ curryify numArgs fnName = do
     )
     [0 .. numArgs - 2]
   return . reverse $ topFn : subFns
+
+packMsg :: String -> B.ByteString
+packMsg str =
+  toLazyByteString $ int64LE (fromIntegral $ length str) <> stringUtf8 str
+
+msgDatums :: [Datum]
+msgDatums =
+  [ ("msgPatternMatchFailed", packMsg "pattern match failed\n")
+  , ("msgMemoryAllocFailed" , packMsg "memoryAlloc failed\n")
+  , ("msgWriteFileFailed"   , packMsg "writeFile failed\n")
+  , ("msgSetFileModeFailed" , packMsg "setFileMode failed\n")
+  ]

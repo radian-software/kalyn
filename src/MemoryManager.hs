@@ -37,6 +37,7 @@ memoryAlloc = do
   brk       <- newLabel
   done      <- newLabel
   crash     <- newLabel
+  msg       <- newTemp
   return $ function
     "memoryAlloc"
     [ OP MOV $ MR (memLabel "mmFirstFree") firstFree
@@ -63,6 +64,8 @@ memoryAlloc = do
     , OP MOV $ RM rax (memLabel "mmProgramBreak")
     , JUMP JMP done
     , LABEL crash
+    , LEA (memLabel "msgMemoryAllocFailed") msg
+    , UN PUSH $ R msg
     , JUMP CALL "crash"
     ]
 

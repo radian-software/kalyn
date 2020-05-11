@@ -161,6 +161,7 @@ translateExpr ctx dst (Case arg branches) = do
     (\branch ctx' -> translateExpr ctx' dst branch)
     (map snd branches)
     (map (foldr (uncurry withBinding) ctx . Map.toList . snd) branchCodes)
+  msg <- newTemp
   return
     ( argCode
     ++ concat
@@ -172,7 +173,11 @@ translateExpr ctx dst (Case arg branches) = do
            exprCodes
            nextBranches
          )
-    ++ [JUMP CALL "fail", LABEL endLabel]
+    ++ [ LEA (memLabel "msgPatternMatchFailed") msg
+       , UN PUSH $ R msg
+       , JUMP CALL "crash"
+       , LABEL endLabel
+       ]
     , argFns ++ concatMap snd exprCodes
     )
 translateExpr ctx dst form@(Lambda name body) = do
