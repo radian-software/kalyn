@@ -3,7 +3,9 @@ module Liveness
   , Liveness
   , ProgramLiveness
   , assertNoFreeVariables
+  , assertNoFreeVariablesP
   , computeLiveness
+  , computeProgramLiveness
   , instrDefined
   , instrLiveIn
   , instrLiveOut
@@ -12,6 +14,7 @@ module Liveness
   )
 where
 
+import           Data.Bifunctor
 import           Data.List
 import qualified Data.Map.Strict               as Map
 import qualified Data.Set                      as Set
@@ -45,6 +48,9 @@ assertNoFreeVariables analysis =
       error
       $  "free variables: "
       ++ (show . Set.toList . instrLiveIn . (Map.! 0) $ analysis)
+
+assertNoFreeVariablesP :: Show reg => ProgramLiveness reg -> ProgramLiveness reg
+assertNoFreeVariablesP = map (Data.Bifunctor.second assertNoFreeVariables)
 
 computeLiveness
   :: (Eq reg, Ord reg, RegisterLike reg, Show reg)
@@ -98,6 +104,13 @@ computeLiveness instrs = fixedPoint initial propagate
     )
     origInfo
     (Map.keys origInfo)
+
+computeProgramLiveness
+  :: (Eq reg, Ord reg, RegisterLike reg, Show reg)
+  => Program reg
+  -> ProgramLiveness reg
+computeProgramLiveness (Program mainFn fns _) =
+  map (\fn@(Function _ _ instrs) -> (fn, computeLiveness instrs)) (mainFn : fns)
 
 orNone :: String -> String
 orNone ""  = "(none)"

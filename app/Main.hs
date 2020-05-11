@@ -87,11 +87,13 @@ compileIncrementally inputFilename = do
   putStrLn "Translator"
   let virtualProgram = translateBundle resolver bundle
   overwriteFile (prefix ++ "Virtual.S") $ show virtualProgram
+  putStrLn "Liveness"
+  let liveness = computeProgramLiveness virtualProgram
+  overwriteFile (prefix ++ "Liveness.S") $ showLiveness liveness
   putStrLn "RegisterAllocator"
-  let (physicalProgram, origLiveness, allocation, spilled) =
-        allocateProgramRegs virtualProgram
+  let (physicalProgram, allocation, spilled) =
+        allocateProgramRegs virtualProgram (assertNoFreeVariablesP liveness)
   overwriteFile (prefix ++ "Raw.S") $ show physicalProgram
-  overwriteFile (prefix ++ "Liveness.S") $ showLiveness origLiveness
   overwriteFile (prefix ++ "Allocation") $ showAllocation allocation spilled
   putStrLn "Boilerplate"
   let physicalProgram' = addProgramBoilerplate physicalProgram

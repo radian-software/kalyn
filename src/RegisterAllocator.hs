@@ -5,10 +5,8 @@ module RegisterAllocator
   )
 where
 
-import           Control.Applicative
 import           Data.List
 import qualified Data.Map                      as Map
-import           Data.Maybe
 import qualified Data.Set                      as Set
 
 import           Assembly
@@ -147,61 +145,51 @@ spillTemporary spillIdx temp = spillFunction
   (Mem (Right . fromIntegral $ -(spillIdx + 1) * 8) rbp Nothing)
 
 allocateFunctionRegs
-  :: Maybe (Liveness VirtualRegister)
-  -> Set.Set Temporary
+  :: Set.Set Temporary
+  -> Liveness VirtualRegister
   -> VirtualFunction
-  -> ( PhysicalFunction
-     , Liveness VirtualRegister
-     , Allocation
-     , Set.Set Temporary
-     )
-allocateFunctionRegs origLiveness allSpilled fn@(Function stackSpace name instrs)
-  = let liveness = assertNoFreeVariables . computeLiveness $ instrs
-    in
-      case tryAllocateFunctionRegs liveness of
-        Right allocation ->
-          ( Function
-            (stackSpace + length allSpilled * 8)
-            name
-            (map
-              (mapInstr
-                (\reg -> case reg `Map.lookup` allocation of
-                  Nothing ->
-                    error $ "register " ++ show reg ++ " was never live"
-                  Just reg' -> reg'
-                )
-              )
-              instrs
+  -> (PhysicalFunction, Allocation, Set.Set Temporary)
+allocateFunctionRegs allSpilled liveness fn@(Function stackSpace name instrs) =
+  case tryAllocateFunctionRegs liveness of
+    Right allocation ->
+      ( Function
+        (stackSpace + length allSpilled * 8)
+        name
+        (map
+          (mapInstr
+            (\reg -> case reg `Map.lookup` allocation of
+              Nothing   -> error $ "register " ++ show reg ++ " was never live"
+              Just reg' -> reg'
             )
-          , fromMaybe liveness origLiveness
-          , allocation
-          , allSpilled
           )
-        Left spilled ->
-          allocateFunctionRegs (origLiveness <|> Just liveness)
-                               (allSpilled `Set.union` Set.fromList spilled)
-            $ foldr (uncurry spillTemporary)
-                    fn
-                    (zip (iterate (+ 1) (Set.size allSpilled)) spilled)
+          instrs
+        )
+      , allocation
+      , allSpilled
+      )
+    Left spilled ->
+      let fn'@(Function _ _ instrs') = foldr
+            (uncurry spillTemporary)
+            fn
+            (zip (iterate (+ 1) (Set.size allSpilled)) spilled)
+          liveness' = assertNoFreeVariables . computeLiveness $ instrs'
+      in  allocateFunctionRegs (allSpilled `Set.union` Set.fromList spilled)
+                               liveness'
+                               fn'
 
 allocateProgramRegs
   :: Program VirtualRegister
-  -> ( Program Register
-     , ProgramLiveness VirtualRegister
-     , Allocation
-     , Set.Set Temporary
-     )
-allocateProgramRegs (Program main fns datums) =
-  let
-    allocate = allocateFunctionRegs Nothing Set.empty
-    (main', mainLiveness, mainAllocation, mainSpilled) = allocate main
-    (fns', restLiveness, restAllocation, restSpilled) =
-      unzip4 (map allocate fns)
-    liveness   = (main, mainLiveness) : zip fns restLiveness
-    allocation = Map.unions (mainAllocation : restAllocation)
-    spilled    = Set.unions (mainSpilled : restSpilled)
-  in
-    (Program main' fns' datums, liveness, allocation, spilled)
+  -> ProgramLiveness VirtualRegister
+  -> (Program Register, Allocation, Set.Set Temporary)
+allocateProgramRegs (Program main fns datums) liveness =
+  let allocate = allocateFunctionRegs Set.empty
+      (main', mainAllocation, mainSpilled) =
+          allocate (snd . head $ liveness) main
+      (fns', restAllocation, restSpilled) =
+          unzip3 (zipWith allocate (map snd . tail $ liveness) fns)
+      allocation = Map.unions (mainAllocation : restAllocation)
+      spilled    = Set.unions (mainSpilled : restSpilled)
+  in  (Program main' fns' datums, allocation, spilled)
 
 showAllocation :: Allocation -> Set.Set Temporary -> String
 showAllocation allocation spilled = concatMap
