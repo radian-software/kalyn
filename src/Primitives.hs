@@ -273,10 +273,10 @@ primitiveCrash = do
   return $ function
     "crash"
     [ OP MOV $ MR (getArg 1) msg
-    , OP MOV $ MR (deref msg) rsi
-    , OP MOV $ IR 2 rdi
-    , LEA (Mem (Right 8) msg Nothing) rdx
     , OP MOV $ IR 1 rax
+    , OP MOV $ IR 2 rdi
+    , LEA (Mem (Right 8) msg Nothing) rsi
+    , OP MOV $ MR (deref msg) rdx
     , SYSCALL 3 -- write
     , OP MOV $ IR 60 rax
     , OP MOV $ IR 1 rdi
