@@ -4,9 +4,4 @@
 (public data Char (Char Int))
 
 (public def main (IO Empty)
-  (let ((str "Hello, world!\n"))
-    (case str
-      (Null
-       (error "oh noes"))
-      ((Cons fst rst)
-       (print [fst])))))
+  (print "Hello, world!\n"))
