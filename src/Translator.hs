@@ -236,24 +236,33 @@ translateDecl binds (Data _ _ ctors) = concat <$> zipWithM
     let baseName = symName (binds Map.! ctor)
     let mainName = if null types then baseName else baseName ++ "__uncurried"
     let
+      sd = SymData { sdName      = baseName
+                   , sdCtorIdx   = ctorIdx
+                   , sdNumFields = length types
+                   , sdNumCtors  = length ctors
+                   }
       mainFn = function
         mainName
-        (if length ctors == 1 && length types == 1
-          then [OP MOV $ MR (getArg 1) rax, RET]
+        (if not . sdBoxed $ sd
+          then if sdHasHeader sd
+            then [OP MOV $ IR (fromIntegral ctorIdx) rax, RET]
+            else if null types
+              then [OP MOV $ IR 0 rax, RET]
+              else [OP MOV $ MR (getArg 1) rax, RET]
           else
             [ PUSHI (fromIntegral $ (length ctor + 1) * 8)
             , JUMP CALL "memoryAlloc"
             , unpush 1
             ]
-            ++ [ OP MOV $ IM ctorIdx (getField 0 rax) | length ctors > 1 ]
+            ++ [ OP MOV $ IM (fromIntegral ctorIdx) (getField 0 rax)
+               | sdHasHeader sd
+               ]
             ++ concatMap
                  (\argIdx ->
                    [ OP MOV $ MR (getArg $ length types - argIdx) arg
                    , OP MOV $ RM
                      arg
-                     (getField (argIdx + (if length ctors > 1 then 1 else 0))
-                               rax
-                     )
+                     (getField (argIdx + (if sdHasHeader sd then 1 else 0)) rax)
                    ]
                  )
                  [0 .. length types - 1]
