@@ -201,6 +201,10 @@ translateExpr ctx dst form@(Lambda name body) = do
   argTemps <- replicateM (length vars + 1) newTemp
   let argNames = vars ++ [name]
   let bodyCtx = foldr (uncurry withBinding) ctx (zip argNames argTemps)
+  let argsCode = zipWith
+        (\argTemp argIdx -> OP MOV $ MR (getArg argIdx) argTemp)
+        argTemps
+        (iterate (\i -> i - 1) (length argNames - 1))
   bodyDst             <- newTemp
   (bodyCode, bodyFns) <- translateExpr bodyCtx bodyDst body
   return
@@ -218,7 +222,8 @@ translateExpr ctx dst form@(Lambda name body) = do
          varTemps
          (iterate (+ 1) 0)
     ++ [OP MOV $ RR fnPtr dst]
-    , function lambdaName (bodyCode ++ [OP MOV $ RR bodyDst rax]) : bodyFns
+    , function lambdaName (argsCode ++ bodyCode ++ [OP MOV $ RR bodyDst rax])
+      : bodyFns
     )
 translateExpr ctx dst (Let name val body) = do
   temp                <- newTemp
