@@ -5,7 +5,7 @@
 
 (data Bool False True)
 
-(defn subr (IO Empty)
+(defn subr (Func String (IO Empty))
   (msg)
   (print msg))
 
