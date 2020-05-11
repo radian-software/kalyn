@@ -226,7 +226,8 @@ translateExpr ctx dst form@(Lambda name body) = do
          (map snd vars)
          (iterate (+ 1) 0)
     ++ [OP MOV $ RR fnPtr dst]
-    , function lambdaName (argsCode ++ bodyCode ++ [OP MOV $ RR bodyDst rax])
+    , function lambdaName
+               (argsCode ++ bodyCode ++ [OP MOV $ RR bodyDst rax, RET])
       : bodyFns
     )
 translateExpr ctx dst (Let name val body) = do
