@@ -9,7 +9,7 @@
   (let ((false False)
         (true True))
     (case true
-      (False
-       (print "oh noes\n"))
       (True
-       (print "yay\n")))))
+       (print "yay\n"))
+      (False
+       (print "oh noes\n")))))

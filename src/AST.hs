@@ -54,7 +54,7 @@ sdHasHeader _ = error "can only call sdHasHeader on SymDef"
 
 sdBoxed :: Symbol -> Bool
 sdBoxed SymData { sdNumFields = numFields, sdNumCtors = numCtors } =
-  numFields <= 1 && numCtors <= 1
+  numFields > 0 && numCtors > 1 || numFields > 1
 sdBoxed _ = error "can only call sdBoxed on SymDef"
 
 symName :: Symbol -> String

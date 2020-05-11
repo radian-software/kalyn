@@ -63,7 +63,9 @@ translatePattern ctx nextBranch temp (Variable name) =
         0 -> error "somehow a nonexistent data constructor has appeared"
         1 -> return ([], Map.empty)
         _ -> return
-          ( [ OP CMP $ IM (fromIntegral $ sdCtorIdx sd) (deref temp)
+          ( [ OP CMP
+              $ (if sdBoxed sd then flip IM $ deref temp else flip IR temp)
+                  (fromIntegral $ sdCtorIdx sd)
             , JUMP JNE nextBranch
             ]
           , Map.empty
