@@ -128,8 +128,10 @@ translatePattern ctx nextBranch obj expr@(Call _ _) =
               ( extractCode ++ mainCheck ++ concatMap fst fieldChecks
               , foldr
                 ( Map.unionWithKey
-                    (\var _ _ ->
-                      error
+                    (\var k1 _ -> if var == "_"
+                      then k1
+                      else
+                        error
                         $  "two bindings for "
                         ++ show var
                         ++ " in same case pattern"
