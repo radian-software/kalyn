@@ -262,7 +262,7 @@ translateDecl binds (Data _ _ ctors) = concat <$> zipWithM
               then [OP MOV $ IR 0 rax, RET]
               else [OP MOV $ MR (getArg 1) rax, RET]
           else
-            [ PUSHI (fromIntegral $ (length ctor + 1) * 8)
+            [ PUSHI (fromIntegral $ (length types + 1) * 8)
             , JUMP CALL "memoryAlloc"
             , unpush 1
             ]
