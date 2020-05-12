@@ -8,6 +8,8 @@ import           Tokens
 -- Simple recursive descent parser for Lisp syntax.
 
 parseForm :: [Token] -> (Form, [Token])
+parseForm (SYMBOL name : AT : rest) =
+  let (aliased, rest') = parseForm rest in (At name aliased, rest')
 parseForm (SYMBOL  s : rest) = (Symbol s, rest)
 parseForm (INTEGER i : rest) = (IntAtom i, rest)
 parseForm (CHAR    c : rest) = (CharAtom c, rest)

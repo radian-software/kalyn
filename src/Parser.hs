@@ -77,6 +77,7 @@ parseExpr (CharAtom c) = case encodeChar c of
   _   -> error "multibyte character literals are not supported"
 parseExpr (StrAtom s) = parseExpr $ SquareList
   (map (\c -> RoundList [Symbol "Char", IntAtom (fromIntegral c)]) $ encode s)
+parseExpr (At name elt) = As name (parseExpr elt)
 
 parseDecl :: Form -> Decl
 parseDecl form = case form of

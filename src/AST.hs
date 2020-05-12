@@ -30,6 +30,7 @@ data Expr = Variable VarName
           | Case Expr [(Expr, Expr)]
           | Lambda VarName Expr
           | Let VarName Expr Expr
+          | As VarName Expr
   deriving (Show)
 
 data Decl = Alias Bool TypeSpec Type
@@ -137,6 +138,7 @@ instance Pretty Expr where
    where
     condenseLets (Let name expr body) = ((name, expr) :) <$> condenseLets body
     condenseLets expr                 = (expr, [])
+  pretty (As name expr) = name ++ "@" ++ show expr
 
 instance Pretty Decl where
   pretty form = case form of

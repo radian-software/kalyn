@@ -9,7 +9,7 @@ import           Data.Maybe
 import           Tokens
 
 disallowedChars :: String
-disallowedChars = ";()[]"
+disallowedChars = ";()[]@"
 
 getStringChar :: String -> (Char, String)
 getStringChar [] = error "unexpected end of string literal"
@@ -48,6 +48,7 @@ getToken ('(' : s)           = (Just LPAREN, s)
 getToken (')' : s)           = (Just RPAREN, s)
 getToken ('[' : s)           = (Just LBRACKET, s)
 getToken (']' : s)           = (Just RBRACKET, s)
+getToken ('@' : s)           = (Just AT, s)
 getToken ('"' : s) =
   let (parsed, rest) = readString '"' s in (Just . STRING $ parsed, rest)
 getToken full@('\'' : s) =

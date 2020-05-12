@@ -43,6 +43,7 @@ freeVariables (Case arg branches) =
 freeVariables (Lambda arg body) = freeVariables body \\ [arg]
 freeVariables (Let name val body) =
   freeVariables val ++ (freeVariables body \\ [name])
+freeVariables (As name expr) = freeVariables expr \\ [name]
 
 translateVar :: Context -> VirtualRegister -> String -> [VirtualInstruction]
 translateVar ctx dst name = case Map.lookup name (bindings ctx) of
@@ -143,9 +144,20 @@ translatePattern ctx nextBranch obj expr@(Call _ _) =
  where
   uncurryExpr (Call lhs rhs) = rhs : uncurryExpr lhs
   uncurryExpr f              = [f]
-translatePattern _ _ _ (Case   _ _) = error "can't use case in case pattern"
+translatePattern _ _ _ (Case _ _) = error "can't use case in case pattern"
 translatePattern _ _ _ (Lambda _ _) = error "can't use lambda in case pattern"
-translatePattern _ _ _ (Let _ _ _ ) = error "can't use let in case pattern"
+translatePattern _ _ _ (Let _ _ _) = error "can't use let in case pattern"
+translatePattern ctx nextBranch temp (As name pat) = do
+  (instrs, binds) <- translatePattern ctx nextBranch temp pat
+  return
+    ( instrs
+    , Map.unionWithKey
+      (\var _ _ ->
+        error $ "two bindings for " ++ show var ++ " in same case pattern"
+      )
+      binds
+      (Map.fromList [(name, temp)])
+    )
 
 translateExpr
   :: Context
@@ -239,6 +251,7 @@ translateExpr ctx dst (Let name val body) = do
   (letCode , letFns ) <- translateExpr ctx' temp val
   (bodyCode, bodyFns) <- translateExpr ctx' dst body
   return (letCode ++ bodyCode, letFns ++ bodyFns)
+translateExpr ctx dst (As _ expr) = translateExpr ctx dst expr
 
 -- don't handle Derive or Instance for now
 translateDecl :: TopLevelBindings -> Decl -> Stateful [VirtualFunction]
