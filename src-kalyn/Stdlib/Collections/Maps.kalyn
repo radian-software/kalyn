@@ -36,6 +36,7 @@
 
 (public defn mapSize (Func (Map k v) Int)
   "Return the number of elements in the map."
+  (root)
   ((Map _ root)
    (size root)))
 
