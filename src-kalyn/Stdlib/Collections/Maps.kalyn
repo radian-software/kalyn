@@ -3,6 +3,7 @@
 
 (import "../DataTypes.kalyn")
 (import "../Functions.kalyn")
+(import "../Lists.kalyn")
 
 (alias (Ord k) (Func k k Ordering))
 
@@ -36,9 +37,8 @@
 
 (public defn mapSize (Func (Map k v) Int)
   "Return the number of elements in the map."
-  (root)
-  ((Map _ root)
-   (size root)))
+  ((Map _ root))
+  (size root))
 
 (defn lookup (Func (Ord k) k (Branch k v) (Branch k v))
   "Do a splay lookup on an internal tree node. The provided key will
@@ -63,7 +63,7 @@
   (left right)
   (case (Pair left right)
     ((Pair (Branch k1 v1 _ l1 r1) (Branch k v d _ r))
-     (Branch k1 v1 d l1 (Branch k v (- (- d (size* l1)) 1) r1 r)))
+     (Branch k1 v1 d l1 (Branch k v (- (- d (size l1)) 1) r1 r)))
     (_ (error "tree corruption\n"))))
 
 (defn zag (Func (Branch k v) (Branch k v) (Branch k v))

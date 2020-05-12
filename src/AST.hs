@@ -67,6 +67,8 @@ symName (SymDef name         ) = name
 symName (SymData name _ _ _ _) = name
 
 data Bundle = Bundle String (Map.Map String ([Decl], [String]))
+  deriving (Show)
+
 newtype Resolver = Resolver (Map.Map String (Map.Map String Symbol))
 
 instance Pretty ClassSpec where

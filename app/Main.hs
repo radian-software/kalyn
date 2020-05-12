@@ -80,6 +80,7 @@ compileIncrementally inputFilename = do
   let prefix = getPrefix inputFilename
   putStrLn "Bundler"
   bundle <- readBundle readIncrementally inputFilename
+  overwriteFile (prefix ++ "Bundle") $ T.unpack . pShowNoColor $ bundle
   overwriteFile (prefix ++ "Bundle.kalyn") $ pretty bundle
   putStrLn "Resolver"
   let resolver = resolveBundle bundle
