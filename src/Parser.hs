@@ -4,6 +4,7 @@ module Parser
 where
 
 import           Codec.Binary.UTF8.String
+import           Data.List
 
 import           AST
 import           Tokens
@@ -50,12 +51,12 @@ parseExpr (RoundList [Symbol "if", cond, true, false]) = Case
   (parseExpr cond)
   [(Variable "True", parseExpr true), (Variable "False", parseExpr false)]
 parseExpr (RoundList [Symbol "lambda", RoundList args, body]) = foldr
-  Lambda
-  (parseExpr body)
-  (flip map args $ \arg -> case arg of
-    Symbol name -> name
-    _           -> error $ "failed to parse lambda argument: " ++ pretty arg
+  (\arg lbody -> case arg of
+    Symbol name -> Lambda name lbody
+    _ -> Lambda "gensym" (Case (Variable "gensym") [(parseExpr arg, lbody)])
   )
+  (parseExpr body)
+  args
 parseExpr (RoundList [Symbol "let", RoundList bindings, body]) = foldr
   (uncurry Let)
   (parseExpr body)
@@ -68,9 +69,10 @@ parseExpr (SquareList elts) = parseExpr $ foldr
   (\char rest -> RoundList [Symbol "Cons", char, rest])
   (Symbol "Null")
   elts
-parseExpr (Symbol   name) = Variable name
-parseExpr (IntAtom  i   ) = Const i
-parseExpr (CharAtom c   ) = case encodeChar c of
+parseExpr (Symbol name) =
+  Variable $ if "gensym" `isPrefixOf` name then name ++ "_" else name
+parseExpr (IntAtom  i) = Const i
+parseExpr (CharAtom c) = case encodeChar c of
   [b] -> parseExpr $ RoundList [Symbol "Char", IntAtom (fromIntegral b)]
   _   -> error "multibyte character literals are not supported"
 parseExpr (StrAtom s) = parseExpr $ SquareList
