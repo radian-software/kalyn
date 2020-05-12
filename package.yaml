@@ -10,6 +10,7 @@ dependencies:
   - containers
   - directory
   - filepath
+  - MissingH
   - mtl
   - regex-base
   - regex-tdfa

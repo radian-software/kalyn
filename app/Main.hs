@@ -2,7 +2,10 @@ module Main where
 
 import           Control.Exception
 import qualified Data.ByteString.Lazy          as B
+import           Data.List
+import           Data.String.Utils
 import qualified Data.Text.Lazy                as T
+import           System.Directory
 import           System.FilePath
 import           System.IO.Error
 import           System.Posix.Files
@@ -36,23 +39,20 @@ ignoringDoesNotExist m = do
 
 overwriteFile :: FilePath -> String -> IO ()
 overwriteFile filename str = do
+  createDirectoryIfMissing True . dropFileName $ filename
   ignoringDoesNotExist $ removeLink filename
   writeFile filename str
 
 overwriteBinary :: FilePath -> B.ByteString -> IO ()
 overwriteBinary filename bin = do
+  createDirectoryIfMissing True . dropFileName $ filename
   ignoringDoesNotExist $ removeLink filename
   B.writeFile filename bin
 
 getPrefix :: String -> String
-getPrefix inputFilename = do
-  let base = dropExtension . takeFileName $ inputFilename
-  let src = takeFileName . takeDirectory $ inputFilename
-  let out  = "out"
-  let root = takeDirectory . takeDirectory $ inputFilename
-  if src /= "src-kalyn"
-    then error "Kalyn source files outside src-kalyn"
-    else root </> out </> base
+getPrefix inputFilename = if "/src-kalyn/" `isInfixOf` inputFilename
+  then dropExtension . replace "/src-kalyn/" "/out-kalyn/" $ inputFilename
+  else error "Kalyn source files outside src-kalyn"
 
 readIncrementally :: String -> IO [Decl]
 readIncrementally inputFilename = do
