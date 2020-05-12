@@ -1,4 +1,5 @@
-(public defn >> (with ((Monad m))
-                  (Func (m a) (m b) (m b)))
+(import "Functions.kalyn")
+
+(public defn >> (Func (IO a) (IO b) (IO b))
   (left right)
   (>>= left (const right)))
