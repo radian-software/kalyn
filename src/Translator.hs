@@ -15,6 +15,7 @@ import           AST
 import           Assembly
 import           Bridge
 import           Subroutines
+import           Util
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
 
@@ -204,8 +205,9 @@ translateExpr ctx dst form@(Lambda name body) = do
         possibleVars
   baseLambdaName <- newLambda (fnName ctx)
   argTemps       <- replicateM (length vars + 1) newTemp
-  let argNames   = map fst vars ++ [name]
-  let lambdaName = baseLambdaName ++ "__" ++ intercalate "_" argNames
+  let argNames = map fst vars ++ [name]
+  let lambdaName =
+        baseLambdaName ++ "__" ++ intercalate "_" (map sanitize argNames)
   let bodyCtx = foldr (uncurry withBinding) ctx (zip argNames argTemps)
   let argsCode = zipWith
         (\argTemp argIdx -> OP MOV $ MR (getArg argIdx) argTemp)

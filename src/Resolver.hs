@@ -3,7 +3,6 @@ module Resolver
   )
 where
 
-import           Data.Char
 import           Data.Int
 import qualified Data.Map.Strict               as Map
 import qualified Data.Set                      as Set
@@ -19,14 +18,6 @@ import           Util
 mapSymbol :: (String -> String) -> Symbol -> Symbol
 mapSymbol f (SymDef name         ) = SymDef (f name)
 mapSymbol f (SymData name a b c d) = SymData (f name) a b c d
-
-userAllowedChars :: String
-userAllowedChars = ['A' .. 'Z'] ++ ['a' .. 'z'] ++ ['0' .. '9']
-
--- important properties: deterministic, stateless, and injective
-sanitize :: String -> String
-sanitize = concatMap
-  $ \c -> if c `elem` userAllowedChars then [c] else "_u" ++ show (ord c)
 
 uniquify :: [String] -> [String]
 uniquify = uniquify' Set.empty

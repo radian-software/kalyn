@@ -1,6 +1,7 @@
 module Util where
 
 import           Control.Arrow
+import           Data.Char
 import           Data.List
 import qualified Data.Map                      as Map
 
@@ -29,3 +30,11 @@ listUnique ks = nub ks == ks
 
 mapUnionsWithKey :: Ord k => (k -> v -> v -> v) -> [Map.Map k v] -> Map.Map k v
 mapUnionsWithKey f = foldl' (Map.unionWithKey f) Map.empty
+
+userAllowedChars :: String
+userAllowedChars = ['A' .. 'Z'] ++ ['a' .. 'z'] ++ ['0' .. '9']
+
+-- important properties: deterministic, stateless, and injective
+sanitize :: String -> String
+sanitize = concatMap
+  $ \c -> if c `elem` userAllowedChars then [c] else "_u" ++ show (ord c)
