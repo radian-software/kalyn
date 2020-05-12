@@ -4,7 +4,6 @@ author: "Radon Rosborough"
 maintainer: "radon.neon@gmail.com"
 
 dependencies:
-  - array
   - base
   - bytestring
   - containers
@@ -12,8 +11,6 @@ dependencies:
   - filepath
   - MissingH
   - mtl
-  - regex-base
-  - regex-tdfa
   - pretty-simple
   - text
   - unix

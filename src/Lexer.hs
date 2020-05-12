@@ -3,80 +3,67 @@ module Lexer
   )
 where
 
-import           Control.Applicative
+import           Data.Char
 import           Data.Maybe
-import           Text.Regex.TDFA
-import           Text.Regex.TDFA.String         ( )
 
 import           Tokens
 
--- Chars that cannot appear in a symbol, for use inside character
--- class. We have to put the brackets first for regex syntax reasons.
-nonSymbol :: String
-nonSymbol = "][()\"';[:space:]"
+disallowedChars :: String
+disallowedChars = ";()[]"
 
-patterns :: [(String, String -> Maybe Token)]
-patterns =
-  [ ("[[:space:]]+"            , const Nothing)
-  , (";[^\n]*"                 , const Nothing)
-  , ("\\("                     , const $ Just LPAREN)
-  , ("\\)"                     , const $ Just RPAREN)
-  , ("\\["                     , const $ Just LBRACKET)
-  , ("\\]"                     , const $ Just RBRACKET)
-  , ("[0-9]+|0[xX][0-9a-fA-F]+", Just . INTEGER . read)
-  , ("[^" ++ nonSymbol ++ "0-9][^" ++ nonSymbol ++ "]*", Just . SYMBOL)
-  , ( "\"([^\\\\\"]|\\\\[\\\\\"0abfnrtv]|\\\\x[0-9a-zA-Z]{2}|\n)*\""
-    , Just . STRING . readString
-    )
-  , ( "'([^\\\\\']|\\\\[\\\\\'0abfnrtv]|\\\\x[0-9a-zA-Z]{2}|\n)'"
-    , \s ->
-      let s' = readString s
-      in  if length s' == 1
-            then Just . CHAR $ head s'
-            else
-              error
-              $  error "character literal had more than one character: "
-              ++ show s
-    )
-  ]
+getStringChar :: String -> (Char, String)
+getStringChar [] = error "unexpected end of string literal"
+getStringChar ('\\' : 'x' : a : b : s) = (read $ "0x" ++ [a, b], s)
+getStringChar ('\\' : c : s) =
+  ( case c of
+    '0' -> '\0'
+    'a' -> '\a'
+    'b' -> '\b'
+    'f' -> '\f'
+    'n' -> '\n'
+    'r' -> '\r'
+    't' -> '\t'
+    'v' -> '\v'
+    _   -> c
+  , s
+  )
+getStringChar (c : s) = (c, s)
 
-readString :: String -> String
-readString s = readString' (init $ tail s)
- where
-  readString' "" = ""
-  readString' ('\\' : 'x' : a : b : rst) =
-    read ("0x" ++ [a, b]) : readString' rst
-  readString' ('\\' : e : rst) =
-    (case e of
-        '\\' -> '\\'
-        '"'  -> '"'
-        '0'  -> '\0'
-        'a'  -> '\a'
-        'b'  -> '\b'
-        'f'  -> '\f'
-        'n'  -> '\n'
-        'r'  -> '\r'
-        't'  -> '\t'
-        'v'  -> '\v'
-        _    -> error $ "readString got to unreachable code with: " ++ s
-      )
-      : readString' rst
-  readString' (c : rst) = c : readString' rst
+readString :: Char -> String -> (String, String)
+readString delim str =
+  let (char, rest) = getStringChar str
+  in  if char == delim
+        then ("", rest)
+        else
+          let (parsed, rest') = readString delim rest in (char : parsed, rest')
 
-getToken :: String -> (String, Maybe Token)
+-- hand-roll instead of using regexes for two reasons:
+-- 1. because that's what we have to do in Kalyn
+-- 2. https://github.com/haskell-hvr/regex-tdfa/issues/12
+getToken :: String -> (Maybe Token, String)
+getToken [] = error "shouldn't be getting a token from an empty string"
+getToken (c : s) | isSpace c = (Nothing, s)
+getToken (';' : s)           = (Nothing, tail . dropWhile (/= '\n') $ s)
+getToken ('(' : s)           = (Just LPAREN, s)
+getToken (')' : s)           = (Just RPAREN, s)
+getToken ('[' : s)           = (Just LBRACKET, s)
+getToken (']' : s)           = (Just RBRACKET, s)
+getToken ('"' : s) =
+  let (parsed, rest) = readString '"' s in (Just . STRING $ parsed, rest)
+getToken full@('\'' : s) =
+  let (parsed, rest) = readString '\'' s
+  in  if length parsed == 1
+        then (Just . CHAR $ head parsed, rest)
+        else error $ "character literal had more than one character: " ++ full
+getToken s@(c : _) | isDigit c =
+  let (d, s') = span isAlphaNum s in (Just . INTEGER . read $ d, s')
 getToken s =
-  let parses = map
-        (\(regex, ctor) -> do
-          text <- s =~~ ("\\`(" ++ regex ++ ")") :: Maybe String
-          pure (text, ctor text)
-        )
-        patterns
-  in  case foldr (<|>) Nothing parses of
-        Nothing            -> error $ "failed to read token at: " ++ take 10 s
-        Just (text, token) -> (drop (length text) s, token)
+  let (v, s') =
+          span (\c -> (not . isSpace $ c) && c `notElem` disallowedChars) s
+  in  (Just . SYMBOL $ v, s')
 
 tokenize :: String -> [Token]
 tokenize str = catMaybes $ getTokens str
  where
   getTokens [] = []
-  getTokens s  = let (s', t) = getToken s in t : getTokens s'
+  getTokens s  = let (t, s') = getToken s in t : getTokens s'
