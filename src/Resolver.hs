@@ -16,8 +16,8 @@ import           Util
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 
 mapSymbol :: (String -> String) -> Symbol -> Symbol
-mapSymbol f (SymDef name         ) = SymDef (f name)
-mapSymbol f (SymData name a b c d) = SymData (f name) a b c d
+mapSymbol f (SymDef name t         ) = SymDef (f name) t
+mapSymbol f (SymData name a b c d e) = SymData (f name) a b c d e
 
 uniquify :: [String] -> [String]
 uniquify = uniquify' Set.empty
@@ -56,11 +56,12 @@ getDeclSymbols (Data _ _ ctors) = zipWith
                                  , sdNumFields = length types
                                  , sdNumCtors  = length ctors
                                  , sdBoxed     = shouldBox ctors
+                                 , sdTypes     = types
                                  }
   )
   ctors
   (iterate (+ 1) 0)
-getDeclSymbols (Def _ name _ _  ) = [SymDef name]
+getDeclSymbols (Def _ name t _  ) = [SymDef name t]
 getDeclSymbols (Derive _ _      ) = []
 getDeclSymbols (Import _ _) = error "resolver shouldn't be handling imports"
 getDeclSymbols (Instance _ _ _ _) = []

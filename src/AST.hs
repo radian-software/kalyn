@@ -42,12 +42,13 @@ data Decl = Alias Bool TypeSpec Type
           | Instance Bool [ClassSpec] ClassSpec [(VarName, Expr)]
   deriving (Show)
 
-data Symbol = SymDef String
+data Symbol = SymDef String Type
             | SymData { sdName :: String
                       , sdCtorIdx :: Int
                       , sdNumFields :: Int
                       , sdNumCtors :: Int
                       , sdBoxed :: Bool
+                      , sdTypes :: [Type]
                       }
   deriving (Show)
 
@@ -63,8 +64,8 @@ sdHasHeader SymData { sdNumCtors = numCtors } = numCtors > 1
 sdHasHeader _ = error "can only call sdHasHeader on SymDef"
 
 symName :: Symbol -> String
-symName (SymDef name         ) = name
-symName (SymData name _ _ _ _) = name
+symName (SymDef name _         ) = name
+symName (SymData name _ _ _ _ _) = name
 
 data Bundle = Bundle String (Map.Map String ([Decl], [String]))
   deriving (Show)
@@ -235,8 +236,9 @@ instance Pretty Decl where
     prettyPub True  = "public "
 
 instance Pretty Symbol where
-  pretty (SymDef name) = "regular symbol " ++ name
-  pretty sd@(SymData _ _ _ _ _) =
+  pretty (SymDef name t) =
+    "regular symbol " ++ name ++ " with type " ++ pretty t
+  pretty sd@(SymData _ _ _ _ _ _) =
     "data constructor "
       ++ sdName sd
       ++ " with index "
@@ -251,7 +253,14 @@ instance Pretty Symbol where
       ++ (if sdBoxed sd then "boxed" else "unboxed")
       ++ ", "
       ++ (if sdHasHeader sd then "with" else "no")
-      ++ " header word)"
+      ++ " header word"
+      ++ (case sdNumFields sd of
+           0 -> ""
+           1 -> ", field type " ++ (pretty . head . sdTypes $ sd)
+           _ ->
+             ", field types " ++ (intercalate ", " . map pretty . sdTypes $ sd)
+         )
+      ++ ")"
 
 instance Pretty Bundle where
   pretty (Bundle main modules) =
