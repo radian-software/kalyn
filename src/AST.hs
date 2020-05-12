@@ -119,7 +119,7 @@ instance Pretty Expr where
       ++ ")"
   pretty form@(Lambda _ _) =
     let (body, args) = condenseLambdas form
-    in  "(lambda (" ++ unwords (map show args) ++ ") " ++ pretty body ++ ")"
+    in  "(lambda (" ++ unwords args ++ ") " ++ pretty body ++ ")"
    where
     condenseLambdas (Lambda arg body) = (arg :) <$> condenseLambdas body
     condenseLambdas expr              = (expr, [])
