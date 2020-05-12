@@ -139,13 +139,13 @@
     ((Branch k1 v1 d1 (Branch k2 v2 _ l2 r2) r1)
      (splayLeft (Branch k2 v2 d1 l2 (Branch k1 v2 (- d1 (size l2)) r2 r1))))))
 
-(public defn mapFromList (Func (Ord k) (List (Pair k v)) (SplayTree k v))
+(public defn mapFromList (Func (Ord k) (List (Pair k v)) (Map k v))
   "Given an unordered list of key-value pairs, create a map with the
    provided comparison function."
   (cmp)
   (foldr (curry mapInsert) (mapEmpty cmp)))
 
-(public defn mapToList (Func (SplayTree k v) (List (Pair k v)))
+(public defn mapToList (Func (Map k v) (List (Pair k v)))
   "Convert a map to a list of its key-value pairs in ascending order."
   ((Map cmp t))
   (let ((toList (lambda (t)
