@@ -32,9 +32,13 @@ computeLivenessInterval intervalMap reg =
 intervalsIntersect :: (Int, Int) -> (Int, Int) -> Bool
 intervalsIntersect (a, b) (c, d) = not (b <= c || d <= a)
 
+-- arguably should use Temporary internally instead of
+-- VirtualRegister. fix later!
 tryAllocateFunctionRegs
-  :: Liveness VirtualRegister -> Either [Temporary] Allocation
-tryAllocateFunctionRegs liveness =
+  :: Liveness VirtualRegister
+  -> Set.Set VirtualRegister
+  -> Either [Temporary] Allocation
+tryAllocateFunctionRegs liveness spillBlacklist =
   let
     allRegs =
       nub
@@ -59,9 +63,14 @@ tryAllocateFunctionRegs liveness =
       []
       (Map.fromList (map (\reg -> (fromRegister reg, reg)) specialRegisters))
       -- allocate to smaller live intervals first, hopefully meaning
-      -- we spill less
+      -- we spill less. also allocate to already-spilled registers
+      -- first, so we don't spill the same register repeatedly and
+      -- fall into an infinite loop.
       (sortOn
-        (\reg -> let (start, end) = intervalMap Map.! reg in end - start)
+        (\reg ->
+          let (start, end) = intervalMap Map.! reg
+          in  (reg `Set.notMember` spillBlacklist, end - start)
+        )
         allRegs
       )
      where
@@ -150,7 +159,7 @@ allocateFunctionRegs
   -> VirtualFunction
   -> (PhysicalFunction, Allocation, Set.Set Temporary)
 allocateFunctionRegs allSpilled liveness fn@(Function stackSpace name instrs) =
-  case tryAllocateFunctionRegs liveness of
+  case tryAllocateFunctionRegs liveness (Set.map Virtual allSpilled) of
     Right allocation ->
       ( Function
         (stackSpace + length allSpilled * 8)
