@@ -25,10 +25,10 @@ patterns =
   , ("\\]"                     , const $ Just RBRACKET)
   , ("[0-9]+|0[xX][0-9a-fA-F]+", Just . INTEGER . read)
   , ("[^" ++ nonSymbol ++ "0-9][^" ++ nonSymbol ++ "]*", Just . SYMBOL)
-  , ( "\"([^\\\\\"]|\\\\[\\\\\"0abfnrtv]|\\\\x[0-9a-zA-Z]{2})*\""
+  , ( "\"([^\\\\\"]|\\\\[\\\\\"0abfnrtv]|\\\\x[0-9a-zA-Z]{2}|\n)*\""
     , Just . STRING . readString
     )
-  , ( "'([^\\\\\']|\\\\[\\\\\'0abfnrtv]|\\\\x[0-9a-zA-Z]{2})'"
+  , ( "'([^\\\\\']|\\\\[\\\\\'0abfnrtv]|\\\\x[0-9a-zA-Z]{2}|\n)'"
     , \s ->
       let s' = readString s
       in  if length s' == 1
