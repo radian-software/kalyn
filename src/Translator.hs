@@ -193,9 +193,8 @@ translateExpr ctx dst (Case arg branches) = do
     , argFns ++ concatMap snd exprCodes
     )
 translateExpr ctx dst form@(Lambda name body) = do
-  fnPtr      <- newTemp
-  temp       <- newTemp
-  lambdaName <- newLambda (fnName ctx)
+  fnPtr <- newTemp
+  temp  <- newTemp
   let possibleVars = nub (freeVariables form)
   let vars = mapMaybe
         (\var -> case Map.lookup name (bindings ctx) of
@@ -203,8 +202,10 @@ translateExpr ctx dst form@(Lambda name body) = do
           _                -> Nothing
         )
         possibleVars
-  argTemps <- replicateM (length vars + 1) newTemp
-  let argNames = map fst vars ++ [name]
+  baseLambdaName <- newLambda (fnName ctx)
+  argTemps       <- replicateM (length vars + 1) newTemp
+  let argNames   = map fst vars ++ [name]
+  let lambdaName = baseLambdaName ++ "__" ++ intercalate "_" argNames
   let bodyCtx = foldr (uncurry withBinding) ctx (zip argNames argTemps)
   let argsCode = zipWith
         (\argTemp argIdx -> OP MOV $ MR (getArg argIdx) argTemp)
