@@ -54,7 +54,7 @@
 
 (public defn intersperse (Func a (List a) (List a))
   (elt list)
-  (case elt
+  (case list
     ([] [])
     ([x] [x])
     ((Cons x xs)
