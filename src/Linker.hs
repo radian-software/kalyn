@@ -282,7 +282,7 @@ link (codeB, dataB, codeSymbols, dataSymbols) =
                   , dataLen          = fromIntegral $ B.length dataB
                   }
                 shdrData      = sectionHeader info (length allSymbols)
-                shStringList  = collectMaybes (map snd shdrData)
+                shStringList  = mapMaybe snd shdrData
                 shstrtabData  = strtab shStringList
                 symstrtabData = strtab allSymbols
             in  if all (\phe -> B.length phe == phelen) phdr

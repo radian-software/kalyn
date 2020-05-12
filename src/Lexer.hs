@@ -4,11 +4,11 @@ module Lexer
 where
 
 import           Control.Applicative
+import           Data.Maybe
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.String         ( )
 
 import           Tokens
-import           Util
 
 -- Chars that cannot appear in a symbol, for use inside character
 -- class. We have to put the brackets first for regex syntax reasons.
@@ -76,7 +76,7 @@ getToken s =
         Just (text, token) -> (drop (length text) s, token)
 
 tokenize :: String -> [Token]
-tokenize str = collectMaybes $ getTokens str
+tokenize str = catMaybes $ getTokens str
  where
   getTokens [] = []
   getTokens s  = let (s', t) = getToken s in t : getTokens s'
