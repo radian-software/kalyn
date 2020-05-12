@@ -52,7 +52,7 @@ overwriteBinary filename bin = do
 getPrefix :: String -> String
 getPrefix inputFilename = if "/src-kalyn/" `isInfixOf` inputFilename
   then dropExtension . replace "/src-kalyn/" "/out-kalyn/" $ inputFilename
-  else error "Kalyn source files outside src-kalyn"
+  else error $ "Kalyn source file outside src-kalyn: " ++ inputFilename
 
 readIncrementally :: String -> IO [Decl]
 readIncrementally inputFilename = do
@@ -113,4 +113,4 @@ compileIncrementally inputFilename = do
   setFileMode prefix 0o755
 
 main :: IO ()
-main = compileIncrementally "src-kalyn/Main.kalyn"
+main = compileIncrementally "./src-kalyn/Main.kalyn"
