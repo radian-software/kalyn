@@ -42,5 +42,24 @@
     (False (Cons elt (replicate (- n 1) elt)))
     (True Null)))
 
-(def reverse (Func (List a) (List a))
+(public def reverse (Func (List a) (List a))
   (foldl (flip Cons) []))
+
+(public defn append (Func (List a) (List a) (List a))
+  (left right)
+  (foldr Cons right left))
+
+(public def concat (Func (List (List a)) (List a))
+  (foldr append []))
+
+(public defn intersperse (Func a (List a) (List a))
+  (elt list)
+  (case elt
+    ([] [])
+    ([x] [x])
+    ((Cons x xs)
+     (Cons x (Cons elt (intersperse elt xs))))))
+
+(public defn intercalate (Func (List a) (List (List a)) (List a))
+  (xs xss)
+  (concat (intersperse xs xss)))

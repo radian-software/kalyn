@@ -4,3 +4,4 @@
 (public import "Stdlib/Functions.kalyn")
 (public import "Stdlib/IO.kalyn")
 (public import "Stdlib/Lists.kalyn")
+(public import "Stdlib/Tuples.kalyn")

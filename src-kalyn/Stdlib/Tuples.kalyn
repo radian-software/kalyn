@@ -1,0 +1,9 @@
+(import "DataTypes.kalyn")
+
+(public defn fst (Func (Pair a b) a)
+  ((Pair a _))
+  a)
+
+(public defn snd (Func (Pair a b) b)
+  ((Pair _ b))
+  b)
