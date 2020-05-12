@@ -1,0 +1,4 @@
+(public defn >> (with ((Monad m))
+                  (Func (m a) (m b) (m b)))
+  (left right)
+  (>>= left (const right)))

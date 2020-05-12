@@ -214,15 +214,15 @@ primitiveError = return $ function
   , JUMP CALL "crash"
   ]
 
-equals :: Stateful VirtualFunction
-equals = do
+compareOp :: String -> Jump -> Stateful VirtualFunction
+compareOp name op = do
   temp <- newTemp
   yes  <- newLabel
   return $ function
-    "equals__uncurried"
+    name
     [ OP MOV $ MR (getArg 1) temp
     , OP CMP $ MR (getArg 2) temp
-    , JUMP JE yes
+    , JUMP op yes
     , OP MOV $ IR 0 rax
     , RET
     , LABEL yes
@@ -230,21 +230,23 @@ equals = do
     , RET
     ]
 
+equal :: Stateful VirtualFunction
+equal = compareOp "equal__uncurried" JE
+
+notEqual :: Stateful VirtualFunction
+notEqual = compareOp "notEqual__uncurried" JE
+
 lessThan :: Stateful VirtualFunction
-lessThan = do
-  temp <- newTemp
-  yes  <- newLabel
-  return $ function
-    "lessThan__uncurried"
-    [ OP MOV $ MR (getArg 1) temp
-    , OP CMP $ MR (getArg 2) temp
-    , JUMP JL yes
-    , OP MOV $ IR 1 rax
-    , RET
-    , LABEL yes
-    , OP MOV $ IR 0 rax
-    , RET
-    ]
+lessThan = compareOp "lessThan__uncurried" JE
+
+lessThanEqual :: Stateful VirtualFunction
+lessThanEqual = compareOp "lessThanEqual__uncurried" JE
+
+greaterThan :: Stateful VirtualFunction
+greaterThan = compareOp "greaterThan__uncurried" JE
+
+greaterThanEqual :: Stateful VirtualFunction
+greaterThanEqual = compareOp "greaterThanEqual__uncurried" JE
 
 monadPure :: Stateful VirtualFunction
 monadPure = return

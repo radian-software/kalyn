@@ -1,0 +1,20 @@
+(public data Never)
+
+(public data Empty
+  Empty)
+
+(public data Bool
+  False True)
+
+(public data (Maybe a)
+  Nothing (Just a))
+
+(public data (Pair a b)
+  (Pair a b))
+
+(public data (List a)
+  Null (Cons a (List a)))
+
+(public data Char (Char Int))
+
+(public alias String (List Char))

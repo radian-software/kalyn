@@ -50,8 +50,12 @@ stdlibPublic = Map.fromList
   , ("writeFile"  , handleCurriedM 2 "writeFile" monadWriteFile)
   , ("setFileMode", handleCurriedM 2 "setFileMode" setFileMode)
   , ("error"      , handleCurried 1 "error" primitiveError)
-  , ("=="         , handleCurried 2 "equals" equals)
+  , ("=="         , handleCurried 2 "equal" equal)
+  , ("/="         , handleCurried 2 "notEqual" notEqual)
   , ("<"          , handleCurried 2 "lessThan" lessThan)
+  , ("<="         , handleCurried 2 "lessThanEqual" lessThanEqual)
+  , (">"          , handleCurried 2 "greaterThan" greaterThan)
+  , (">="         , handleCurried 2 "greaterThanEqual" greaterThanEqual)
   , ("pure"       , handleCurriedM 1 "pure" monadPure)
   , (">>="        , handleCurriedM 2 "bind" monadBind)
   ]

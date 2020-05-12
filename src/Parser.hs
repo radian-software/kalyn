@@ -46,6 +46,9 @@ parseExpr (RoundList (Symbol "case" : expr : branches)) = Case
     RoundList [pat, res] -> (parseExpr pat, parseExpr res)
     _                    -> error $ "failed to parse case branch: " ++ pretty br
   )
+parseExpr (RoundList [Symbol "if", cond, true, false]) = Case
+  (parseExpr cond)
+  [(Variable "True", parseExpr true), (Variable "False", parseExpr false)]
 parseExpr (RoundList [Symbol "lambda", RoundList args, body]) = foldr
   Lambda
   (parseExpr body)

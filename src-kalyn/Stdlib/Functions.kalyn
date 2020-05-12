@@ -1,0 +1,11 @@
+(public defn const (Func a (Func b a))
+  (a _)
+  a)
+
+(public defn flip (Func (Func a b c) (Func b a c))
+  (f b a)
+  (f a b))
+
+(public defn compose (Func (Func b c) (Func a b) (Func a c))
+  (f g a)
+  (f (g a)))

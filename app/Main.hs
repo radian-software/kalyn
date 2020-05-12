@@ -50,8 +50,8 @@ getPrefix inputFilename = do
   let src = takeFileName . takeDirectory $ inputFilename
   let out  = "out"
   let root = takeDirectory . takeDirectory $ inputFilename
-  if src /= "src-kalyn-test"
-    then error "Kalyn source files outside src-kalyn-test"
+  if src /= "src-kalyn"
+    then error "Kalyn source files outside src-kalyn"
     else root </> out </> base
 
 readIncrementally :: String -> IO [Decl]
@@ -113,4 +113,4 @@ compileIncrementally inputFilename = do
   setFileMode prefix 0o755
 
 main :: IO ()
-main = compileIncrementally "src-kalyn-test/Main.kalyn"
+main = compileIncrementally "src-kalyn/Main.kalyn"

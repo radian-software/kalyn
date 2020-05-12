@@ -1,0 +1,22 @@
+(public defn not (Func Bool Bool)
+  (b)
+  (if b
+    False
+    True))
+
+(public defn and (Func Bool Bool Bool)
+  (left right)
+  (if left
+    right
+    False))
+
+(public defn or (Func Bool Bool Bool)
+  (left right)
+  (if left
+    True
+    right))
+
+(public defn xor (Func Bool Bool Bool)
+  (if left
+    (not right)
+    right))

@@ -1,6 +1,19 @@
 (import "Stdlib.kalyn")
-(import "Linker.kalyn")
+
+(defn showInt (Func Int String)
+  (i)
+  (if (== i 0)
+    "0"
+    (let ((showInt*
+           (lambda (i str)
+             (if (== i 0)
+               (reverse str)
+               (showInt*
+                 (/ i 10)
+                 (Cons
+                   (Char (+ 0x30 (% i 10)))
+                   str))))))
+      (showInt* i ""))))
 
 (public def main (IO Empty)
-  (>> (writeFile "main" (link ""))
-      (setFileMode "main" 0x777)))
+  (print (showInt 13)))
