@@ -45,6 +45,14 @@
     (let ((start (scan-sexps end -1)))
       (buffer-substring start end))))
 
+(defun kalyn--on-same-line-p (start end)
+  (= (save-excursion
+       (goto-char start)
+       (point-at-bol))
+     (save-excursion
+       (goto-char end)
+       (point-at-bol))))
+
 (defun kalyn--indent-function (indent-point state)
   (cl-block nil
     (unless (nth 1 state)
@@ -65,7 +73,7 @@
            (second-sexp-on-same-line-p
             (and first-sexp-end
                  second-sexp-start
-                 (<= (count-lines first-sexp-end second-sexp-start) 1)))
+                 (kalyn--on-same-line-p first-sexp-end second-sexp-start)))
            (square-p (= (char-before list-start) ?\[))
            (starting-column (kalyn--column-at list-start))
            (outer-list-start
