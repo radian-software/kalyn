@@ -9,3 +9,11 @@
 (public defn compose (Func (Func b c) (Func a b) (Func a c))
   (f g a)
   (f (g a)))
+
+(public defn curry (Func (Func (Pair a b) c) (Func a b c))
+  (f (Pair a b))
+  (f a b))
+
+(public defn uncurry (Func (Func a b c) (Func (Pair a b) c))
+  (f a b)
+  (f (Pair a b)))

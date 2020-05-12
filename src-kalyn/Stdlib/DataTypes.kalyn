@@ -18,3 +18,6 @@
 (public data Char (Char Int))
 
 (public alias String (List Char))
+
+(public data Ordering
+  LT EQ GT)

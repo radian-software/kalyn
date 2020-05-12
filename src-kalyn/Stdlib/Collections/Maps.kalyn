@@ -1,0 +1,156 @@
+;; http://hackage.haskell.org/package/TreeStructures-0.0.2/docs/src/Data-Tree-Splay.html
+;; with bugfix for insert
+
+(import "../DataTypes.kalyn")
+(import "../Functions.kalyn")
+
+(alias (Ord k) (Func k k Ordering))
+
+(public data (Map k v)
+  "Key-value map using self-balancing tree. Embeds a comparison
+   function for the keys."
+  (Map (Ord k) (Node k v)))
+
+(data (Node k v)
+  "Internal tree node."
+  Leaf (Branch k v Int (Node k v) (Node k v)))
+
+(public defn mapEmpty (Func (Ord k) (Map k v))
+  "Create an empty map with the given comparison function."
+  (cmp)
+  (Map cmp Leaf))
+
+(public defn mapNull (Func (Map k v) Bool)
+  "Check if the map is empty (has no elements)."
+  ((Map _ root))
+  (case root
+    ((Leaf True)
+     ((Branch _ _ _ _ _) False))))
+
+(defn size (Func (Node k v) Int)
+  "Return the number of elements in an internal tree node."
+  (node)
+  (case node
+    (Leaf 0)
+    ((Branch _ _ d _ _) d)))
+
+(public defn mapSize (Func (Map k v) Int)
+  "Return the number of elements in the map."
+  ((Map _ root)
+   (size root)))
+
+(defn lookup (Func (Ord k) k (Branch k v) (Branch k v))
+  "Do a splay lookup on an internal tree node. The provided key will
+   be splayed to the root of the tree if it's present, otherwise the
+   nearest node is splayed. Return the new root."
+  (cmp k* t)
+  (case t
+    (Leaf Leaf)
+    (t@(Branch k _ _ l r)
+     (case (cmp k k*)
+       (EQ t)
+       (GT (case (lookup k* l)
+             (Leaf t)
+             (lt (zig lt t))))
+       (LT (case (lookup k* r)
+             (Leaf t)
+             (rt (zag t rt))))))))
+
+(defn zig (Func (Branch k v) (Branch k v) (Branch k v))
+  "Do a zig rotation. The first argument is rotated up and the new
+   root returned."
+  (left right)
+  (case (Pair left right)
+    ((Pair (Branch k1 v1 _ l1 r1) (Branch k v d _ r))
+     (Branch k1 v1 d l1 (Branch k v (- (- d (size* l1)) 1) r1 r)))
+    (_ (error "tree corruption\n"))))
+
+(defn zag (Func (Branch k v) (Branch k v) (Branch k v))
+  "Do a zag rotation. The second argument is rotated up and the new
+   root returned."
+  (left right)
+  (case (Pair left right)
+    ((Pair (Branch k v d l _) (Branch k1 v1 _ l1 r1))
+     (Branch k1 v1 d (Branch k v (- (- d (size r1)) 1) l l1) r1))
+    (_ (error "tree corruption\n"))))
+
+(public defn mapInsert (Func k v (Map k v) (Map k v))
+  "Insert a key-value pair into the map, replacing the existing
+   mapping if one exists."
+  (k v (Map cmp t))
+  (Map
+    cmp
+    (case (lookup cmp k t)
+      (Leaf (Branch k v 0 Leaf Leaf))
+      ((Branch k1 v1 d l r)
+       (case (cmp k1 k)
+         (LT (Branch k v (+ d 1) (Branch k1 v1 (+ (- d (size r)) 1) l Leaf) r))
+         (GT (Branch k v (+ d 1) l (Branch k1 v1 (+ (- d (size l)) 1) Leaf r)))
+         (EQ (Branch k v d l r)))))))
+
+(defn head (Func (Branch k v) (Pair k v))
+  "Get the key-value pair of the root."
+  (t)
+  (case t
+    (Leaf (error "tree corruption\n"))
+    ((Branch k v _ _ _) (Pair k v))))
+
+(defn tail (Func (Branch k v) (Branch k v))
+  "Remove the root of the tree and merge its subtrees."
+  (t)
+  (case t
+    (Leaf (error "tree corruption\n"))
+    ((Branch _ _ _ Leaf r) r)
+    ((Branch _ _ _ l Leaf) l)
+    ((Branch _ _ _ l r)
+     (case (splayRight l)
+       ((Branch k v d l1 Leaf)
+        (Branch k v (+ d (size r)) l1 r))
+       (_ (error "tree corruption\n"))))))
+
+(public defn mapDelete (Func k (Map k v) (Map k v))
+  "Delete a key from the map if it's present, returning a new map."
+  (k (Map cmp t))
+  (Map
+    cmp
+    (case t
+      (Leaf Leaf)
+      (_ (case (lookup cmp k t)
+           (t*@(Branch k1 _ _ _ _)
+            (case (cmp k k1)
+              (EQ (tail t*))
+              (_ t*)))
+           (Leaf (error "tree corruption\n")))))))
+
+(defn splayRight (Func (Branch k v) (Branch k v))
+  (t)
+  (case t
+    (Leaf Leaf)
+    (h@(Branch _ _ _ _ Leaf) h)
+    ((Branch k1 v1 d1 l1 (Branch k2 v2 _ l2 r2))
+     (splayRight (Branch k2 v2 d1 (Branch k1 v1 (- d1 (size r2)) l1 l2) r2)))))
+
+(defn splayLeft (Func (Branch k v) (Branch k v))
+  (t)
+  (case t
+    (Leaf Leaf)
+    (h@(Branch _ _ _ Leaf _) h)
+    ((Branch k1 v1 d1 (Branch k2 v2 _ l2 r2) r1)
+     (splayLeft (Branch k2 v2 d1 l2 (Branch k1 v2 (- d1 (size l2)) r2 r1))))))
+
+(public defn mapFromList (Func (Ord k) (List (Pair k v)) (SplayTree k v))
+  "Given an unordered list of key-value pairs, create a map with the
+   provided comparison function."
+  (cmp)
+  (foldr (curry mapInsert) (mapEmpty cmp)))
+
+(public defn mapToList (Func (SplayTree k v) (List (Pair k v)))
+  "Convert a map to a list of its key-value pairs in ascending order."
+  ((Map cmp t)
+   (let ((toList (lambda (t)
+                   (case t
+                     (Leaf [])
+                     (h@(Branch _ _ _ Leaf _)
+                      (Cons (head h) (toList (tail h))))
+                     (h (toList (splayLeft h)))))))
+     (toList t))))
