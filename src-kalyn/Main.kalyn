@@ -7,7 +7,7 @@
     (let ((showInt*
            (lambda (i str)
              (if (== i 0)
-               (reverse str)
+               str
                (showInt*
                  (/ i 10)
                  (Cons
