@@ -147,11 +147,11 @@
 
 (public defn mapToList (Func (SplayTree k v) (List (Pair k v)))
   "Convert a map to a list of its key-value pairs in ascending order."
-  ((Map cmp t)
-   (let ((toList (lambda (t)
-                   (case t
-                     (Leaf [])
-                     (h@(Branch _ _ _ Leaf _)
-                      (Cons (head h) (toList (tail h))))
-                     (h (toList (splayLeft h)))))))
-     (toList t))))
+  ((Map cmp t))
+  (let ((toList (lambda (t)
+                  (case t
+                    (Leaf [])
+                    (h@(Branch _ _ _ Leaf _)
+                     (Cons (head h) (toList (tail h))))
+                    (h (toList (splayLeft h)))))))
+    (toList t)))
