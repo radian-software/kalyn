@@ -93,16 +93,28 @@ parseDecl form = case form of
             RoundList [Symbol name, typ] -> (name, parseType typ)
             _ -> error $ "failed to parse class member: " ++ pretty m
           )
-  parseDecl' pub (RoundList (Symbol "data" : spec : members)) = Data
-    pub
-    (parseTypeSpec spec)
-    (flip map members $ \m -> case m of
-      Symbol name -> (name, [])
-      RoundList (Symbol name : args) -> (name, map parseType args)
-      _ -> error $ "failed to parse data constructor: " ++ pretty m
-    )
+  parseDecl' pub (RoundList (Symbol "data" : spec : members)) =
+    let members' = case members of
+          (StrAtom _ : rest) -> rest
+          _                  -> members
+    in  Data
+          pub
+          (parseTypeSpec spec)
+          (flip map members' $ \m -> case m of
+            Symbol name -> (name, [])
+            RoundList (Symbol name : args) -> (name, map parseType args)
+            _ -> error $ "failed to parse data constructor: " ++ pretty m
+          )
+  parseDecl' pub (RoundList [Symbol "def", Symbol name, typ, StrAtom _, expr])
+    = Def pub name (parseType typ) (parseExpr expr)
   parseDecl' pub (RoundList [Symbol "def", Symbol name, typ, expr]) =
     Def pub name (parseType typ) (parseExpr expr)
+  parseDecl' pub (RoundList [Symbol "defn", name, typ, StrAtom _, args, body])
+    = parseDecl'
+      pub
+      (RoundList
+        [Symbol "def", name, typ, RoundList [Symbol "lambda", args, body]]
+      )
   parseDecl' pub (RoundList [Symbol "defn", name, typ, args, body]) =
     parseDecl'
       pub
