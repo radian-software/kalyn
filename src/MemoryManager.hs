@@ -17,18 +17,15 @@ heap :: Datum
 heap = ("heap", B.empty)
 
 memoryInit :: Stateful VirtualFunction
-memoryInit = do
-  temp <- newTemp
-  return $ function
-    "memoryInit"
-    [ OP MOV $ IR 12 rax
-    , OP MOV $ IR 0 rdi
-    , SYSCALL 1 -- brk
-    , OP MOV $ RM rax (memLabel "mmProgramBreak")
-    , LEA (memLabel "heap") temp
-    , OP MOV $ RM temp (memLabel $ fst memoryFirstFree)
-    , RET
-    ]
+memoryInit = return $ function
+  "memoryInit"
+  [ OP MOV $ IR 12 rax
+  , OP MOV $ IR 0 rdi
+  , SYSCALL 1 -- brk
+  , OP MOV $ RM rax (memLabel $ fst memoryProgramBreak)
+  , OP MOV $ RM rax (memLabel $ fst memoryFirstFree)
+  , RET
+  ]
 
 memoryAlloc :: Stateful VirtualFunction
 memoryAlloc = do
@@ -41,11 +38,11 @@ memoryAlloc = do
   return $ function
     "memoryAlloc"
     [ OP MOV $ MR (memLabel "mmFirstFree") firstFree
-      -- round up to nearest multiple of eight, see
-      -- <https://stackoverflow.com/a/9194117/3538165>
+    -- round up to nearest multiple of eight, see
+    -- <https://stackoverflow.com/a/9194117/3538165>
     , OP ADD $ IR 7 firstFree
     , OP AND $ IR (-8) firstFree
-      -- now to proceed
+    -- now to proceed
     , OP MOV $ RR firstFree ptr
     , OP ADD $ MR (getArg 1) firstFree
     , OP MOV $ RM firstFree (memLabel "mmFirstFree")
@@ -55,7 +52,9 @@ memoryAlloc = do
     , OP MOV $ RR ptr rax
     , RET
     , LABEL brk
-    , OP ADD $ IR (fromIntegral pageSize) firstFree
+    -- round up to next page boundary
+    , OP ADD $ IR (fromIntegral $ pageSize - 1) firstFree
+    , OP AND $ IR (fromIntegral $ -pageSize) firstFree
     , OP MOV $ IR 12 rax
     , OP MOV $ RR firstFree rdi
     , SYSCALL 1 -- brk
