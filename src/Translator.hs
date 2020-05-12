@@ -232,9 +232,10 @@ translateExpr ctx dst form@(Lambda name body) = do
       : bodyFns
     )
 translateExpr ctx dst (Let name val body) = do
-  temp                <- newTemp
-  (letCode , letFns ) <- translateExpr ctx temp val
-  (bodyCode, bodyFns) <- translateExpr (withBinding name temp ctx) dst body
+  temp <- newTemp
+  let ctx' = withBinding name temp ctx
+  (letCode , letFns ) <- translateExpr ctx' temp val
+  (bodyCode, bodyFns) <- translateExpr ctx' dst body
   return (letCode ++ bodyCode, letFns ++ bodyFns)
 
 -- don't handle Derive or Instance for now
