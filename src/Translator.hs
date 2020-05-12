@@ -209,7 +209,7 @@ translateExpr ctx dst form@(Lambda name body) = do
   let argsCode = zipWith
         (\argTemp argIdx -> OP MOV $ MR (getArg argIdx) argTemp)
         argTemps
-        (iterate (\i -> i - 1) (length argNames - 1))
+        (iterate (\i -> i - 1) (length argNames))
   bodyDst             <- newTemp
   (bodyCode, bodyFns) <- translateExpr bodyCtx bodyDst body
   return
