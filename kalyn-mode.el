@@ -23,24 +23,14 @@
 (defun kalyn--builtins ()
   (append kalyn--declaration-builtins kalyn--special-form-builtins))
 
-(defun kalyn--font-lock-keywords ()
-  (list (list (format "\\_<\\(%s\\)\\_>"
-                      (mapconcat
-                       #'regexp-quote
-                       (kalyn--builtins)
-                       "\\|"))
-              (list 0 'font-lock-keyword-face))
-        (list "\\_<[A-Z].*?\\_>"
-              (list 0 'font-lock-type-face))))
-
 (defun kalyn--column-at (pos)
   (save-excursion
     (goto-char pos)
     (current-column)))
 
-(defun kalyn--next-sexp (pos)
+(defun kalyn--next-sexp (pos &optional n)
   (when-let ((end (condition-case _
-                      (scan-sexps pos 1)
+                      (scan-sexps pos (or n 1))
                     (scan-error))))
     (let ((start (scan-sexps end -1)))
       (buffer-substring start end))))
@@ -117,6 +107,61 @@
        (t
         (1+ starting-column))))))
 
+(defun kalyn--font-lock-syntactic-face-function (state)
+  (if (not (nth 3 state))
+      'font-lock-comment-face
+    (let* ((outer-list-start
+            (when-let ((pos (car (last (nth 9 state) 1))))
+              (1+ pos)))
+           (first-sexp
+            (when outer-list-start
+              (kalyn--next-sexp outer-list-start)))
+           (second-sexp
+            (when outer-list-start
+              (kalyn--next-sexp outer-list-start 2)))
+           ;; indexed from 1 because of how the counting works
+           (index 0))
+      (when outer-list-start
+        (let ((cur outer-list-start))
+          (condition-case _
+              (while (< cur (point))
+                (setq cur (scan-sexps cur 1))
+                (cl-incf index))
+            (scan-error)))
+        (when (equal first-sexp "public")
+          (cl-decf index)
+          (setq first-sexp second-sexp)))
+      (if (or
+           (and (equal first-sexp "data") (eq index 3))
+           (and (equal first-sexp "def") (eq index 4))
+           (and (equal first-sexp "defn") (eq index 4)))
+          'font-lock-doc-face
+        'font-lock-string-face))))
+
+(defun kalyn--font-lock-keywords ()
+  (list (list (format "\\_<\\(%s\\)\\_>"
+                      (mapconcat
+                       #'regexp-quote
+                       (kalyn--builtins)
+                       "\\|"))
+              (list 0 'font-lock-keyword-face))
+        (list "\\_<[A-Z].*?\\_>"
+              (list 0 'font-lock-type-face))))
+
+;; XXX: just setting `fill-prefix' in these two functions is not
+;; sufficient to account for corner cases.
+
+(defun kalyn--fill-paragraph (&optional justify)
+  (let ((paragraph-start
+         (concat paragraph-start
+                 "\\|\\s-*\\([(;\"]\\|\\s-:\\|`(\\|#'(\\)"))
+        (fill-prefix "   "))
+    (fill-paragraph justify)))
+
+(defun kalyn--do-auto-fill ()
+  (let ((fill-prefix "   "))
+    (do-auto-fill)))
+
 ;;;###autoload
 (define-derived-mode kalyn-mode prog-mode "Kalyn"
   "Major mode for editing Kalyn code."
@@ -126,9 +171,15 @@
   (setq-local comment-start ";;")
   (setq-local comment-use-syntax t)
   (setq-local font-lock-defaults
-              (list #'kalyn--font-lock-keywords))
+              (list
+               #'kalyn--font-lock-keywords
+               nil nil nil
+               (cons #'font-lock-syntactic-face-function
+	             #'kalyn--font-lock-syntactic-face-function)))
   (setq-local indent-line-function #'lisp-indent-line)
-  (setq-local lisp-indent-function #'kalyn--indent-function))
+  (setq-local lisp-indent-function #'kalyn--indent-function)
+  (setq-local fill-paragraph-function #'kalyn--fill-paragraph)
+  (setq-local normal-auto-fill-function #'kalyn--do-auto-fill))
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.kalyn\\'" . kalyn-mode))
