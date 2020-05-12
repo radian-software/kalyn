@@ -63,3 +63,11 @@
 (public defn intercalate (Func (List a) (List (List a)) (List a))
   (xs xss)
   (concat (intersperse xs xss)))
+
+(public defn head (Func (List a) a)
+  ((Cons fst _))
+  fst)
+
+(public defn tail (Func (List a) a)
+  ((Cons _ rst))
+  rst)

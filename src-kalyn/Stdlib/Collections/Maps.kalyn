@@ -89,14 +89,14 @@
          (GT (Branch k v (+ d 1) l (Branch k1 v1 (+ (- d (size l)) 1) Leaf r)))
          (EQ (Branch k v d l r)))))))
 
-(defn head (Func (Branch k v) (Pair k v))
+(defn mapHead (Func (Branch k v) (Pair k v))
   "Get the key-value pair of the root."
   (t)
   (case t
     (Leaf (error "tree corruption\n"))
     ((Branch k v _ _ _) (Pair k v))))
 
-(defn tail (Func (Branch k v) (Branch k v))
+(defn mapTail (Func (Branch k v) (Branch k v))
   "Remove the root of the tree and merge its subtrees."
   (t)
   (case t
@@ -119,7 +119,7 @@
       (_ (case (lookup cmp k t)
            (t*@(Branch k1 _ _ _ _)
             (case (cmp k k1)
-              (EQ (tail t*))
+              (EQ (mapTail t*))
               (_ t*)))
            (Leaf (error "tree corruption\n")))))))
 
@@ -152,6 +152,6 @@
                   (case t
                     (Leaf [])
                     (h@(Branch _ _ _ Leaf _)
-                     (Cons (head h) (toList (tail h))))
+                     (Cons (mapHead h) (toList (mapTail h))))
                     (h (toList (splayLeft h)))))))
     (toList t)))
