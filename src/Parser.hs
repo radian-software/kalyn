@@ -67,8 +67,10 @@ parseExpr (SquareList elts) = parseExpr $ foldr
   elts
 parseExpr (Symbol   name) = Variable name
 parseExpr (IntAtom  i   ) = Const i
-parseExpr (CharAtom c   ) = parseExpr $ StrAtom [c]
-parseExpr (StrAtom  s   ) = parseExpr $ SquareList
+parseExpr (CharAtom c   ) = case encodeChar c of
+  [b] -> parseExpr $ RoundList [Symbol "Char", IntAtom (fromIntegral b)]
+  _   -> error "multibyte character literals are not supported"
+parseExpr (StrAtom s) = parseExpr $ SquareList
   (map (\c -> RoundList [Symbol "Char", IntAtom (fromIntegral c)]) $ encode s)
 
 parseDecl :: Form -> Decl
