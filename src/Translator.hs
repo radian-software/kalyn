@@ -194,8 +194,7 @@ translateExpr ctx dst (Case arg branches) = do
     , argFns ++ concatMap snd exprCodes
     )
 translateExpr ctx dst form@(Lambda name body) = do
-  fnPtr <- newTemp
-  temp  <- newTemp
+  temp <- newTemp
   let possibleVars = nub (freeVariables form)
   let vars = mapMaybe
         (\var -> case (var, Map.lookup var (bindings ctx)) of
@@ -215,20 +214,21 @@ translateExpr ctx dst form@(Lambda name body) = do
         (iterate (\i -> i - 1) (length argNames))
   bodyDst             <- newTemp
   (bodyCode, bodyFns) <- translateExpr bodyCtx bodyDst body
+  -- work directly on dst because we want to allow for recursive
+  -- lambda let-bindings
   return
     ( [ PUSHI (fromIntegral $ (length vars + 2) * 8)
       , JUMP CALL "memoryAlloc"
       , unpush 1
-      , OP MOV $ RR rax fnPtr
+      , OP MOV $ RR rax dst
       , LEA (memLabel lambdaName) temp
-      , OP MOV $ RM temp (getField 0 fnPtr)
-      , OP MOV $ IM (fromIntegral $ length vars) (getField 1 fnPtr)
+      , OP MOV $ RM temp (getField 0 dst)
+      , OP MOV $ IM (fromIntegral $ length vars) (getField 1 dst)
       ]
-    ++ zipWith
-         (\varTemp idx -> OP MOV $ RM varTemp (getField (idx + 2) fnPtr))
-         (map snd vars)
-         (iterate (+ 1) 0)
-    ++ [OP MOV $ RR fnPtr dst]
+      ++ zipWith
+           (\varTemp idx -> OP MOV $ RM varTemp (getField (idx + 2) dst))
+           (map snd vars)
+           (iterate (+ 1) 0)
     , function lambdaName
                (argsCode ++ bodyCode ++ [OP MOV $ RR bodyDst rax, RET])
       : bodyFns
