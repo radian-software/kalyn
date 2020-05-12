@@ -19,3 +19,7 @@
 (public defn uncurry (Func (Func a b c) (Func (Pair a b) c))
   (f a b)
   (f (Pair a b)))
+
+(public defn id (Func a a)
+  (a)
+  a)

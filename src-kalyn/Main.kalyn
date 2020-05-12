@@ -22,5 +22,14 @@
      (intercalate ", " (map showInt ints))
      "]"]))
 
+(defn ord (Func Int Int Ordering)
+  (x y)
+  (if (< x y)
+    LT
+    (if (> x y)
+      GT
+      EQ)))
+
 (public def main (IO Empty)
-  (print (showIntList [1 2 3])))
+  (let ((m (mapInsert 5 17 (mapEmpty ord))))
+    (print (showIntList (map fst (mapToList m))))))
