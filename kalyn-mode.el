@@ -114,6 +114,7 @@
   "Major mode for editing Kalyn code."
   (modify-syntax-entry ?\; "<" (syntax-table))
   (modify-syntax-entry ?\n ">" (syntax-table))
+  (modify-syntax-entry ?\' "\"" (syntax-table))
   (setq-local comment-start ";;")
   (setq-local comment-use-syntax t)
   (setq-local font-lock-defaults
