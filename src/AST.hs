@@ -48,6 +48,7 @@ data Symbol = SymDef String
                       , sdNumCtors :: Int
                       , sdBoxed :: Bool
                       }
+  deriving (Show)
 
 shouldBox :: [(VarName, [Type])] -> Bool
 shouldBox ctors =

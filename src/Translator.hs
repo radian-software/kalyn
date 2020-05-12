@@ -197,7 +197,7 @@ translateExpr ctx dst form@(Lambda name body) = do
   temp  <- newTemp
   let possibleVars = nub (freeVariables form)
   let vars = mapMaybe
-        (\var -> case Map.lookup name (bindings ctx) of
+        (\var -> case Map.lookup var (bindings ctx) of
           Just (Right reg) -> Just (var, reg)
           _                -> Nothing
         )
