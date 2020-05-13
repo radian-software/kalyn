@@ -1,3 +1,4 @@
+(import "DataTypes.kalyn")
 (import "Functions.kalyn")
 
 (public defn >> (Func (IO a) (IO b) (IO b))

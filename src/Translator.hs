@@ -49,9 +49,7 @@ translateVar :: Context -> VirtualRegister -> String -> [VirtualInstruction]
 translateVar ctx dst name = case Map.lookup name (bindings ctx) of
   Just (Left  sym) -> [JUMP CALL (symName sym), OP MOV $ RR rax dst]
   Just (Right reg) -> [OP MOV $ RR reg dst]
-  Nothing          -> case Map.lookup name stdlibPublic of
-    Just (internalName, _) -> [JUMP CALL internalName, OP MOV $ RR rax dst]
-    Nothing -> error $ "reference to free variable: " ++ show name
+  Nothing          -> error $ "reference to free variable: " ++ show name
 
 translatePattern
   :: Context

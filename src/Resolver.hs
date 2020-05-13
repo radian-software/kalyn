@@ -11,6 +11,7 @@ import           Prelude                 hiding ( mod )
 import           System.FilePath
 
 import           AST
+import           Bridge
 import           Util
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
@@ -159,30 +160,51 @@ resolveBundle (Bundle _ mmap) =
                 (\name _ ->
                   error $ "more than one definition for symbol " ++ show name
                 )
-              $ concatMap
-                  (\mod ->
-                    let modAbbr = modNames Map.! mod
-                    in
-                      map
-                        (\sym ->
-                          ( symName sym
-                          , mapSymbol
-                            (mangleWith modAbbr)
-                            (\name ->
-                              case name `Map.lookup` (gTypeMap Map.! mod) of
-                                Nothing ->
-                                  error $ "no such type: " ++ show name
-                                Just name' -> name'
-                            )
-                            sym
-                          )
-                        )
-                      . concatMap getDeclSymbols
-                      . fst
-                      . (mmap Map.!)
-                      $ mod
-                  )
-                  mods
+              $  concatMap
+                   (\mod ->
+                     let modAbbr = modNames Map.! mod
+                     in
+                       map
+                         (\sym ->
+                           ( symName sym
+                           , mapSymbol
+                             (mangleWith modAbbr)
+                             (\name ->
+                               case name `Map.lookup` (gTypeMap Map.! mod) of
+                                 Nothing ->
+                                   error $ "no such type: " ++ show name
+                                 Just name' -> name'
+                             )
+                             sym
+                           )
+                         )
+                       . concatMap getDeclSymbols
+                       . fst
+                       . (mmap Map.!)
+                       $ mod
+                   )
+                   mods
+              ++ map
+                   (\(publicName, (privateName, _, ty)) ->
+                     let sym = SymDef privateName ty
+                     in
+                       ( publicName
+                       , mapSymbol
+                         id
+                         (\name ->
+                           case name `Map.lookup` (gTypeMap Map.! mainMod) of
+                             Nothing ->
+                               error
+                                 $  "no such type "
+                                 ++ show name
+                                 ++ " in module: "
+                                 ++ mainMod
+                             Just name' -> name'
+                         )
+                         sym
+                       )
+                   )
+                   (Map.toList stdlibPublic)
         in
           ( symbolMap
           , Map.restrictKeys

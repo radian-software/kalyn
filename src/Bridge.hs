@@ -3,6 +3,7 @@ module Bridge where
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 
+import           AST
 import           Assembly
 import           MemoryManager
 import           Primitives
@@ -14,50 +15,92 @@ handleCurried
   :: Int
   -> String
   -> Stateful VirtualFunction
-  -> (String, Stateful [VirtualFunction])
-handleCurried n name fn = (name, (:) <$> fn <*> curryify n name)
+  -> Type
+  -> (String, Stateful [VirtualFunction], Type)
+handleCurried n name fn ty = (name, (:) <$> fn <*> curryify n name, ty)
 
 handleCurriedM
   :: Int
   -> String
   -> Stateful VirtualFunction
-  -> (String, Stateful [VirtualFunction])
-handleCurriedM n name fn =
+  -> Type
+  -> (String, Stateful [VirtualFunction], Type)
+handleCurriedM n name fn ty =
   ( name
   , do
     core       <- fn
     monadified <- monadify n (name ++ "__uncurried")
     curried    <- curryify n name
     return ([core, monadified] ++ curried)
+  , ty
   )
 
-stdlibPublic :: Map.Map String (String, Stateful [VirtualFunction])
+baseType :: TypeName -> Type
+baseType name = Type [] name []
+
+funcType' :: [Type] -> Type
+funcType' []         = error "can't construct empty function type"
+funcType' [ty      ] = ty
+funcType' (ty : tys) = Type [] "Func" [ty, funcType' tys]
+
+funcType :: [TypeName] -> Type
+funcType = funcType' . map baseType
+
+ioType :: TypeName -> Type
+ioType name = Type [] "IO" [Type [] name []]
+
+stdlibPublic :: Map.Map String (String, Stateful [VirtualFunction], Type)
 stdlibPublic = Map.fromList
-  [ ("+"          , handleCurried 2 "plus" plus)
-  , ("-"          , handleCurried 2 "minus" minus)
-  , ("*"          , handleCurried 2 "times" times)
-  , ("/"          , handleCurried 2 "divide" divide)
-  , ("%"          , handleCurried 2 "modulo" modulo)
-  , ("&"          , handleCurried 2 "and" bitAnd)
-  , ("|"          , handleCurried 2 "or" bitOr)
-  , ("^"          , handleCurried 2 "xor" xor)
-  , ("~"          , handleCurried 1 "not" bitNot)
-  , ("shl"        , handleCurried 2 "shl" shl)
-  , ("shr"        , handleCurried 2 "shr" shr)
-  , ("sal"        , handleCurried 2 "sal" sal)
-  , ("sar"        , handleCurried 2 "sar" sar)
-  , ("print"      , handleCurriedM 1 "print" monadPrint)
-  , ("writeFile"  , handleCurriedM 2 "writeFile" monadWriteFile)
-  , ("setFileMode", handleCurriedM 2 "setFileMode" setFileMode)
-  , ("error"      , handleCurried 1 "error" primitiveError)
-  , ("=="         , handleCurried 2 "equal" equal)
-  , ("/="         , handleCurried 2 "notEqual" notEqual)
-  , ("<"          , handleCurried 2 "lessThan" lessThan)
-  , ("<="         , handleCurried 2 "lessThanEqual" lessThanEqual)
-  , (">"          , handleCurried 2 "greaterThan" greaterThan)
-  , (">="         , handleCurried 2 "greaterThanEqual" greaterThanEqual)
-  , ("pure"       , handleCurriedM 1 "pure" monadPure)
-  , (">>="        , handleCurriedM 2 "bind" monadBind)
+  [ ("+"  , handleCurried 2 "plus" plus $ funcType ["Int", "Int", "Int"])
+  , ("-"  , handleCurried 2 "minus" minus $ funcType ["Int", "Int", "Int"])
+  , ("*"  , handleCurried 2 "times" times $ funcType ["Int", "Int", "Int"])
+  , ("/"  , handleCurried 2 "divide" divide $ funcType ["Int", "Int", "Int"])
+  , ("%"  , handleCurried 2 "modulo" modulo $ funcType ["Int", "Int", "Int"])
+  , ("&"  , handleCurried 2 "and" bitAnd $ funcType ["Int", "Int", "Int"])
+  , ("|"  , handleCurried 2 "or" bitOr $ funcType ["Int", "Int", "Int"])
+  , ("^"  , handleCurried 2 "xor" xor $ funcType ["Int", "Int", "Int"])
+  , ("~"  , handleCurried 1 "not" bitNot $ funcType ["Int", "Int"])
+  , ("shl", handleCurried 2 "shl" shl $ funcType ["Int", "Int", "Int"])
+  , ("shr", handleCurried 2 "shr" shr $ funcType ["Int", "Int", "Int"])
+  , ("sal", handleCurried 2 "sal" sal $ funcType ["Int", "Int", "Int"])
+  , ("sar", handleCurried 2 "sar" sar $ funcType ["Int", "Int", "Int"])
+  , ( "print"
+    , handleCurriedM 1 "print" monadPrint
+      $ funcType' [baseType "String", ioType "Empty"]
+    )
+  , ( "writeFile"
+    , handleCurriedM 2 "writeFile" monadWriteFile
+      $ funcType' [baseType "String", baseType "String", ioType "Empty"]
+    )
+  , ( "setFileMode"
+    , handleCurriedM 2 "setFileMode" setFileMode
+      $ funcType' [baseType "String", baseType "Int", ioType "Empty"]
+    )
+  , ("error", handleCurried 1 "error" primitiveError $ funcType ["String", "a"])
+  , ("=="   , handleCurried 2 "equal" equal $ funcType ["Int", "Int", "Bool"])
+  , ( "/="
+    , handleCurried 2 "notEqual" notEqual $ funcType ["Int", "Int", "Bool"]
+    )
+  , ("<", handleCurried 2 "lessThan" lessThan $ funcType ["Int", "Int", "Bool"])
+  , ( "<="
+    , handleCurried 2 "lessThanEqual" lessThanEqual
+      $ funcType ["Int", "Int", "Bool"]
+    )
+  , ( ">"
+    , handleCurried 2 "greaterThan" greaterThan
+      $ funcType ["Int", "Int", "Bool"]
+    )
+  , ( ">="
+    , handleCurried 2 "greaterThanEqual" greaterThanEqual
+      $ funcType ["Int", "Int", "Bool"]
+    )
+  , ( "pure"
+    , handleCurriedM 1 "pure" monadPure $ funcType' [baseType "a", ioType "a"]
+    )
+  , ( ">>="
+    , handleCurriedM 2 "bind" monadBind
+      $ funcType' [ioType "a", funcType' [baseType "a", ioType "b"], ioType "b"]
+    )
   ]
 
 stdlibPrivate :: [Stateful VirtualFunction]
@@ -76,8 +119,8 @@ stdlibFns fns = do
   let calls = Set.unions . map getCalls $ fns
   public <-
     concat
-      <$> ( mapM snd
-          . filter (\(name, _) -> name `Set.member` calls)
+      <$> ( mapM (\(_, fn, _) -> fn)
+          . filter (\(name, _, _) -> name `Set.member` calls)
           . Map.elems
           $ stdlibPublic
           )
