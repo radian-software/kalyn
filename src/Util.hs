@@ -33,3 +33,6 @@ userAllowedChars = ['A' .. 'Z'] ++ ['a' .. 'z'] ++ ['0' .. '9']
 sanitize :: String -> String
 sanitize = concatMap
   $ \c -> if c `elem` userAllowedChars then [c] else "_u" ++ show (ord c)
+
+both :: (a -> b) -> (a, a) -> (b, b)
+both f (a1, a2) = (f a1, f a2)

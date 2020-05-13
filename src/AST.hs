@@ -71,7 +71,9 @@ symName (SymData name _ _ _ _ _ _) = name
 data Bundle = Bundle String (Map.Map String ([Decl], [String]))
   deriving (Show)
 
-type ModResolver = (Map.Map String Symbol, Map.Map TypeName ([TypeName], Type))
+type ModAliasResolver = Map.Map TypeName ([TypeName], Type)
+type ModSymResolver = Map.Map String Symbol
+type ModResolver = (ModSymResolver, ModAliasResolver)
 newtype Resolver = Resolver (Map.Map String ModResolver)
 
 instance Pretty ClassSpec where

@@ -87,7 +87,7 @@ compileIncrementally inputFilename = do
   let resolver = resolveBundle bundle
   overwriteFile (prefix ++ "Resolver") $ pretty resolver
   putStrLn "TypeChecker"
-  let bundle' = typeCheckBundle resolver bundle
+  let bundle' = typeCheckBundle resolver bundle `seq` bundle
   putStrLn "Translator"
   let virtualProgram = translateBundle resolver bundle'
   overwriteFile (prefix ++ "Virtual.S") $ show virtualProgram
