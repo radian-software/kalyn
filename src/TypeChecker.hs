@@ -285,9 +285,12 @@ typeCheckDecl _ _ = ()
 
 typeCheckBundle :: Resolver -> Bundle -> ()
 typeCheckBundle (Resolver resolver) (Bundle _ mmap) =
-  Map.mapWithKey
-      (\mod (decls, deps) ->
-        (map (typeCheckDecl (resolver Map.! mod)) decls, deps)
+  foldr
+      ( seq
+      . (\(mod, (decls, _)) ->
+          foldr (seq . typeCheckDecl (resolver Map.! mod)) () decls
+        )
       )
-      mmap
-    `seq` ()
+      ()
+    . Map.toList
+    $ mmap
