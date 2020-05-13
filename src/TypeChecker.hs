@@ -263,10 +263,9 @@ unify name seen mappings (ConsV var) rhs = case var `Map.lookup` mappings of
                          rhs
   Just existing@(ConsT _ _) -> unify name Set.empty mappings existing rhs
 
-solveConstraints :: VarName -> Constraints -> ()
-solveConstraints name constraints =
-  foldM (uncurry . unify name Set.empty) Map.empty (reverse constraints)
-    `seq` ()
+solveConstraints :: VarName -> Constraints -> Map.Map Int ConsE
+solveConstraints name =
+  flip evalState 0 . foldM (uncurry . unify name Set.empty) Map.empty . reverse
 
 typeCheckDecl :: ModResolver -> Decl -> ()
 typeCheckDecl resolver (Def _ name _ expr) =
@@ -280,7 +279,7 @@ typeCheckDecl resolver (Def _ name _ expr) =
         mapM (\(lhs, rhs) -> (,) <$> expander lhs <*> expander rhs)
           $ tlCons
           : exprConses
-  in  solveConstraints name constraints
+  in  solveConstraints name constraints `seq` ()
 typeCheckDecl _ _ = ()
 
 typeCheckBundle :: Resolver -> Bundle -> ()
