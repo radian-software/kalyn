@@ -31,6 +31,8 @@ parseType :: Form -> Type
 parseType form@(RoundList (Symbol "with" : _)) =
   let (specs, Type moreSpecs name args) = withConstraints parseType form
   in  Type (specs ++ moreSpecs) name args
+parseType (RoundList (Symbol "Func" : args)) =
+  foldr1 (\lhs rhs -> Type [] "Func" [lhs, rhs]) (map parseType args)
 parseType (RoundList (Symbol name : args)) = Type [] name (map parseType args)
 parseType (Symbol name) = Type [] name []
 parseType form = error $ "failed to parse type: " ++ pretty form

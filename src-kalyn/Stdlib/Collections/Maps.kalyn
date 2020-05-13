@@ -40,7 +40,7 @@
   ((Map _ root))
   (size root))
 
-(defn lookup (Func (Ord k) k (Branch k v) (Branch k v))
+(defn lookup (Func (Ord k) k (Node k v) (Node k v))
   "Do a splay lookup on an internal tree node. The provided key will
    be splayed to the root of the tree if it's present, otherwise the
    nearest node is splayed. Return the new root."
@@ -57,7 +57,7 @@
              (Leaf t)
              (rt (zag t rt))))))))
 
-(defn zig (Func (Branch k v) (Branch k v) (Branch k v))
+(defn zig (Func (Node k v) (Node k v) (Node k v))
   "Do a zig rotation. The first argument is rotated up and the new
    root returned."
   (left right)
@@ -66,7 +66,7 @@
      (Branch k1 v1 d l1 (Branch k v (- (- d (size l1)) 1) r1 r)))
     (_ (error "tree corruption\n"))))
 
-(defn zag (Func (Branch k v) (Branch k v) (Branch k v))
+(defn zag (Func (Node k v) (Node k v) (Node k v))
   "Do a zag rotation. The second argument is rotated up and the new
    root returned."
   (left right)
@@ -89,14 +89,14 @@
          (GT (Branch k v (+ d 1) l (Branch k1 v1 (+ (- d (size l)) 1) Leaf r)))
          (EQ (Branch k v d l r)))))))
 
-(defn mapHead (Func (Branch k v) (Pair k v))
+(defn mapHead (Func (Node k v) (Pair k v))
   "Get the key-value pair of the root."
   (t)
   (case t
     (Leaf (error "tree corruption\n"))
     ((Branch k v _ _ _) (Pair k v))))
 
-(defn mapTail (Func (Branch k v) (Branch k v))
+(defn mapTail (Func (Node k v) (Node k v))
   "Remove the root of the tree and merge its subtrees."
   (t)
   (case t
@@ -123,7 +123,7 @@
               (_ t*)))
            (Leaf (error "tree corruption\n")))))))
 
-(defn splayRight (Func (Branch k v) (Branch k v))
+(defn splayRight (Func (Node k v) (Node k v))
   (t)
   (case t
     (Leaf Leaf)
@@ -131,7 +131,7 @@
     ((Branch k1 v1 d1 l1 (Branch k2 v2 _ l2 r2))
      (splayRight (Branch k2 v2 d1 (Branch k1 v1 (- d1 (size r2)) l1 l2) r2)))))
 
-(defn splayLeft (Func (Branch k v) (Branch k v))
+(defn splayLeft (Func (Node k v) (Node k v))
   (t)
   (case t
     (Leaf Leaf)

@@ -61,7 +61,7 @@ translatePattern
   -> Stateful ([VirtualInstruction], Map.Map String VirtualRegister)
 translatePattern ctx nextBranch temp (Variable name) =
   case Map.lookup name (bindings ctx) of
-    Just (Left sd@(SymData _ _ _ _ _ _)) -> case sdNumFields sd of
+    Just (Left sd@(SymData _ _ _ _ _ _ _)) -> case sdNumFields sd of
       0 -> case sdNumCtors sd of
         0 -> error "somehow a nonexistent data constructor has appeared"
         1 -> return ([], Map.empty)
@@ -89,7 +89,7 @@ translatePattern ctx nextBranch obj expr@(Call _ _) =
   in
     case ctor of
       Variable name -> case Map.lookup name (bindings ctx) of
-        Just (Left sd@(SymData _ _ _ _ _ _)) ->
+        Just (Left sd@(SymData _ _ _ _ _ _ _)) ->
           if sdNumFields sd /= length args
             then
               error
@@ -261,9 +261,9 @@ translateExpr ctx dst (As _ expr) = translateExpr ctx dst expr
 
 -- don't handle Derive or Instance for now
 translateDecl :: TopLevelBindings -> Decl -> Stateful [VirtualFunction]
-translateDecl _     (Alias _ _ _   ) = return []
-translateDecl _     (Class _ _ _ _ ) = return []
-translateDecl binds (Data _ _ ctors) = concat <$> zipWithM
+translateDecl _     (Alias _ _ _          ) = return []
+translateDecl _     (Class _ _ _ _        ) = return []
+translateDecl binds (Data _ typeSpec ctors) = concat <$> zipWithM
   (\(ctor, types) ctorIdx -> do
     arg <- newTemp
     let baseName = symName (binds Map.! ctor)
@@ -274,6 +274,7 @@ translateDecl binds (Data _ _ ctors) = concat <$> zipWithM
                    , sdNumFields = length types
                    , sdNumCtors  = length ctors
                    , sdBoxed     = shouldBox ctors
+                   , sdTypeSpec  = typeSpec
                    , sdTypes     = types
                    }
       mainFn = function
@@ -323,10 +324,10 @@ translateDecl _ (Instance _ _ _ _) = return []
 
 translateBundle' :: Resolver -> Bundle -> Stateful (Program VirtualRegister)
 translateBundle' (Resolver resolver) (Bundle mmod mmap) = do
-  let mainName = symName $ (resolver Map.! mmod) Map.! "main"
+  let mainName = symName $ fst (resolver Map.! mmod) Map.! "main"
   fns <- concat <$> mapM
     (\(mod, (decls, _)) ->
-      concat <$> mapM (translateDecl (resolver Map.! mod)) decls
+      concat <$> mapM (translateDecl $ fst (resolver Map.! mod)) decls
     )
     (Map.toList mmap)
   mainFn <- do

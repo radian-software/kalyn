@@ -48,6 +48,7 @@ data Symbol = SymDef String Type
                       , sdNumFields :: Int
                       , sdNumCtors :: Int
                       , sdBoxed :: Bool
+                      , sdTypeSpec :: TypeSpec
                       , sdTypes :: [Type]
                       }
   deriving (Show)
@@ -64,21 +65,20 @@ sdHasHeader SymData { sdNumCtors = numCtors } = numCtors > 1
 sdHasHeader _ = error "can only call sdHasHeader on SymDef"
 
 symName :: Symbol -> String
-symName (SymDef name _         ) = name
-symName (SymData name _ _ _ _ _) = name
+symName (SymDef name _           ) = name
+symName (SymData name _ _ _ _ _ _) = name
 
 data Bundle = Bundle String (Map.Map String ([Decl], [String]))
   deriving (Show)
 
-newtype Resolver = Resolver (Map.Map String (Map.Map String Symbol))
+newtype Resolver = Resolver (Map.Map String (Map.Map String Symbol, Map.Map TypeName ([TypeName], Type)))
 
 instance Pretty ClassSpec where
   pretty (ClassSpec cls typ) = "(" ++ cls ++ " " ++ show typ ++ ")"
 
 instance Pretty TypeSpec where
-  pretty (TypeSpec name []) = name
-  pretty (TypeSpec name args) =
-    "(" ++ name ++ " " ++ unwords (map show args) ++ ")"
+  pretty (TypeSpec name []  ) = name
+  pretty (TypeSpec name args) = "(" ++ name ++ " " ++ unwords args ++ ")"
 
 instance Pretty Type where
   pretty (Type constraints name args) =
@@ -238,7 +238,7 @@ instance Pretty Decl where
 instance Pretty Symbol where
   pretty (SymDef name t) =
     "regular symbol " ++ name ++ " with type " ++ pretty t
-  pretty sd@(SymData _ _ _ _ _ _) =
+  pretty sd@(SymData _ _ _ _ _ _ _) =
     "data constructor "
       ++ sdName sd
       ++ " with index "
@@ -253,13 +253,15 @@ instance Pretty Symbol where
       ++ (if sdBoxed sd then "boxed" else "unboxed")
       ++ ", "
       ++ (if sdHasHeader sd then "with" else "no")
-      ++ " header word"
+      ++ " header word, "
       ++ (case sdNumFields sd of
-           0 -> ""
-           1 -> ", field type " ++ (pretty . head . sdTypes $ sd)
+           0 -> "no field types"
+           1 -> "field type " ++ (pretty . head . sdTypes $ sd)
            _ ->
-             ", field types " ++ (intercalate ", " . map pretty . sdTypes $ sd)
+             "field types " ++ (intercalate ", " . map pretty . sdTypes $ sd)
          )
+      ++ " for type spec "
+      ++ (pretty . sdTypeSpec $ sd)
       ++ ")"
 
 instance Pretty Bundle where
@@ -284,9 +286,25 @@ instance Pretty Bundle where
 
 instance Pretty Resolver where
   pretty (Resolver resolver) =
-    concatMap
-        (\(mod, syms) -> "module " ++ show mod ++ "\n" ++ concatMap
-          (\(name, sym) -> "  " ++ name ++ " -> " ++ pretty sym ++ "\n")
-          (Map.toList syms)
-        )
+    intercalate "\n"
+      . map
+          (\(mod, (syms, aliases)) ->
+            "module "
+              ++ show mod
+              ++ "\n"
+              ++ concatMap
+                   (\(name, sym) -> "  " ++ name ++ " -> " ++ pretty sym ++ "\n"
+                   )
+                   (Map.toList syms)
+              ++ concatMap
+                   (\(name, (params, defn)) ->
+                     "    "
+                       ++ name
+                       ++ (if null params then "" else " " ++ unwords params)
+                       ++ " -> "
+                       ++ pretty defn
+                       ++ "\n"
+                   )
+                   (Map.toList aliases)
+          )
       $ Map.toList resolver
