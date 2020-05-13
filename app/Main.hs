@@ -21,6 +21,7 @@ import           Reader
 import           Parser
 import           Bundler
 import           Resolver
+import           TypeChecker
 import           Translator
 import           Liveness
 import           RegisterAllocator
@@ -85,8 +86,10 @@ compileIncrementally inputFilename = do
   putStrLn "Resolver"
   let resolver = resolveBundle bundle
   overwriteFile (prefix ++ "Resolver") $ pretty resolver
+  putStrLn "TypeChecker"
+  let bundle' = typeCheckBundle resolver bundle
   putStrLn "Translator"
-  let virtualProgram = translateBundle resolver bundle
+  let virtualProgram = translateBundle resolver bundle'
   overwriteFile (prefix ++ "Virtual.S") $ show virtualProgram
   putStrLn "Liveness"
   let liveness = computeProgramLiveness virtualProgram

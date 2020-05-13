@@ -71,7 +71,8 @@ symName (SymData name _ _ _ _ _ _) = name
 data Bundle = Bundle String (Map.Map String ([Decl], [String]))
   deriving (Show)
 
-newtype Resolver = Resolver (Map.Map String (Map.Map String Symbol, Map.Map TypeName ([TypeName], Type)))
+type ModResolver = (Map.Map String Symbol, Map.Map TypeName ([TypeName], Type))
+newtype Resolver = Resolver (Map.Map String ModResolver)
 
 instance Pretty ClassSpec where
   pretty (ClassSpec cls typ) = "(" ++ cls ++ " " ++ show typ ++ ")"
@@ -194,7 +195,7 @@ instance Pretty Decl where
             ++ " "
             ++ pretty typ
             ++ " ("
-            ++ unwords (map show args)
+            ++ unwords args
             ++ ") "
             ++ pretty body
             ++ ")"
