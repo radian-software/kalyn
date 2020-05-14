@@ -43,6 +43,17 @@
        (goto-char end)
        (point-at-bol))))
 
+(defun kalyn--index-from (start)
+  (let (;; indexed from 1 because of how the counting works
+        (index 0)
+        (cur start))
+    (condition-case _
+        (while (< cur (point))
+          (setq cur (scan-sexps cur 1))
+          (cl-incf index))
+      (scan-error))
+    index))
+
 (defun kalyn--indent-function (indent-point state)
   (cl-block nil
     (unless (nth 1 state)
@@ -73,7 +84,9 @@
             (when-let ((pos (car (last (nth 9 state) 3))))
               (1+ pos)))
            (first-outer-sexp (kalyn--next-sexp outer-list-start))
-           (next-first-outer-sexp (kalyn--next-sexp next-outer-list-start)))
+           (next-first-outer-sexp (kalyn--next-sexp next-outer-list-start))
+           (index (when next-outer-list-start
+                    (kalyn--index-from next-outer-list-start))))
       (cond
        ;; [foo
        ;;  bar]
@@ -85,7 +98,8 @@
         starting-column)
        ;; (let ((foo
        ;;        bar)))
-       ((equal next-first-outer-sexp "let")
+       ((and (equal next-first-outer-sexp "let")
+             (eq index 2))
         starting-column)
        ;; ((foo)
        ;;  bar)
@@ -119,15 +133,9 @@
            (second-sexp
             (when outer-list-start
               (kalyn--next-sexp outer-list-start 2)))
-           ;; indexed from 1 because of how the counting works
-           (index 0))
+           (index (when outer-list-start
+                    (kalyn--index-from outer-list-start))))
       (when outer-list-start
-        (let ((cur outer-list-start))
-          (condition-case _
-              (while (< cur (point))
-                (setq cur (scan-sexps cur 1))
-                (cl-incf index))
-            (scan-error)))
         (when (equal first-sexp "public")
           (cl-decf index)
           (setq first-sexp second-sexp)))
