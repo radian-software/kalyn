@@ -137,10 +137,10 @@
   (from op arg)
   (case (Pair op arg)
     ((Pair PUSH  (R reg)) (Pair [reg] []))
-    ((Pair ICALL (R reg)) (Pair [reg] [from RAX]))
+    ((Pair ICALL (R reg)) (Pair [reg] [(from RAX)]))
     ((Pair POP   (R reg)) (Pair [] [reg]))
     ((Pair _     (R reg)) (Pair [reg] [reg]))
-    ((Pair ICALL (M mem)) (Pair (getMemRegisters mem) [from RAX]))
+    ((Pair ICALL (M mem)) (Pair (getMemRegisters mem) [(from RAX)]))
     ((Pair _     (M mem)) (Pair (getMemRegisters mem) []))))
 
 (public defn getRegisters (Func (RegisterLike reg) (Instruction reg) (UseDef reg))
@@ -148,7 +148,7 @@
   (case instr
     ((OP op args) (getArgsRegisters op args))
     ((UN op arg) (getArgRegisters op arg))
-    ((JUMP CALL _) (Pair [] [from RAX]))
+    ((JUMP CALL _) (Pair [] [(from RAX)]))
     ((JUMP _ _) (Pair [] []))
     ((MOV64 _ dst) (Pair [] [dst]))
     ((SHIFT Nothing _ dst) (Pair [dst (from RCX)] [dst]))
@@ -156,9 +156,9 @@
     ((LEA mem dst) (Pair (getMemRegisters mem) [dst]))
     ((IDIV src) (Pair [src (from RAX) (from RDX)]
                       [(from RAX) (from RDX)]))
-    (CQTO (Pair [from RAX] [from RDX]))
+    (CQTO (Pair [(from RAX)] [(from RDX)]))
     ((PUSHI _) (Pair [] []))
-    (RET (Pair [from RAX] []))
+    (RET (Pair [(from RAX)] []))
     ((SYSCALL n)
      (if (>=Int (+ n 1) (length syscallRegisters))
        (error "too many arguments for system call\n")
