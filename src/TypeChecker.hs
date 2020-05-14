@@ -272,7 +272,9 @@ unify name fixed seen mappings (ConsV var) rhs = case rhs of
     error
       $  "in function "
       ++ show name
-      ++ ": can't unify free type parameter with "
+      ++ ": can't unify free type parameter "
+      ++ show var
+      ++ " with "
       ++ show rhs
   (ConsV other)
     | var /= other && var `Set.member` fixed && other `Set.member` fixed
