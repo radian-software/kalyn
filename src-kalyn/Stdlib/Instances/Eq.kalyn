@@ -1,0 +1,16 @@
+(import "../../Stdlib.kalyn")
+
+(public defn ==String (Eq String)
+  (s1 s2)
+  (case (Pair s1 s2)
+    ((Pair Null Null)
+     True)
+    ((Pair (Cons (Char f1) r1) (Cons (Char f2) r2))
+     (and (==Int f1 f2)
+          (==String r1 r2)))))
+
+(public defn ==PairStringString (Eq (Pair String String))
+  ((Pair l1 r1) (Pair l2 r2))
+  (and
+    (==String l1 l2)
+    (==String r1 r2)))

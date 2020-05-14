@@ -1,0 +1,38 @@
+(import "Stdlib.kalyn")
+
+(defn bytes8 (Func Int String)
+  (v)
+  [v])
+
+(defn bytes16 (Func Int String)
+  (v)
+  [     v
+   (srl v 8)])
+
+(defn bytes32 (Func Int String)
+  (v)
+  [     v
+   (srl v 8)
+   (srl v 16)
+   (srl v 24)])
+
+(defn bytes64 (Func Int String)
+  (v)
+  [     v
+   (srl v 8)
+   (srl v 16)
+   (srl v 24)
+   (srl v 32)
+   (srl v 40)
+   (srl v 48)
+   (srl v 56)])
+
+(public defn fixedPoint (Func (Eq a) a (Func a a) a)
+  "Compute the least fixed point of a function. Given an equality
+   test, repeatedly apply the function to its argument until two
+   successive values are the same, then return the first of them."
+  (eq x f)
+  (let ((fx (f x)))
+    (if (eq x fx)
+      x
+      (fixedPoint fx f))))

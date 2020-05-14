@@ -1,3 +1,5 @@
+(import "../Stdlib.kalyn")
+
 (public data Never)
 
 (public data Empty
@@ -22,4 +24,6 @@
 (public data Ordering
   LT EQ GT)
 
-(public alias (Ord k) (Func k k Ordering))
+(public alias (Eq a) (Func a a Bool))
+(public alias (Ord a) (Func a a Ordering))
+(public alias (Show a) (Func a String))

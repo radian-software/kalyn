@@ -77,20 +77,22 @@ stdlibPublic = Map.fromList
       $ funcType' [baseType "String", baseType "Int", ioType "Empty"]
     )
   , ("error", handleCurried 1 "error" primitiveError $ funcType ["String", "a"])
-  , ("=="   , handleCurried 2 "equal" equal $ funcType ["Int", "Int", "Bool"])
-  , ( "/="
+  , ("==Int", handleCurried 2 "equal" equal $ funcType ["Int", "Int", "Bool"])
+  , ( "/=Int"
     , handleCurried 2 "notEqual" notEqual $ funcType ["Int", "Int", "Bool"]
     )
-  , ("<", handleCurried 2 "lessThan" lessThan $ funcType ["Int", "Int", "Bool"])
-  , ( "<="
+  , ( "<Int"
+    , handleCurried 2 "lessThan" lessThan $ funcType ["Int", "Int", "Bool"]
+    )
+  , ( "<=Int"
     , handleCurried 2 "lessThanEqual" lessThanEqual
       $ funcType ["Int", "Int", "Bool"]
     )
-  , ( ">"
+  , ( ">Int"
     , handleCurried 2 "greaterThan" greaterThan
       $ funcType ["Int", "Int", "Bool"]
     )
-  , ( ">="
+  , ( ">=Int"
     , handleCurried 2 "greaterThanEqual" greaterThanEqual
       $ funcType ["Int", "Int", "Bool"]
     )

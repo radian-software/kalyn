@@ -1,9 +1,7 @@
 ;; http://hackage.haskell.org/package/TreeStructures-0.0.2/docs/src/Data-Tree-Splay.html
 ;; with bugfix for insert
 
-(import "../DataTypes.kalyn")
-(import "../Functions.kalyn")
-(import "../Lists.kalyn")
+(import "../../Stdlib.kalyn")
 
 (public data (Map k v)
   "Key-value map using self-balancing tree. Embeds a comparison

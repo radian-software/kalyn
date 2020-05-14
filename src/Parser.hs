@@ -60,12 +60,16 @@ parseExpr (RoundList [Symbol "lambda", RoundList args, body]) = foldr
   (parseExpr body)
   args
 parseExpr (RoundList [Symbol "let", RoundList bindings, body]) = foldr
-  (uncurry Let)
-  (parseExpr body)
-  (flip map bindings $ \binding -> case binding of
-    RoundList [Symbol name, val] -> (name, parseExpr val)
+  (\binding lbody -> case binding of
+    RoundList [Symbol name, val] -> Let name (parseExpr val) lbody
+    RoundList [pat        , val] -> Let
+      "gensym"
+      (parseExpr val)
+      (Case (Variable "gensym") [(parseExpr pat, lbody)])
     _ -> error $ "failed to parse let binding: " ++ pretty binding
   )
+  (parseExpr body)
+  bindings
 parseExpr (RoundList  elts) = foldl1 Call (map parseExpr elts)
 parseExpr (SquareList elts) = parseExpr $ foldr
   (\char rest -> RoundList [Symbol "Cons", char, rest])

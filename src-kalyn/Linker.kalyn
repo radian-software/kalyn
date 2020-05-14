@@ -1,0 +1,70 @@
+(import "Stdlib.kalyn")
+(import "Util.kalyn")
+
+;; https://refspecs.linuxfoundation.org/elf/elf.pdf
+;; see page 20
+
+(def elfIdent String
+  "The ELF magic header."
+  (concat
+    [(bytes8 0x7f)                ; magic bytes
+     "ELF"
+     (bytes8 2)                   ; address size, 64-bit
+     (bytes8 1)                   ; endianness, little-endian
+     (bytes8 1)                   ; version of ELF specification
+     (concat (replicate 9 0))]))  ; padding to 16 bytes
+
+;; see page 18; for architecture codes see
+;; <https://opensource.apple.com/source/dtrace/dtrace-90/sys/elf.h>
+(defn elfHeader (Func Int Int String)
+  "Given meta-information about the ELF header, compute the main ELF
+   header."
+  (elfHeaderLength programHeaderLength)
+  (let ((totalLength (+ elfHeaderLength programHeaderLength)))
+    (concat
+      [elfIdent
+       (bytes16 3)                    ; file type, relocatable executable
+       (bytes16 62)                   ; architecture, x86_64
+       (bytes32 1)                    ; object file version
+       (bytes64 totalLength)          ; entry point in virtual memory
+       (bytes64 elfHeaderLength)      ; program header offset
+       (bytes64 0)                    ; section header offset, unused
+       (bytes32 0)                    ; processor-specific flags, none needed
+       (bytes16 elfHeaderLength)      ; ELF header size
+       (bytes16 programHeaderLength)  ; program header entry length
+       (bytes16 1)                    ; program header entry count
+       (bytes16 0)                    ; section header entry size, unused
+       (bytes16 0)                    ; section header entry count, unused
+       (bytes16 0)])))                ; index of string table in section header, unused
+
+;; see page 40
+(defn programHeader (Func Int Int Int String)
+  "Given meta-information about the ELF header, compute the program
+   header. It only has a code section."
+  (elfHeaderLength programHeaderLength imageSize)
+  (let ((totalLength (+ elfHeaderLength programHeaderLength)))
+    (concat
+      [(bytes32 1)            ; segment type, loadable code/data
+       (bytes32 0x7)          ; permissions, allow all (see page 73)
+       (bytes64 totalLength)  ; offset from beginning of file
+       (bytes64 totalLength)  ; virtual address at which to map code/data
+       (bytes64 0)            ; physical address at which to map, unused
+       (bytes64 imageSize)    ; number of bytes listed in file image
+       (bytes64 0)])))        ; alignment, none needed
+
+(public defn link (Func String String)
+  "Given the combined code and data sections, wrap them in an ELF
+   header."
+  (code)
+  (let (((Pair ehdr phdr)
+         (fixedPoint
+           ==PairStringString
+           (Pair [] [])
+           (lambda (ehdr phdr)
+             (let ((elen (length ehdr))
+                   (plen (length phdr))
+                   (imageSize (length code)))
+               (Pair
+                 (elfHeader     elen plen)
+                 (programHeader elen plen imageSize)))))))
+    (concat [ehdr phdr code])))

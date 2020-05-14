@@ -1,9 +1,0 @@
-(import "DataTypes.kalyn")
-
-(public defn ord (Func Int Int Ordering)
-  (x y)
-  (if (< x y)
-    LT
-    (if (> x y)
-      GT
-      EQ)))

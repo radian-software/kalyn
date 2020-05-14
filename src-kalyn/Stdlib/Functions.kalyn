@@ -1,4 +1,4 @@
-(import "DataTypes.kalyn")
+(import "../Stdlib.kalyn")
 
 (public defn const (Func a (Func b a))
   (a _)

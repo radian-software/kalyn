@@ -1,8 +1,4 @@
-(import "../DataTypes.kalyn")
-(import "../Functions.kalyn")
-(import "../Lists.kalyn")
-(import "../Tuples.kalyn")
-(import "Maps.kalyn")
+(import "../../Stdlib.kalyn")
 
 (public alias (Set k)
   "Ordered set. Embeds a comparison function."

@@ -1,0 +1,24 @@
+(import "../../Stdlib.kalyn")
+
+(public defn showInt (Show Int)
+  (i)
+  (case (cmp i 0)
+    (LT (Cons '-' (showInt (- 0 i))))
+    (EQ "0")
+    (GT (let ((showInt*
+               (lambda (i str)
+                 (if (==Int i 0)
+                   str
+                   (showInt*
+                     (/ i 10)
+                     (Cons
+                       (Char (+ 0x30 (% i 10)))
+                       str))))))
+          (showInt* i "")))))
+
+(public defn showListInt (Show (List Int))
+  (ints)
+  (concat
+    ["["
+     (intercalate ", " (map showInt ints))
+     "]"]))

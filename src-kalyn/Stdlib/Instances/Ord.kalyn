@@ -1,0 +1,9 @@
+(import "../../Stdlib.kalyn")
+
+(public defn ordInt (Ord Int)
+  (x y)
+  (if (< x y)
+    LT
+    (if (> x y)
+      GT
+      EQ)))

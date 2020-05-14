@@ -1,4 +1,4 @@
-(import "DataTypes.kalyn")
+(import "../Stdlib.kalyn")
 
 (public defn not (Func Bool Bool)
   (b)
