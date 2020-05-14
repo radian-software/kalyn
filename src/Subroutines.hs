@@ -118,7 +118,7 @@ curryify numArgs fnName = do
            ]
         ++ concatMap
              (\i ->
-               [ OP MOV $ MR (getArg i) arg
+               [ OP MOV $ MR (getArg $ numCurried + 2 - i) arg
                , OP MOV $ RM arg (getField (i + 1) fnPtr)
                ]
              )
