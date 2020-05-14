@@ -192,7 +192,7 @@
       ((Just (Pair scale index))
        (Just (Pair scale (func index)))))))
 
-(defn mapArgs (Func (Func reg1 reg2)) (Args reg1) (Args reg2)
+(defn mapArgs (Func (Func reg1 reg2) (Args reg1) (Args reg2))
   (func args)
   (case args
     ((IR imm reg) (IR imm (func reg)))

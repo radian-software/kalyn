@@ -345,9 +345,9 @@
   ((Function _ name instrs))
   (Cons (SYMBOL name) instrs))
 
-(public defn (Func
-               (Program Register)
-               (Pair Bytes Bytes))
+(public defn assemble (Func
+                        (Program Register)
+                        (Pair Bytes Bytes))
   ((Program main fns datums))
   (let ((allInstrs (append (fnInstrs main) (concatMap fnInstrs fns)))
         (binInstrs
