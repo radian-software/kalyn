@@ -239,6 +239,7 @@ unify
   -> ConsE
   -> ConsE
   -> Stateful (Map.Map Int ConsE)
+unify _ _ _ mappings (ConsV v1) (ConsV v2) | v1 == v2 = return mappings
 unify name fixed _ mappings (ConsT t1 args1) (ConsT t2 args2)
   | t1 /= t2
   = error
@@ -264,8 +265,8 @@ unify name fixed _ mappings (ConsT t1 args1) (ConsT t2 args2)
     (\(arg1, arg2) mm -> mm >>= \m -> unify name fixed Set.empty m arg1 arg2)
     (return mappings)
     (zip args1 args2)
-unify name fixed _ mappings c1@(ConsT _ _) c2@(ConsV _) =
-  unify name fixed Set.empty mappings c2 c1
+unify name fixed seen mappings c1@(ConsT _ _) c2@(ConsV _) =
+  unify name fixed seen mappings c2 c1
 unify name fixed seen mappings (ConsV var) rhs = case rhs of
   (ConsT _ _) | var `Set.member` fixed ->
     error
