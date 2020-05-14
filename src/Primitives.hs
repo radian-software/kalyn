@@ -122,6 +122,7 @@ monadWriteFile = do
   fd         <- newTemp
   ptr        <- newTemp
   bytesLeft  <- newTemp
+  notExists  <- newLabel
   writeStart <- newLabel
   writeDone  <- newLabel
   crash      <- newLabel
@@ -141,8 +142,11 @@ monadWriteFile = do
     , OP MOV $ IR 87 rax
     , LEA (getField 1 filename) rdi
     , SYSCALL 1 -- unlink
+    , OP CMP $ IR (-2) rax
+    , JUMP JE notExists
     , OP CMP $ IR 0 rax
     , JUMP JL crash
+    , LABEL notExists
     , OP MOV $ IR 2 rax
     , LEA (getField 1 filename) rdi
     , OP MOV $ IR 0x41 rsi

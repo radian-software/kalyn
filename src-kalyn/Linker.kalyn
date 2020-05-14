@@ -50,6 +50,7 @@
        (bytes64 totalLength)  ; virtual address at which to map code/data
        (bytes64 0)            ; physical address at which to map, unused
        (bytes64 imageSize)    ; number of bytes listed in file image
+       (bytes64 imageSize)    ; number of bytes to reserve in memory
        (bytes64 0)])))        ; alignment, none needed
 
 (public defn link (Func String String)

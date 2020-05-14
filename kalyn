@@ -2,5 +2,6 @@
 
 set -e
 
+mkdir -p out-kalyn-rec  # until I implement mkdir in Kalyn
 stack build kalyn
 stack exec kalyn -- "$@"
