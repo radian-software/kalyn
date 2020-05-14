@@ -7,11 +7,11 @@
 (def elfIdent Bytes
   "The ELF magic header."
   (concat
-    [(bytes8 0x7f)              ; magic bytes
+    [(word8 0x7f)              ; magic bytes
      "ELF"
-     (bytes8 2)                 ; address size, 64-bit
-     (bytes8 1)                 ; endianness, little-endian
-     (bytes8 1)                 ; version of ELF specification
+     (word8 2)                 ; address size, 64-bit
+     (word8 1)                 ; endianness, little-endian
+     (word8 1)                 ; version of ELF specification
      (replicate 9 (Char 0))]))  ; padding to 16 bytes
 
 ;; see page 18; for architecture codes see
@@ -23,19 +23,19 @@
   (let ((totalLength (+ elfHeaderLength programHeaderLength)))
     (concat
       [elfIdent
-       (bytes16 3)                    ; file type, relocatable executable
-       (bytes16 62)                   ; architecture, x86_64
-       (bytes32 1)                    ; object file version
-       (bytes64 totalLength)          ; entry point in virtual memory
-       (bytes64 elfHeaderLength)      ; program header offset
-       (bytes64 0)                    ; section header offset, unused
-       (bytes32 0)                    ; processor-specific flags, none needed
-       (bytes16 elfHeaderLength)      ; ELF header size
-       (bytes16 programHeaderLength)  ; program header entry length
-       (bytes16 1)                    ; program header entry count
-       (bytes16 0)                    ; section header entry size, unused
-       (bytes16 0)                    ; section header entry count, unused
-       (bytes16 0)])))                ; index of string table in section header, unused
+       (word16 3)                    ; file type, relocatable executable
+       (word16 62)                   ; architecture, x86_64
+       (word32 1)                    ; object file version
+       (word64 totalLength)          ; entry point in virtual memory
+       (word64 elfHeaderLength)      ; program header offset
+       (word64 0)                    ; section header offset, unused
+       (word32 0)                    ; processor-specific flags, none needed
+       (word16 elfHeaderLength)      ; ELF header size
+       (word16 programHeaderLength)  ; program header entry length
+       (word16 1)                    ; program header entry count
+       (word16 0)                    ; section header entry size, unused
+       (word16 0)                    ; section header entry count, unused
+       (word16 0)])))                ; index of string table in section header, unused
 
 ;; see page 40
 (defn programHeader (Func Int Int Int Bytes)
@@ -44,14 +44,14 @@
   (elfHeaderLength programHeaderLength imageSize)
   (let ((totalLength (+ elfHeaderLength programHeaderLength)))
     (concat
-      [(bytes32 1)            ; segment type, loadable code/data
-       (bytes32 0x7)          ; permissions, allow all (see page 73)
-       (bytes64 totalLength)  ; offset from beginning of file
-       (bytes64 totalLength)  ; virtual address at which to map code/data
-       (bytes64 0)            ; physical address at which to map, unused
-       (bytes64 imageSize)    ; number of bytes listed in file image
-       (bytes64 imageSize)    ; number of bytes to reserve in memory
-       (bytes64 0)])))        ; alignment, none needed
+      [(word32 1)            ; segment type, loadable code/data
+       (word32 0x7)          ; permissions, allow all (see page 73)
+       (word64 totalLength)  ; offset from beginning of file
+       (word64 totalLength)  ; virtual address at which to map code/data
+       (word64 0)            ; physical address at which to map, unused
+       (word64 imageSize)    ; number of bytes listed in file image
+       (word64 imageSize)    ; number of bytes to reserve in memory
+       (word64 0)])))        ; alignment, none needed
 
 (public defn link (Func Bytes Bytes)
   "Given the combined code and data sections, wrap them in an ELF

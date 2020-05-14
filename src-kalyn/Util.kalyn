@@ -1,22 +1,22 @@
 (import "Stdlib.kalyn")
 
-(defn bytes8 (Func Word8 Bytes)
+(defn word8 (Func Word8 Bytes)
   (v)
   [(Char v)])
 
-(defn bytes16 (Func Word16 Bytes)
+(defn word16 (Func Word16 Bytes)
   (v)
   [(Char      v   )
    (Char (shr v 8))])
 
-(defn bytes32 (Func Word32 Bytes)
+(defn word32 (Func Word32 Bytes)
   (v)
   [(Char      v    )
    (Char (shr v 8) )
    (Char (shr v 16))
    (Char (shr v 24))])
 
-(defn bytes64 (Func Word64 Bytes)
+(defn word64 (Func Word64 Bytes)
   (v)
   [(Char      v    )
    (Char (shr v 8) )

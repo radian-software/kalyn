@@ -81,7 +81,7 @@
   (k (Map cmp t))
   (case (lookup cmp k t)
     (Leaf Nothing)
-    ((Branch k* v _ _ _ _)
+    ((Branch k* v _ _ _)
      (case (cmp k k*)
        (EQ (Just v))
        (_ Nothing)))))
