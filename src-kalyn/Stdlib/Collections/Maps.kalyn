@@ -50,10 +50,10 @@
     (t@(Branch k _ _ l r)
      (case (cmp k k*)
        (EQ t)
-       (GT (case (lookup k* l)
+       (GT (case (lookup cmp k* l)
              (Leaf t)
              (lt (zig lt t))))
-       (LT (case (lookup k* r)
+       (LT (case (lookup cmp k* r)
              (Leaf t)
              (rt (zag t rt))))))))
 
@@ -143,7 +143,7 @@
   "Given an unordered list of key-value pairs, create a map with the
    provided comparison function."
   (cmp)
-  (foldr (curry mapInsert) (mapEmpty cmp)))
+  (foldr (uncurry mapInsert) (mapEmpty cmp)))
 
 (public defn mapToList (Func (Map k v) (List (Pair k v)))
   "Convert a map to a list of its key-value pairs in ascending order."
