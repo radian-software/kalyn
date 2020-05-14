@@ -1,5 +1,6 @@
 (import "Assembly.kalyn")
 (import "Stdlib.kalyn")
+(import "Util.kalyn")
 
 ;; https://www.codeproject.com/Articles/662301/x86-Instruction-Encoding-Revealed-Bit-Twiddling-fo
 ;; https://wiki.osdev.org/X86-64_Instruction_Encoding
@@ -44,15 +45,24 @@
   (reg rm index)
   (foldr
     | 0x48
-    [(case (fst (regCode reg))
-       ((Just True) 0x4)  ; REX.R
-       (_ 0))
-     (case (fst (regCode rm))
-       ((Just True) 0x1)  ; REX.B
-       (_ 0))
-     (case (fst (regCode index))
-       ((Just True) 0x2)  ; REX.X
-       (_ 0))]))
+    [(case reg
+       ((Just r)
+        (if (fst (regCode r))
+          0x4  ; REX.R
+          0))
+       (Nothing 0))
+     (case rm
+       ((Just r)
+        (if (fst (regCode r))
+          0x1  ; REX.B
+          0))
+       (Nothing 0))
+     (case index
+       ((Just r)
+        (if (fst (regCode r))
+          0x2  ; REX.X
+          0))
+       (Nothing 0))]))
 
 (defn modRM (Func Mod Reg RM Word8)
   (modOpt reg rm)
@@ -108,8 +118,8 @@
                      ((Right r) (Just r))
                      (_ Nothing))
                    (case base
-                     ((RIP Nothing)
-                      (_ (Just base))))
+                     (RIP Nothing)
+                     (_ (Just base)))
                    (case (Pair base msi)
                      ((Pair RIP (Just _))
                       (error "can't use scale with %rip"))
@@ -199,10 +209,7 @@
 
 (defn plainInstr64 (Func (List Word8) Bytes)
   (opcode)
-  (concat
-    (Cons
-      (rex Nothing Nothing Nothing)
-      (map word8 opcode))))
+  (concatMap word8 (Cons (rex Nothing Nothing Nothing) opcode)))
 
 (defn immInstr (Func (List Word8) Int32 Bytes)
   (opcode rel)
@@ -343,7 +350,7 @@
 
 (defn fnInstrs (Func (Function reg) (List (Instruction reg)))
   ((Function _ name instrs))
-  (Cons (SYMBOL name) instrs))
+  (Cons (LABEL name) instrs))
 
 (public defn assemble (Func
                         (Program Register)
@@ -365,9 +372,10 @@
                         (mapInsert label offset labels))
                       (foldr
                         (lambda ((Pair instr offset) labels)
-                          ((LABEL name)
-                           (mapInsert name offset labels))
-                          (_ labels))
+                          (case instr
+                            ((LABEL name)
+                             (mapInsert name offset labels))
+                            (_ labels)))
                         (mapEmpty compareString)
                         (zip allInstrs codeOffsets))
                       (zip (map fst datums) dataOffsets))))

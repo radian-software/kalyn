@@ -1,22 +1,22 @@
 (import "Stdlib.kalyn")
 
-(defn word8 (Func Word8 Bytes)
+(public defn word8 (Func Word8 Bytes)
   (v)
   [(Char v)])
 
-(defn word16 (Func Word16 Bytes)
+(public defn word16 (Func Word16 Bytes)
   (v)
   [(Char      v   )
    (Char (shr v 8))])
 
-(defn word32 (Func Word32 Bytes)
+(public defn word32 (Func Word32 Bytes)
   (v)
   [(Char      v    )
    (Char (shr v 8) )
    (Char (shr v 16))
    (Char (shr v 24))])
 
-(defn word64 (Func Word64 Bytes)
+(public defn word64 (Func Word64 Bytes)
   (v)
   [(Char      v    )
    (Char (shr v 8) )
@@ -27,16 +27,16 @@
    (Char (shr v 48))
    (Char (shr v 56))])
 
-(def int8 (Func Int8 Bytes)
+(public def int8 (Func Int8 Bytes)
   word8)
 
-(def int16 (Func Int16 Bytes)
+(public def int16 (Func Int16 Bytes)
   word16)
 
-(def int32 (Func Int32 Bytes)
+(public def int32 (Func Int32 Bytes)
   word32)
 
-(def int64 (Func Int64 Bytes)
+(public def int64 (Func Int64 Bytes)
   word64)
 
 (public defn fixedPoint (Func (Eq a) a (Func a a) a)

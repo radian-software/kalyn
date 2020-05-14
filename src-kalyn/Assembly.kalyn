@@ -95,6 +95,12 @@
   (from name)
   (Mem (Left name) (from RIP) Nothing))
 
+(public def memLabelP (Func Label (Mem Register))
+  (memLabel fromP))
+
+(public def memLabelV (Func Label (Mem VirtualRegister))
+  (memLabel fromV))
+
 (public def dataRegisters (List Register)
   [RAX RCX RDX RBX
    RSI RDI R8  R9
@@ -147,7 +153,7 @@
   (from instr)
   (case instr
     ((OP op args) (getArgsRegisters op args))
-    ((UN op arg) (getArgRegisters op arg))
+    ((UN op arg) (getArgRegisters from op arg))
     ((JUMP CALL _) (Pair [] [(from RAX)]))
     ((JUMP _ _) (Pair [] []))
     ((MOV64 _ dst) (Pair [] [dst]))
@@ -172,7 +178,7 @@
   (Branch Label)
   Return)
 
-(public defn getJumpType (Function (Instruction reg) JumpType)
+(public defn getJumpType (Func (Instruction reg) JumpType)
   (instr)
   (case instr
     ((JUMP JMP label) (Jump label))

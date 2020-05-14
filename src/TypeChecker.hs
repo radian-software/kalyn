@@ -70,12 +70,18 @@ autoNumberType ty = do
   return (numberType (`Map.lookup` paramMap) ty, paramMap)
 
 analyzePattern
-  :: Bindings -> Int -> Expr -> Stateful (Constraints, Map.Map VarName Int)
-analyzePattern ctx var (Variable name) = case name `Map.lookup` ctx of
+  :: VarName
+  -> Bindings
+  -> Int
+  -> Expr
+  -> Stateful (Constraints, Map.Map VarName Int)
+analyzePattern fnName ctx var (Variable name) = case name `Map.lookup` ctx of
   Just (Left sd@(SymData _ _ _ _ _ _ _)) -> if sdNumFields sd /= 0
     then
       error
-      $  "data constructor "
+      $  "in function "
+      ++ show fnName
+      ++ ": data constructor "
       ++ name
       ++ " used with no fields but needs "
       ++ show (sdNumFields sd)
@@ -84,9 +90,9 @@ analyzePattern ctx var (Variable name) = case name `Map.lookup` ctx of
       paramVars <- replicateM (length origParams) newVar
       return ([(ConsV var, ConsT origName (map ConsV paramVars))], Map.empty)
   _ -> return ([], Map.singleton name var)
-analyzePattern _ var (Const _) =
+analyzePattern _ _ var (Const _) =
   return ([(ConsV var, ConsT "Int" [])], Map.empty)
-analyzePattern ctx var expr@(Call _ _) =
+analyzePattern fnName ctx var expr@(Call _ _) =
   let (ctor : args) = reverse $ uncurryExpr expr
   in
     case ctor of
@@ -95,7 +101,9 @@ analyzePattern ctx var expr@(Call _ _) =
           if sdNumFields sd /= length args
             then
               error
-              $  "data constructor "
+              $  "in function "
+              ++ show fnName
+              ++ ": data constructor "
               ++ ctorName
               ++ " used with "
               ++ show (length args)
@@ -111,7 +119,7 @@ analyzePattern ctx var expr@(Call _ _) =
               let fieldConsTypes =
                     map (numberType (`Map.lookup` paramMap)) (sdTypes sd)
               (fieldConses, fieldCtxs) <- mapAndUnzipM
-                (uncurry $ analyzePattern ctx)
+                (uncurry $ analyzePattern fnName ctx)
                 (zip fieldVars args)
               let patternCons =
                     (ConsV var, ConsT origName (map ConsV paramVars))
@@ -137,25 +145,35 @@ analyzePattern ctx var expr@(Call _ _) =
  where
   uncurryExpr (Call lhs rhs) = rhs : uncurryExpr lhs
   uncurryExpr f              = [f]
-analyzePattern _   _   (Case   _ _ ) = error "can't use case in case pattern"
-analyzePattern _   _   (Lambda _ _ ) = error "can't use lambdax in case pattern"
-analyzePattern _   _   (Let _ _ _  ) = error "can't use let in case pattern"
-analyzePattern ctx var (As name pat) = do
-  (cons, binds) <- analyzePattern ctx var pat
+analyzePattern _ _ _ (Case _ _) = error "can't use case in case pattern"
+analyzePattern _ _ _ (Lambda _ _) = error "can't use lambdax in case pattern"
+analyzePattern _ _ _ (Let _ _ _) = error "can't use let in case pattern"
+analyzePattern fnName ctx var (As name pat) = do
+  (cons, binds) <- analyzePattern fnName ctx var pat
   return
     ( cons
     , Map.insertWith
       (\_ _ ->
-        error $ "two bindings for " ++ show name ++ " in same case pattern"
+        error
+          $  "in function "
+          ++ show fnName
+          ++ ": two bindings for "
+          ++ show name
+          ++ " in same case pattern"
       )
       name
       var
       binds
     )
 
-analyzeExpr :: Bindings -> Int -> Expr -> Stateful Constraints
-analyzeExpr ctx var (Variable name) = case name `Map.lookup` ctx of
-  Nothing -> error $ "type checker found free variable " ++ show name
+analyzeExpr :: VarName -> Bindings -> Int -> Expr -> Stateful Constraints
+analyzeExpr fnName ctx var (Variable name) = case name `Map.lookup` ctx of
+  Nothing ->
+    error
+      $  "in function "
+      ++ show fnName
+      ++ ": type checker found free variable "
+      ++ show name
   Just (Left (SymDef _ ty)) -> do
     (labeledType, _) <- autoNumberType ty
     return [(ConsV var, labeledType)]
@@ -168,45 +186,49 @@ analyzeExpr ctx var (Variable name) = case name `Map.lookup` ctx of
     (labeledType, _) <- autoNumberType ctorType
     return [(ConsV var, labeledType)]
   Just (Right existingVar) -> return [(ConsV var, ConsV existingVar)]
-analyzeExpr _   var (Const _     ) = return [(ConsV var, ConsT "Int" [])]
-analyzeExpr ctx var (Call lhs rhs) = do
+analyzeExpr _      _   var (Const _     ) = return [(ConsV var, ConsT "Int" [])]
+analyzeExpr fnName ctx var (Call lhs rhs) = do
   lhsVar  <- newVar
   rhsVar  <- newVar
-  lhsCons <- analyzeExpr ctx lhsVar lhs
-  rhsCons <- analyzeExpr ctx rhsVar rhs
+  lhsCons <- analyzeExpr fnName ctx lhsVar lhs
+  rhsCons <- analyzeExpr fnName ctx rhsVar rhs
   return
     $  (ConsV lhsVar, ConsT "Func" [ConsV rhsVar, ConsV var])
     :  lhsCons
     ++ rhsCons
-analyzeExpr ctx var (Case expr branches) = do
+analyzeExpr fnName ctx var (Case expr branches) = do
   exprVar                     <- newVar
-  exprCons                    <- analyzeExpr ctx exprVar expr
-  (branchConses, branchBinds) <- mapAndUnzipM (analyzePattern ctx exprVar)
-                                              (map fst branches)
+  exprCons                    <- analyzeExpr fnName ctx exprVar expr
+  (branchConses, branchBinds) <- mapAndUnzipM
+    (analyzePattern fnName ctx exprVar)
+    (map fst branches)
   resultConses <- zipWithM
     (\binds result ->
       let
         ctx' = foldr (\(name, rv) -> Map.insert name (Right rv))
                      ctx
                      (Map.toList binds)
-      in  analyzeExpr ctx' var result
+      in  analyzeExpr fnName ctx' var result
     )
     branchBinds
     (map snd branches)
   return $ exprCons ++ concat branchConses ++ concat resultConses
-analyzeExpr ctx var (Lambda arg body) = do
+analyzeExpr fnName ctx var (Lambda arg body) = do
   argVar   <- newVar
   bodyVar  <- newVar
-  bodyCons <- analyzeExpr (Map.insert arg (Right argVar) ctx) bodyVar body
+  bodyCons <- analyzeExpr fnName
+                          (Map.insert arg (Right argVar) ctx)
+                          bodyVar
+                          body
   return $ (ConsV var, ConsT "Func" [ConsV argVar, ConsV bodyVar]) : bodyCons
-analyzeExpr ctx var (Let name val body) = do
+analyzeExpr fnName ctx var (Let name val body) = do
   nameVar <- newVar
   bodyVar <- newVar
   let ctx' = Map.insert name (Right nameVar) ctx
-  valCons  <- analyzeExpr ctx' nameVar val
-  bodyCons <- analyzeExpr ctx' bodyVar body
+  valCons  <- analyzeExpr fnName ctx' nameVar val
+  bodyCons <- analyzeExpr fnName ctx' bodyVar body
   return $ (ConsV var, ConsV bodyVar) : valCons ++ bodyCons
-analyzeExpr ctx var (As _ expr) = analyzeExpr ctx var expr
+analyzeExpr fnName ctx var (As _ expr) = analyzeExpr fnName ctx var expr
 
 expand :: ModAliasResolver -> ConsE -> Stateful ConsE
 expand _        (ConsV var      ) = return $ ConsV var
@@ -338,19 +360,20 @@ checkNoInfiniteTypes name mappings =
 
 typeCheckDecl :: ModResolver -> Decl -> ()
 typeCheckDecl resolver (Def _ name _ expr) =
-  let mappings = flip evalState 0 $ do
-        tlVar <- newVar
-        let SymDef _ ty = fst resolver Map.! name
-        (tlConsType, mapping) <- autoNumberType ty
-        let fixed  = Set.fromList . Map.elems $ mapping
-        let tlCons = (ConsV tlVar, tlConsType)
-        exprConses <- analyzeExpr (Map.map Left (fst resolver)) tlVar expr
-        let expander = expand (snd resolver)
-        constraints <-
-          mapM (\(lhs, rhs) -> (,) <$> expander lhs <*> expander rhs)
-          $ tlCons
-          : exprConses
-        return . solveConstraints name fixed $ constraints
+  let
+    mappings = flip evalState 0 $ do
+      tlVar <- newVar
+      let SymDef _ ty = fst resolver Map.! name
+      (tlConsType, mapping) <- autoNumberType ty
+      let fixed  = Set.fromList . Map.elems $ mapping
+      let tlCons = (ConsV tlVar, tlConsType)
+      exprConses <- analyzeExpr name (Map.map Left (fst resolver)) tlVar expr
+      let expander = expand (snd resolver)
+      constraints <-
+        mapM (\(lhs, rhs) -> (,) <$> expander lhs <*> expander rhs)
+        $ tlCons
+        : exprConses
+      return . solveConstraints name fixed $ constraints
   in  checkNoInfiniteTypes name mappings `seq` ()
 typeCheckDecl _ _ = ()
 

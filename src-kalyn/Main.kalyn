@@ -5,15 +5,17 @@
 
 (def helloWorld (Program Register)
   (Program
-    [(OP MOV (IR 1 RAX))
-     (OP MOV (IR 1 RDI))
-     (OP MOV (MR (memLabel "message") RSI))
-     (OP MOV (IR 14 RDX))
-     (SYSCALL 3)  ; write
-     (OP MOV (IR 60 RAX))
-     (OP MOV (IR 0 RDI))
-     (SYSCALL 1)  ; exit
-     ]
+    (function
+      "main"
+      [(OP MOV (IR 1 RAX))
+       (OP MOV (IR 1 RDI))
+       (OP MOV (MR (memLabelP "message") RSI))
+       (OP MOV (IR 14 RDX))
+       (SYSCALL 3)  ; write
+       (OP MOV (IR 60 RAX))
+       (OP MOV (IR 0 RDI))
+       (SYSCALL 1)  ; exit
+       ])
     []
     [(Pair "message" "Hello, world!\n")]))
 
