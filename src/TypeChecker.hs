@@ -222,11 +222,12 @@ expand resolver (ConsT name args) = case name `Map.lookup` resolver of
 unify
   :: VarName
   -> Set.Set Int
+  -> Set.Set Int
   -> Map.Map Int ConsE
   -> ConsE
   -> ConsE
   -> Stateful (Map.Map Int ConsE)
-unify name _ mappings (ConsT t1 args1) (ConsT t2 args2)
+unify name fixed _ mappings (ConsT t1 args1) (ConsT t2 args2)
   | t1 /= t2
   = error
     $  "in function "
@@ -247,25 +248,39 @@ unify name _ mappings (ConsT t1 args1) (ConsT t2 args2)
     ++ show (length args2)
     ++ " arguments"
   | otherwise
-  = foldr (\(arg1, arg2) mm -> mm >>= \m -> unify name Set.empty m arg1 arg2)
-          (return mappings)
-          (zip args1 args2)
-unify name _ mappings c1@(ConsT _ _) c2@(ConsV _) =
-  unify name Set.empty mappings c2 c1
-unify name seen mappings (ConsV var) rhs = case var `Map.lookup` mappings of
-  Nothing -> return . Map.insert var rhs $ mappings
-  Just (ConsV existing)
-    | existing `Set.member` seen -> return . Map.insert existing rhs $ mappings
-    | otherwise -> unify name
-                         (Set.insert var seen)
-                         mappings
-                         (ConsV existing)
-                         rhs
-  Just existing@(ConsT _ _) -> unify name Set.empty mappings existing rhs
+  = foldr
+    (\(arg1, arg2) mm -> mm >>= \m -> unify name fixed Set.empty m arg1 arg2)
+    (return mappings)
+    (zip args1 args2)
+unify name fixed _ mappings c1@(ConsT _ _) c2@(ConsV _) =
+  unify name fixed Set.empty mappings c2 c1
+unify name fixed seen mappings (ConsV var) rhs = case rhs of
+  (ConsT _ _) | var `Set.member` fixed ->
+    error
+      $  "in function "
+      ++ show name
+      ++ ": can't unify free type parameter with "
+      ++ show rhs
+  _ -> case var `Map.lookup` mappings of
+    Nothing -> return . Map.insert var rhs $ mappings
+    Just (ConsV existing)
+      | existing `Set.member` seen -> return
+      .  Map.insert existing rhs
+      $  mappings
+      | otherwise -> unify name
+                           fixed
+                           (Set.insert var seen)
+                           mappings
+                           (ConsV existing)
+                           rhs
+    Just existing@(ConsT _ _) ->
+      unify name fixed Set.empty mappings existing rhs
 
-solveConstraints :: VarName -> Constraints -> Map.Map Int ConsE
-solveConstraints name =
-  flip evalState 0 . foldM (uncurry . unify name Set.empty) Map.empty . reverse
+solveConstraints :: VarName -> Set.Set Int -> Constraints -> Map.Map Int ConsE
+solveConstraints name fixed =
+  flip evalState 0
+    . foldM (uncurry . unify name fixed Set.empty) Map.empty
+    . reverse
 
 collectTypes :: Map.Map Int ConsE -> Set.Set Int -> Bool -> ConsE -> Set.Set Int
 collectTypes mappings seen topLevel (ConsV var) = if Set.member var seen
@@ -302,17 +317,19 @@ checkNoInfiniteTypes name mappings =
 
 typeCheckDecl :: ModResolver -> Decl -> ()
 typeCheckDecl resolver (Def _ name _ expr) =
-  let constraints = flip evalState 0 $ do
+  let mappings = flip evalState 0 $ do
         tlVar <- newVar
         let SymDef _ ty = fst resolver Map.! name
-        (tlConsType, _) <- autoNumberType ty
+        (tlConsType, mapping) <- autoNumberType ty
+        let fixed  = Set.fromList . Map.elems $ mapping
         let tlCons = (ConsV tlVar, tlConsType)
         exprConses <- analyzeExpr (Map.map Left (fst resolver)) tlVar expr
         let expander = expand (snd resolver)
-        mapM (\(lhs, rhs) -> (,) <$> expander lhs <*> expander rhs)
+        constraints <-
+          mapM (\(lhs, rhs) -> (,) <$> expander lhs <*> expander rhs)
           $ tlCons
           : exprConses
-      mappings = solveConstraints name constraints
+        return . solveConstraints name fixed $ constraints
   in  checkNoInfiniteTypes name mappings `seq` ()
 typeCheckDecl _ _ = ()
 

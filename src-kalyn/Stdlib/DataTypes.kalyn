@@ -22,5 +22,4 @@
 (public data Ordering
   LT EQ GT)
 
-(data (State s a)
-  (State s a))
+(public alias (Ord k) (Func k k Ordering))

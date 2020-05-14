@@ -1,0 +1,41 @@
+(import "../DataTypes.kalyn")
+(import "../Functions.kalyn")
+(import "../Lists.kalyn")
+(import "../Tuples.kalyn")
+(import "Maps.kalyn")
+
+(public alias (Set k)
+  "Ordered set. Embeds a comparison function."
+  (Map k Empty))
+
+(public def setEmpty (Func (Ord k) (Set k))
+  "Create an empty set with the given comparison function."
+  mapEmpty)
+
+(public def setNull (Func (Set k) Bool)
+  "Check if the set is empty (has no elements)."
+  mapNull)
+
+(public def setSize (Func (Set k) Int)
+  "Return the number of elements in the set."
+  mapSize)
+
+(public defn setInsert (Func k (Set k) (Set k))
+  "Insert a key into the set, replacing any existing value that
+   compares equal."
+  (k)
+  (mapInsert k Empty))
+
+(public def setDelete (Func k (Set k) (Set k))
+  "Delete a key from the set if it's present, returning a new set."
+  mapDelete)
+
+(public defn setFromList (Func (Ord k) (List k) (Set k))
+  "Given an unordered list of keys, create a set with the provided
+   comparison function."
+  (cmp)
+  (comp (mapFromList cmp) (map (lambda (k) (Pair k Empty)))))
+
+(public def setToList (Func (Set k) (List k))
+  "Convert a set to a list of its keys in ascending order."
+  (comp (map fst) mapToList))

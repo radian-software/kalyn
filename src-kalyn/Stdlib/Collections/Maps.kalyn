@@ -5,11 +5,9 @@
 (import "../Functions.kalyn")
 (import "../Lists.kalyn")
 
-(alias (Ord k) (Func k k Ordering))
-
 (public data (Map k v)
   "Key-value map using self-balancing tree. Embeds a comparison
-   function for the keys."
+   function for the keys. Kept in sorted order by key value."
   (Map (Ord k) (Node k v)))
 
 (data (Node k v)

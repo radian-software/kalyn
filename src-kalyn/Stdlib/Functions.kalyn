@@ -8,7 +8,7 @@
   (f b a)
   (f a b))
 
-(public defn compose (Func (Func b c) (Func a b) (Func a c))
+(public defn comp (Func (Func b c) (Func a b) (Func a c))
   (f g a)
   (f (g a)))
 

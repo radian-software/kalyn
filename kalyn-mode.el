@@ -132,6 +132,7 @@
           (cl-decf index)
           (setq first-sexp second-sexp)))
       (if (or
+           (and (equal first-sexp "alias") (eq index 3))
            (and (equal first-sexp "data") (eq index 3))
            (and (equal first-sexp "def") (eq index 4))
            (and (equal first-sexp "defn") (eq index 4)))

@@ -88,6 +88,8 @@ parseDecl form = case form of
  where
   parseDecl' pub (RoundList [Symbol "alias", spec, typ]) =
     Alias pub (parseTypeSpec spec) (parseType typ)
+  parseDecl' pub (RoundList [Symbol "alias", spec, StrAtom _, typ]) =
+    Alias pub (parseTypeSpec spec) (parseType typ)
   parseDecl' pub (RoundList (Symbol "class" : spec : members)) =
     let (constraints, innerSpec) = withConstraints parseClassSpec spec
     in  Class

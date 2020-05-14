@@ -24,19 +24,15 @@
      (intercalate ", " (map showInt ints))
      "]"]))
 
-(defn ord (Func Int Int Ordering)
-  (x y)
-  (if (< x y)
-    LT
-    (if (> x y)
-      GT
-      EQ)))
-
 (public def main (IO Empty)
-  (let ((m (mapFromList ord [(Pair 5 Empty)
-                             (Pair 8 Empty)
-                             (Pair 1 Empty)
-                             (Pair 3 Empty)
-                             (Pair 9 Empty)
-                             (Pair 5 Empty)])))
-    (print (append (showIntList (map fst (mapToList m))) "\n"))))
+  (let ((allNums (setFromList ord (iterate (+ 1) 2 98)))
+        (factors (iterate (+ 1) 2 8))
+        (toRemove (concatMap (lambda (f)
+                               (iterate (+ f) (* f 2) (- (/ 100 f) 2)))
+                             factors))
+        (primes (foldr setDelete allNums toRemove)))
+    (print
+      (concat
+       ["Primes:\n"
+        (showIntList (setToList primes))
+        "\n"]))))
