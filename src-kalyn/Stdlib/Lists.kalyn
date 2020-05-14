@@ -68,6 +68,6 @@
   ((Cons fst _))
   fst)
 
-(public defn tail (Func (List a) a)
+(public defn tail (Func (List a) (List a))
   ((Cons _ rst))
   rst)

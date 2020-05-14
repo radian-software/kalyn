@@ -31,5 +31,10 @@
       EQ)))
 
 (public def main (IO Empty)
-  (let ((m (mapInsert 5 17 (mapEmpty ord))))
+  (let ((m (mapFromList ord [(Pair 5 Empty)
+                             (Pair 8 Empty)
+                             (Pair 1 Empty)
+                             (Pair 3 Empty)
+                             (Pair 9 Empty)
+                             (Pair 5 Empty)])))
     (print (showIntList (map fst (mapToList m))))))

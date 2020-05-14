@@ -267,6 +267,39 @@ solveConstraints :: VarName -> Constraints -> Map.Map Int ConsE
 solveConstraints name =
   flip evalState 0 . foldM (uncurry . unify name Set.empty) Map.empty . reverse
 
+collectTypes :: Map.Map Int ConsE -> Set.Set Int -> Bool -> ConsE -> Set.Set Int
+collectTypes mappings seen topLevel (ConsV var) = if Set.member var seen
+  then Set.empty
+  else
+    let more = case var `Map.lookup` mappings of
+          Nothing -> Set.empty
+          Just cons ->
+            collectTypes mappings (Set.insert var seen) topLevel cons
+    in  if topLevel then more else Set.insert var more
+collectTypes mappings seen topLevel (ConsT _ args) =
+  Set.unions
+    . map (collectTypes mappings (if topLevel then Set.empty else seen) False)
+    $ args
+
+checkNoInfiniteTypes :: VarName -> Map.Map Int ConsE -> ()
+checkNoInfiniteTypes name mappings =
+  foldr
+      ( seq
+      . (\var ->
+          if Set.member var
+             . collectTypes mappings Set.empty True
+             . ConsV
+             $ var
+          then
+            error $ "in function " ++ show name ++ ": infinite type"
+          else
+            ()
+        )
+      )
+      ()
+    . Map.keys
+    $ mappings
+
 typeCheckDecl :: ModResolver -> Decl -> ()
 typeCheckDecl resolver (Def _ name _ expr) =
   let constraints = flip evalState 0 $ do
@@ -279,7 +312,8 @@ typeCheckDecl resolver (Def _ name _ expr) =
         mapM (\(lhs, rhs) -> (,) <$> expander lhs <*> expander rhs)
           $ tlCons
           : exprConses
-  in  solveConstraints name constraints `seq` ()
+      mappings = solveConstraints name constraints
+  in  checkNoInfiniteTypes name mappings `seq` ()
 typeCheckDecl _ _ = ()
 
 typeCheckBundle :: Resolver -> Bundle -> ()
