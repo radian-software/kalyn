@@ -20,4 +20,4 @@
     [(Pair "message" "Hello, world!\n")]))
 
 (public def main (IO Empty)
-  (writeFile "out-kalyn-rec/Main" (link "Hello, world!")))
+  (writeFile "out-kalyn-rec/Main" (link (assemble helloWorld))))

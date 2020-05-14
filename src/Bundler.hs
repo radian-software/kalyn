@@ -54,10 +54,11 @@ transitiveImports modules seen (cur : next) result = if cur `elem` seen
         new       = map fst $ filter snd deps
     in  transitiveImports modules (cur : seen) (new ++ next) (cur : result)
 
-readBundle :: (String -> IO [Decl]) -> FilePath -> IO Bundle
-readBundle readDecls filename = do
+readBundle :: IO () -> (String -> IO [Decl]) -> FilePath -> IO Bundle
+readBundle onReadFinished readDecls filename = do
   absFilename <- canonicalizePath filename
   modules     <- readBundle' readDecls [] [absFilename] Map.empty
+  onReadFinished
   return $ Bundle absFilename $ Map.mapWithKey
     (\name (decls, _) ->
       ( decls

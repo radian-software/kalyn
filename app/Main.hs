@@ -79,8 +79,7 @@ readIncrementally inputFilename = do
 compileIncrementally :: String -> IO ()
 compileIncrementally inputFilename = do
   let prefix = getPrefix inputFilename
-  putStrLn "Bundler"
-  bundle <- readBundle readIncrementally inputFilename
+  bundle <- readBundle (putStrLn "Bundler") readIncrementally inputFilename
   overwriteFile (prefix ++ "Bundle") $ T.unpack . pShowNoColor $ bundle
   overwriteFile (prefix ++ "Bundle.kalyn") $ pretty bundle
   putStrLn "Resolver"
