@@ -53,7 +53,7 @@
 
 (public data (Args reg)
   (IR Int32 reg)
-  (IM Int32 reg)
+  (IM Int32 (Mem reg))
   (RR reg reg)
   (MR (Mem reg) reg)
   (RM reg (Mem reg)))
