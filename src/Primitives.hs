@@ -254,18 +254,21 @@ monadPure = return
 
 monadBind :: Stateful VirtualFunction
 monadBind = do
-  monad          <- newTemp
+  firstMonad     <- newTemp
+  secondMonad    <- newTemp
   arg            <- newTemp
   fn             <- newTemp
-  firstCallCode  <- translateCall monad Nothing
+  firstCallCode  <- translateCall firstMonad Nothing
   secondCallCode <- translateCall fn (Just arg)
+  thirdCallCode  <- translateCall secondMonad Nothing
   return $ function
     "bind__uncurried__unmonadified"
-    (  [OP MOV $ MR (getArg 1) monad]
+    (  [OP MOV $ MR (getArg 2) firstMonad]
     ++ firstCallCode
-    ++ [OP MOV $ RR rax arg, OP MOV $ MR (getArg 2) fn]
+    ++ [OP MOV $ RR rax arg, OP MOV $ MR (getArg 1) fn]
     ++ secondCallCode
-    -- we should never actually get here
+    ++ [OP MOV $ RR rax secondMonad]
+    ++ thirdCallCode
     ++ [RET]
     )
 
@@ -300,7 +303,7 @@ monadify numArgs fnName = do
        ]
     ++ concatMap
          (\i ->
-           [ OP MOV $ MR (getArg i) arg
+           [ OP MOV $ MR (getArg $ numArgs + 1 - i) arg
            , OP MOV $ RM arg (getField (i + 1) rax)
            ]
          )

@@ -25,14 +25,4 @@
      "]"]))
 
 (public def main (IO Empty)
-  (let ((allNums (setFromList ord (iterate (+ 1) 2 98)))
-        (factors (iterate (+ 1) 2 8))
-        (toRemove (concatMap (lambda (f)
-                               (iterate (+ f) (* f 2) (- (/ 100 f) 2)))
-                             factors))
-        (primes (foldr setDelete allNums toRemove)))
-    (print
-      (concat
-       ["Primes:\n"
-        (showIntList (setToList primes))
-        "\n"]))))
+  (>>= (print "Hello") (const (print ", world!\n"))))
