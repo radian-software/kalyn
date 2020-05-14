@@ -1,0 +1,238 @@
+(import "Stdlib.kalyn")
+
+(public data Register
+  RAX RCX RDX RBX
+  RSP RBP RSI RDI
+  R8  R9  R10 R11
+  R12 R13 R14 R15
+  RIP)
+
+(public data Temporary
+  (Temporary Int))
+
+(public data VirtualRegister
+  (Physical Register)
+  (Virtual Temporary))
+
+(public alias (RegisterLike reg) (Func Register reg))
+
+(public def fromP (RegisterLike Register)
+  id)
+
+(public def fromV (RegisterLike VirtualRegister)
+  Physical)
+
+(public def rax VirtualRegister (Physical RAX))
+(public def rcx VirtualRegister (Physical RCX))
+(public def rdx VirtualRegister (Physical RDX))
+(public def rbx VirtualRegister (Physical RBX))
+(public def rsp VirtualRegister (Physical RSP))
+(public def rbp VirtualRegister (Physical RBP))
+(public def rsi VirtualRegister (Physical RSI))
+(public def rdi VirtualRegister (Physical RDI))
+(public def r8  VirtualRegister (Physical R8 ))
+(public def r9  VirtualRegister (Physical R9 ))
+(public def r10 VirtualRegister (Physical R10))
+(public def r11 VirtualRegister (Physical R11))
+(public def r12 VirtualRegister (Physical R12))
+(public def r13 VirtualRegister (Physical R13))
+(public def r14 VirtualRegister (Physical R14))
+(public def r15 VirtualRegister (Physical R15))
+(public def rip VirtualRegister (Physical RIP))
+
+(public alias Label String)
+
+(public data Scale
+  Scale1
+  Scale2
+  Scale4
+  Scale8)
+
+(public data (Mem reg)
+  (Mem (Either Label Int32) reg (Maybe (Pair Scale reg))))
+
+(public data (Args reg)
+  (IR Int32 reg)
+  (IM Int32 reg)
+  (RR reg reg)
+  (MR (Mem reg) reg)
+  (RM reg (Mem reg)))
+
+(public data (Arg reg)
+  (R reg)
+  (M (Mem reg)))
+
+(public data BinOp
+  MOV ADD SUB IMUL AND OR XOR CMP)
+
+(public data UnOp
+  NOT NEG INC DEC PUSH POP ICALL)
+
+(public data Jump
+  JMP JE JNE JL JLE JG JGE JB JBE JA JAE CALL)
+
+(public data Shift
+  SHL SAL SHR SAR)
+
+(public data (Instruction reg)
+  (OP BinOp (Args reg))
+  (UN UnOp (Arg reg))
+  (JUMP Jump Label)
+  (MOV64 Int64 reg)
+  (SHIFT (Maybe Word8) Shift reg)
+  (LEA (Mem reg) reg)
+  (IDIV reg)
+  CQTO
+  (PUSHI Int32)
+  RET
+  (SYSCALL Word)
+  (LABEL Label))
+
+(public alias VirtualInstruction (Instruction VirtualRegister))
+(public alias PhysicalInstruction (Instruction Register))
+
+(public defn memLabel (Func (RegisterLike reg) Label (Mem reg))
+  (from name)
+  (Mem (Left name) (from RIP) Nothing))
+
+(public def dataRegisters (List Register)
+  [RAX RCX RDX RBX
+   RSI RDI R8  R9
+   R10 R11 R12 R13
+   R14 R15])
+
+(public def syscallRegisters (List Register)
+  [RAX RDI RSI RDX RCX R8 R9])
+
+(public def callerSavedRegisters (List Register)
+  [RAX RCX RDX RSI RDI
+   R8  R9  R10 R11])
+
+(public def specialRegisters (List Register)
+  [RSP RBP RIP])
+
+(public alias (UseDef reg) (Pair (List reg) (List reg)))
+
+(defn getMemRegisters (Func (Mem reg) (List reg))
+  (mem)
+  (case mem
+    ((Mem _ base Nothing) [base])
+    ((Mem _ base (Just (Pair _ index))) [base index])))
+
+(defn getArgsRegisters (Func BinOp (Args reg) (UseDef reg))
+  (op args)
+  (case (Pair op args)
+    ((Pair CMP (IR _   dst)) (Pair [dst] []))
+    ((Pair _   (IR _   dst)) (Pair [] [dst]))
+    ((Pair _   (IM _   mem)) (Pair (getMemRegisters mem) []))
+    ((Pair MOV (RR src dst)) (Pair [src] [dst]))
+    ((Pair CMP (RR src dst)) (Pair [src, dst] []))
+    ((Pair _   (RR src dst)) (Pair [src, dst] [dst]))
+    ((Pair MOV (MR mem dst)) (Pair (getMemRegisters mem) [dst]))
+    ((Pair CMP (MR mem _  )) (Pair (getMemRegisters mem) []))
+    ((Pair _   (MR mem dst)) (Pair (Cons dst (getMemRegisters mem)) [dst]))
+    ((Pair _   (RM src mem)) (Pair (Cons src (getMemRegisters mem)) []))))
+
+(defn getArgRegisters (Func (RegisterLike reg) UnOp (Arg reg) (UseDef reg))
+  (from op arg)
+  (case (Pair op arg)
+    ((Pair PUSH  (R reg)) (Pair [reg] []))
+    ((Pair ICALL (R reg)) (Pair [reg] [from RAX]))
+    ((Pair POP   (R reg)) (Pair [] [reg]))
+    ((Pair _     (R reg)) (Pair [reg] [reg]))
+    ((Pair ICALL (M mem)) (Pair (getMemRegisters mem) [from RAX]))
+    ((Pair _     (M mem)) (Pair (getMemRegisters mem) []))))
+
+(public defn getRegisters (Func (RegisterLike reg) (Instruction reg) (UseDef reg))
+  (from instr)
+  (case instr
+    ((OP op args) (getArgsRegisters op args))
+    ((UN op arg) (getArgRegisters op arg))
+    ((JUMP CALL _) (Pair [] [from RAX]))
+    ((JUMP _ _) (Pair [] []))
+    ((MOV64 _ dst) (Pair [] [dst]))
+    ((SHIFT Nothing _ dst) (Pair [dst (from RCX)] [dst]))
+    ((SHIFT (Just _) _ dst) (Pair [dst] [dst]))
+    ((LEA mem dst) (Pair (getMemRegisters mem) [dst]))
+    ((IDIV src) (Pair [src (from RAX) (from RDX)]
+                      [(from RAX) (from RDX)]))
+    (CQTO (Pair [from RAX] [from RDX]))
+    ((PUSHI _) (Pair [] []))
+    (RET (Pair [from RAX] []))
+    ((SYSCALL n)
+     (if (>=Int (+ n 1) (length syscallRegisters))
+       (error "too many arguments for system call\n")
+       (Pair (map from (take (+ n 1) syscallRegisters))
+             (map from callerSavedRegisters))))
+    ((LABEL _) (Pair [] []))))
+
+(public data JumpType
+  Straightline
+  (Jump Label)
+  (Branch Label)
+  Return)
+
+(public defn getJumpType (Function (Instruction reg) JumpType)
+  (instr)
+  (case instr
+    ((JUMP JMP label) (Jump label))
+    ((JUMP CALL "crash") Return)
+    ((JUMP CALL _) Straightline)
+    ((JUMP _ label) (Branch label))
+    (RET Return)
+    (_ Straightline)))
+
+(defn mapMem (Func (Func reg1 reg2) (Mem reg1) (Mem reg2))
+  (func (Mem disp base msi))
+  (Mem
+    disp
+    (func base)
+    (case msi
+      (Nothing Nothing)
+      ((Just (Pair scale index))
+       (Just (Pair scale (func index)))))))
+
+(defn mapArgs (Func (Func reg1 reg2)) (Args reg1) (Args reg2)
+  (func args)
+  (case args
+    ((IR imm reg) (IR imm (func reg)))
+    ((IM imm mem) (IM imm (mapMem func mem)))
+    ((RR src dst) (RR (func src) (func dst)))
+    ((MR mem reg) (MR (mapMem func mem) (func reg)))
+    ((RM reg mem) (RM (func reg) (mapMem func mem)))))
+
+(defn mapArg (Func (Func reg1 reg2) (Arg reg1) (Arg reg2))
+  (func arg)
+  (case arg
+    ((R reg) (R (func reg)))
+    ((M mem) (M (mapMem func mem)))))
+
+(public defn mapInstr (Func (Func reg1 reg2) (Instruction reg1) (Instruction reg2))
+  (func instr)
+  (case instr
+    ((OP op args) (OP op (mapArgs func args)))
+    ((UN op arg) (UN op (mapArg func arg)))
+    ((JUMP op label) (JUMP op label))
+    ((MOV64 imm reg) (MOV64 imm (func reg)))
+    ((SHIFT amt shift reg) (SHIFT amt shift (func reg)))
+    ((LEA mem reg) (LEA (mapMem func mem) (func reg)))
+    ((IDIV reg) (IDIV (func reg)))
+    (CQTO CQTO)
+    ((PUSHI imm) (PUSHI imm))
+    (RET RET)
+    ((SYSCALL n) (SYSCALL n))
+    ((LABEL name) (LABEL name))))
+
+(public data (Function reg)
+  (Function Int Label (List (Instruction reg))))
+
+(public def function (Func Label (List (Instruction reg)) (Function reg))
+  (Function 0))
+
+(public alias VirtualFunction (Function VirtualRegister))
+(public alias PhysicalFunction (Function Register))
+
+(public alias Datum (Pair Label Bytes))
+
+(public data (Program reg)
+  (Program (Function reg) (List (Function reg)) (List Datum)))

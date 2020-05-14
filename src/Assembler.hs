@@ -285,7 +285,6 @@ compileInstr labels pc instr =
                 SHR -> (0xd3, 5)
                 SAR -> (0xd3, 7)
           in  opInstr [op] dst (Left ext) Nothing
-        MOV64 imm dst -> compressedInstr64 0xb8 dst (Just imm)
         SHIFT (Just amt) shift dst ->
           let (op, ext) = case shift of
                 SHL -> (0xc1, 4)
@@ -293,6 +292,7 @@ compileInstr labels pc instr =
                 SHR -> (0xc1, 5)
                 SAR -> (0xc1, 7)
           in  opInstr8U [op] dst (Left ext) (Just amt)
+        MOV64 imm dst -> compressedInstr64 0xb8 dst (Just imm)
         LEA (Mem disp base msi) dst ->
           memInstr [0x8d] base msi (fromDisp disp) (Right dst) Nothing
         IDIV src  -> opInstr [0xf7] src (Left 7) Nothing

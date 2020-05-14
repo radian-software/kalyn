@@ -1,0 +1,376 @@
+(import "Assembly.kalyn")
+(import "Stdlib.kalyn")
+
+;; https://www.codeproject.com/Articles/662301/x86-Instruction-Encoding-Revealed-Bit-Twiddling-fo
+;; https://wiki.osdev.org/X86-64_Instruction_Encoding
+;; http://ref.x86asm.net/index.html
+
+(data Mod
+  ModReg
+  ModMem
+  ModPC)
+
+(data Reg
+  (Reg Register)
+  (RegExt Word8))
+
+(data RM
+  (RMReg Register)
+  RMSIB
+  RMPC)
+
+(defn regCode (Func Register (Pair Bool Word8))
+  (reg)
+  (case reg
+    (RAX (Pair False 0x0))
+    (RCX (Pair False 0x1))
+    (RDX (Pair False 0x2))
+    (RBX (Pair False 0x3))
+    (RSP (Pair False 0x4))
+    (RBP (Pair False 0x5))
+    (RSI (Pair False 0x6))
+    (RDI (Pair False 0x7))
+    (R8  (Pair True  0x0))
+    (R9  (Pair True  0x1))
+    (R10 (Pair True  0x2))
+    (R11 (Pair True  0x3))
+    (R12 (Pair True  0x4))
+    (R13 (Pair True  0x5))
+    (R14 (Pair True  0x6))
+    (R15 (Pair True  0x7))
+    (RIP (error "can't use %rip here"))))
+
+(defn rex (Func (Maybe Register) (Maybe Register) (Maybe Register) Word8)
+  (reg rm index)
+  (foldr
+    | 0x48
+    [(case (fst (regCode reg))
+       ((Just True) 0x4)  ; REX.R
+       (_ 0))
+     (case (fst (regCode rm))
+       ((Just True) 0x1)  ; REX.B
+       (_ 0))
+     (case (fst (regCode index))
+       ((Just True) 0x2)  ; REX.X
+       (_ 0))]))
+
+(defn modRM (Func Mod Reg RM Word8)
+  (modOpt reg rm)
+  (let ((modBits (case modOpt
+                   (ModReg 0x3)
+                   (ModMem 0x2)
+                   (ModPC  0x0)))
+        (regBits (case reg
+                   ((Reg r) (snd (regCode r)))
+                   ((RegExt b) b)))
+        (rmBits (case rm
+                  ((RMReg r) (snd (regCode r)))
+                  (RMSIB 0x4)
+                  (RMPC 0x5))))
+    (foldr
+      | 0
+      [(shl modBits 6)
+       (shl regBits 3)
+       rmBits])))
+
+(defn sib (Func Register (Maybe (Pair Scale Register)) Word8)
+  (base msi)
+  (let ((scaleBits
+         (case msi
+           ((Just (Pair Scale1 _)) 0x0)
+           ((Just (Pair Scale2 _)) 0x1)
+           ((Just (Pair Scale4 _)) 0x2)
+           ((Just (Pair Scale8 _)) 0x3)
+           ( Nothing               0x0)))
+        (indexBits
+         (case msi
+           ((Just (Pair _ r)) (snd (regCode r)))
+           (Nothing (snd (regCode RSP)))))
+        (baseBits
+         (snd (regCode base))))
+    (foldr
+      | 0
+      [(shl scaleBits 6)
+       (shl indexBits 3)
+       baseBits])))
+
+(defn memInstr (Func
+                 (List Word8)
+                 Register
+                 (Maybe (Pair Scale Register))
+                 Int32
+                 (Either Word8 Register)
+                 (Maybe Int32)
+                 Bytes)
+  (opcode base msi disp other imm)
+  (let ((rexBits (rex
+                   (case other
+                     ((Right r) (Just r))
+                     (_ Nothing))
+                   (case base
+                     ((RIP Nothing)
+                      (_ (Just base))))
+                   (case (Pair base msi)
+                     ((Pair RIP (Just _))
+                      (error "can't use scale with %rip"))
+                     ((Pair RIP Nothing) Nothing)
+                     (_ (case msi
+                          ((Just (Pair _ r)) (Just r))
+                          (Nothing (Just RSP)))))))
+        (modRMBits (modRM
+                     (case base
+                       (RIP ModPC)
+                       (_ ModMem))
+                     (case other
+                       ((Right r) (Reg r))
+                       ((Left ext) (RegExt ext)))
+                     (case base
+                       (RIP RMPC)
+                       (_ RMSIB))))
+        (maybeSIB (case base
+                    (RIP Null)
+                    (_ (word8 (sib base msi))))))
+    (concat
+      [(word8 rexBits)
+       (concat (map word8 opcode))
+       (word8 modRMBits)
+       maybeSIB
+       (int32 disp)
+       (case imm
+         ((Just imm) (int32 imm))
+         (_ Null))])))
+
+(defn opInstr* (Func
+                 (Func imm Bytes)
+                 (List Word8)
+                 Register
+                 (Either Word8 Register)
+                 (Maybe imm)
+                 Bytes)
+  (encodeImm opcode main other mimm)
+  (let ((rexBits (rex
+                   (case other
+                     ((Right r) (Just r))
+                     (_ Nothing))
+                   (Just main)
+                   Nothing))
+        (modRMBits (modRM
+                     ModReg
+                     (case other
+                       ((Left ext) (RegExt ext))
+                       ((Right r) (Reg r)))
+                     (RMReg main))))
+    (concat
+      [(word8 rexBits)
+       (concat (map word8 opcode))
+       (word8 modRMBits)
+       (case mimm
+         (Nothing Null)
+         ((Just imm) (encodeImm imm)))])))
+
+(def opInstr (Func
+               (List Word8)
+               Register
+               (Either Word8 Register)
+               (Maybe Int32)
+               Bytes)
+  (opInstr* int32))
+
+(def opInstr8U (Func
+                 (List Word8)
+                 Register
+                 (Either Word8 Register)
+                 (Maybe Word8)
+                 Bytes)
+  (opInstr* word8))
+
+(defn compressedInstr64 (Func Word8 Register (Maybe Int64) Bytes)
+  (opcode reg mimm)
+  (concat
+    [(word8 (rex Nothing (Just reg) Nothing))
+     (word8 (+ opcode (snd (regCode reg))))
+     (case mimm
+       (Nothing Null)
+       ((Just imm) (int64 imm)))]))
+
+(defn plainInstr (Func (List Word8) Bytes)
+  (opcode)
+  (concat (map word8 opcode)))
+
+(defn plainInstr64 (Func (List Word8) Bytes)
+  (opcode)
+  (concat
+    (Cons
+      (rex Nothing Nothing Nothing)
+      (map word8 opcode))))
+
+(defn immInstr (Func (List Word8) Int32 Bytes)
+  (opcode rel)
+  (concat
+    [(concat (map word8 opcode))
+     (int32 rel)]))
+
+(defn compileInstr (Func (Map Label Word32) Word32 PhysicalInstruction Bytes)
+  (labels pc instr)
+  (let ((getOffset (lambda (label)
+                     (case (mapLookup label labels)
+                       (Nothing
+                        (error
+                          (concat
+                            ["no such label " label])))
+                       ((Just labelOffset)
+                        (- labelOffset pc)))))
+        (fromDisp (lambda (disp)
+                    (case disp
+                      ((Left label) (getOffset label))
+                      ((Right imm) imm)))))
+    (case instr
+      ((OP op args)
+       (let ((memDisallowed
+              "cannot imulq into memory address")
+             ((Quad immOp immExt stdOp memOp)
+              (case op
+                (MOV  (Quad [0xc7] (Just 0 ) [0x8b     ] [0x89]))
+                (ADD  (Quad [0x81] (Just 0 ) [0x03     ] [0x01]))
+                (SUB  (Quad [0x81] (Just 5 ) [0x2b     ] [0x29]))
+                (IMUL (Quad [0x69]  Nothing  [0x0f 0xaf] [    ]))
+                (AND  (Quad [0x81] (Just 4 ) [0x23     ] [0x21]))
+                (OR   (Quad [0x81] (Just 1 ) [0x0b     ] [0x09]))
+                (XOR  (Quad [0x81] (Just 6 ) [0x33     ] [0x31]))
+                (CMP  (Quad [0x81] (Just 7 ) [0x3b     ] [0x39])))))
+         (case args
+           ((IR imm dst)
+            (opInstr
+              immOp
+              dst
+              (case immExt
+                (Nothing (Right dst))
+                ((Just ext) (Left ext)))
+              (Just imm)))
+           ((IM imm (Mem disp base msi))
+            (memInstr
+              immOp
+              base
+              msi
+              (fromDisp disp)
+              (case immExt
+                (Nothing (error memDisallowed))
+                ((Just immExt) (Left immExt)))
+              (Just imm)))
+           ((RR src dst)
+            (opInstr stdOp src (Right dst) Nothing))
+           ((MR (Mem disp base msi) dst)
+            (memInstr
+              stdOp
+              base
+              msi
+              (fromDisp disp)
+              (Right dst)
+              Nothing))
+           ((RM src (Mem disp base msi))
+            (case immExt
+              ((Just _)
+               (memInstr
+                 memOp
+                 base
+                 msi
+                 (fromDisp disp)
+                 (Right src)
+                 Nothing))
+              (Nothing (error memDisallowed)))))))
+      ((UN op arg)
+       (let (((Pair opcode ext)
+              (case op
+                (NOT   (Pair [0xf7] 2))
+                (NEG   (Pair [0xf7] 3))
+                (INC   (Pair [0xff] 0))
+                (DEC   (Pair [0xff] 1))
+                (PUSH  (Pair [0xff] 6))
+                (POP   (Pair [0x8f] 0))
+                (ICALL (Pair [0xff] 2)))))
+         (case arg
+           ((R reg) (opInstr opcode reg (Left ext) Nothing))
+           ((M (Mem disp base msi))
+            (memInstr
+              opcode
+              base
+              msi
+              (fromDisp disp)
+              (Left ext)
+              Nothing)))))
+      ((JUMP op label)
+       (let ((opcode (case op
+                       (JMP  [0xe9     ])
+                       (JE   [0x0f 0x84])
+                       (JNE  [0x0f 0x85])
+                       (JL   [0x0f 0x8c])
+                       (JLE  [0x0f 0x8e])
+                       (JG   [0x0f 0x8f])
+                       (JGE  [0x0f 0x8d])
+                       (JB   [0x0f 0x82])
+                       (JBE  [0x0f 0x86])
+                       (JA   [0x0f 0x87])
+                       (JAE  [0x0f 0x83])
+                       (CALL [0xe8     ]))))
+         (immInstr opcode (getOffset label))))
+      ((SHIFT Nothing shift dst)
+       (let (((Pair op ext)
+              (case shift
+                (SHL (Pair 0xd3 4))
+                (SAL (Pair 0xd3 6))
+                (SHR (Pair 0xd3 5))
+                (SAR (Pair 0xd3 7)))))
+         (opInstr [op] dst (Left ext) Nothing)))
+      ((SHIFT (Just amt) shift dst)
+       (let (((Pair op ext)
+              (case shift
+                (SHL (Pair 0xc1 4))
+                (SAL (Pair 0xc1 6))
+                (SHR (Pair 0xc1 5))
+                (SAR (Pair 0xc1 7)))))
+         (opInstr8U [op] dst (Left ext) (Just amt))))
+      ((MOV64 imm dst)
+       (compressedInstr64 0xb8 dst (Just imm)))
+      ((LEA (Mem disp base msi) dst)
+       (memInstr [0x8d] base msi (fromDisp disp) (Right dst) Nothing))
+      ((IDIV src)
+       (opInstr [0xf7] src (Left 7) Nothing))
+      (CQTO (plainInstr64 [0x99]))
+      ((PUSHI imm) (immInstr [0x68] imm))
+      (RET (plainInstr [0xc3]))
+      ((SYSCALL _) (plainInstr [0x0f 0x05]))
+      ((LABEL _) Null))))
+
+(defn fnInstrs (Func (Function reg) (List (Instruction reg)))
+  ((Function _ name instrs))
+  (Cons (SYMBOL name) instrs))
+
+(public defn (Func
+               (Program Register)
+               (Pair Bytes Bytes))
+  ((Program main fns datums))
+  (let ((allInstrs (append (fnInstrs main) (concatMap fnInstrs fns)))
+        (binInstrs
+         (fixedPoint
+           ==ListString
+           (replicate (length allInstrs) Null)
+           (lambda (binInstrs)
+             (let ((codeOffsets
+                    (scanl + 0 (map length binInstrs)))
+                   (dataOffsets
+                    (scanl + (last codeOffsets) (map (comp length snd) datums)))
+                   (labels
+                    (foldr
+                      (lambda ((Pair label offset) labels)
+                        (mapInsert label offset labels))
+                      (foldr
+                        (lambda ((Pair instr offset) labels)
+                          ((LABEL name)
+                           (mapInsert name offset labels))
+                          (_ labels))
+                        (mapEmpty compareString)
+                        (zip allInstrs codeOffsets))
+                      (zip (map fst datums) dataOffsets))))
+               (zipWith (compileInstr labels) (tail codeOffsets) allInstrs))))))
+    (concat
+      (append binInstrs (map snd datums)))))

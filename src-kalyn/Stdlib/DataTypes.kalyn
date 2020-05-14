@@ -11,13 +11,22 @@
 (public data (Maybe a)
   Nothing (Just a))
 
+(public data (Either l r)
+  (Left l) (Right r))
+
 (public data (Pair a b)
   (Pair a b))
+
+(public data (Triplet a b c)
+  (Triplet a b c))
+
+(public data (Quad a b c d)
+  (Quad a b c d))
 
 (public data (List a)
   Null (Cons a (List a)))
 
-(public data Char (Char Int))
+(public data Char (Char Word8))
 
 (public alias String (List Char))
 
@@ -27,3 +36,21 @@
 (public alias (Eq a) (Func a a Bool))
 (public alias (Ord a) (Func a a Ordering))
 (public alias (Show a) (Func a String))
+
+;; We only have one size of integer really, but specifying the
+;; intended width is nice for documentary purposes.
+
+(public alias Int8  Int)
+(public alias Int16 Int)
+(public alias Int32 Int)
+(public alias Int64 Int)
+
+(public alias Word   Int)
+(public alias Word8  Int)
+(public alias Word16 Int)
+(public alias Word32 Int)
+(public alias Word64 Int)
+
+;; Same for strings...
+
+(public alias Bytes String)

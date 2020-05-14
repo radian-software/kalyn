@@ -1,22 +1,22 @@
 (import "Stdlib.kalyn")
 
-(defn bytes8 (Func Int String)
+(defn bytes8 (Func Word8 Bytes)
   (v)
   [(Char v)])
 
-(defn bytes16 (Func Int String)
+(defn bytes16 (Func Word16 Bytes)
   (v)
   [(Char      v   )
    (Char (shr v 8))])
 
-(defn bytes32 (Func Int String)
+(defn bytes32 (Func Word32 Bytes)
   (v)
   [(Char      v    )
    (Char (shr v 8) )
    (Char (shr v 16))
    (Char (shr v 24))])
 
-(defn bytes64 (Func Int String)
+(defn bytes64 (Func Word64 Bytes)
   (v)
   [(Char      v    )
    (Char (shr v 8) )
@@ -26,6 +26,18 @@
    (Char (shr v 40))
    (Char (shr v 48))
    (Char (shr v 56))])
+
+(def int8 (Func Int8 Bytes)
+  word8)
+
+(def int16 (Func Int16 Bytes)
+  word16)
+
+(def int32 (Func Int32 Bytes)
+  word32)
+
+(def int64 (Func Int64 Bytes)
+  word64)
 
 (public defn fixedPoint (Func (Eq a) a (Func a a) a)
   "Compute the least fixed point of a function. Given an equality

@@ -4,7 +4,7 @@
 ;; https://refspecs.linuxfoundation.org/elf/elf.pdf
 ;; see page 20
 
-(def elfIdent String
+(def elfIdent Bytes
   "The ELF magic header."
   (concat
     [(bytes8 0x7f)              ; magic bytes
@@ -16,7 +16,7 @@
 
 ;; see page 18; for architecture codes see
 ;; <https://opensource.apple.com/source/dtrace/dtrace-90/sys/elf.h>
-(defn elfHeader (Func Int Int String)
+(defn elfHeader (Func Int Int Bytes)
   "Given meta-information about the ELF header, compute the main ELF
    header."
   (elfHeaderLength programHeaderLength)
@@ -38,7 +38,7 @@
        (bytes16 0)])))                ; index of string table in section header, unused
 
 ;; see page 40
-(defn programHeader (Func Int Int Int String)
+(defn programHeader (Func Int Int Int Bytes)
   "Given meta-information about the ELF header, compute the program
    header. It only has a code section."
   (elfHeaderLength programHeaderLength imageSize)
@@ -53,7 +53,7 @@
        (bytes64 imageSize)    ; number of bytes to reserve in memory
        (bytes64 0)])))        ; alignment, none needed
 
-(public defn link (Func String String)
+(public defn link (Func Bytes Bytes)
   "Given the combined code and data sections, wrap them in an ELF
    header."
   (code)

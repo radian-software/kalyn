@@ -80,3 +80,59 @@
   (if (<=Int num 0)
     []
     (Cons start (iterate func (func start) (- num 1)))))
+
+(public defn findIndices (Func (Func a Bool) (List a) (List Int))
+  (pred)
+  (let ((findIndices (lambda (idx elts)
+                       (case elts
+                         (Null Null)
+                         ((Cons elt elts)
+                          (if (pred elt)
+                            (Cons idx (findIndices (+ idx 1) elts))
+                            (findIndices (+ idx 1) elts)))))))
+    (findIndices 0)))
+
+(public defn findIndex (Func (Func a Bool) (List a) Int)
+  (pred)
+  (comp head (findIndices pred)))
+
+(public defn take (Func Int (List a) (List a))
+  (n elts)
+  (if (<=Int n 0)
+    Null
+    (case elts
+      (Null Null)
+      ((Cons fst rst)
+       (Cons fst (take (- n 1) rst))))))
+
+(public defn drop (Func Int (List a) (List a))
+  (n elts)
+  (if (<=Int n 0)
+    elts
+    (case elts
+      (Null Null)
+      ((Cons fst rst)
+       (drop (- n 1) rst)))))
+
+(public defn scanl (Func (Func b a b) b (List a) (List b))
+  (f q ls)
+  (Cons q (case ls
+            (Null Null)
+            ((Cons x xs)
+             (scanl f (f q x) xs)))))
+
+(public defn zipWith (Func (Func a b c) (List a) (List b) (List c))
+  (func as bs)
+  (case (Pair as bs)
+    ((Pair (Cons a as) (Cons b bs))
+     (Cons (func a b) (zipWith func as bs)))
+    (_ Null)))
+
+(public def zip (Func (List a) (List b) (List (Pair a b)))
+  (zipWith Pair))
+
+(public defn last (Func (List a) a)
+  (elts)
+  (case elts
+    ((Cons elt Null) elt)
+    ((Cons _ rst) (last rst))))

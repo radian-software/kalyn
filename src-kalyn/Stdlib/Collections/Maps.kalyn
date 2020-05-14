@@ -71,6 +71,21 @@
      (Branch k1 v1 d (Branch k v (- (- d (size r1)) 1) l l1) r1))
     (_ (error "tree corruption\n"))))
 
+;; XXX: Splay trees are really not appropriate for the implementation
+;; because we need to be able to do a lookup without modifying the
+;; tree. Workaround for now is to just not splay on a lookup and hope
+;; the amortized analysis doesn't break too badly in practice.
+(public defn mapLookup (Func k (Map k v) (Maybe v))
+  "Try to look up the value for a key. Return Nothing if the key is
+   not present."
+  (k (Map cmp t))
+  (case (lookup cmp k t)
+    (Leaf Nothing)
+    ((Branch k* v _ _ _ _)
+     (case (cmp k k*)
+       (EQ (Just v))
+       (_ Nothing)))))
+
 (public defn mapInsert (Func k v (Map k v) (Map k v))
   "Insert a key-value pair into the map, replacing the existing
    mapping if one exists."

@@ -7,3 +7,18 @@
     (if (>Int x y)
       GT
       EQ)))
+
+(public defn compareString (Ord String)
+  (s1 s2)
+  (case (Pair s1 s2)
+    ((Pair Null Null)
+     EQ)
+    ((Pair Null (Cons _ _))
+     LT)
+    ((Pair (Cons _ _) Null)
+     GT)
+    ((Pair (Cons (Char c1) r1) (Cons (Char c2) r2))
+     (case (compareInt c1 c2)
+       (LT LT)
+       (GT GT)
+       (EQ (compareString r1 r2))))))

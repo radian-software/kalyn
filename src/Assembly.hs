@@ -117,15 +117,6 @@ data Jump = JMP | JE | JNE | JL | JLE | JG | JGE | JB | JBE | JA | JAE | CALL
 
 data Shift = SHL | SAL | SHR | SAR
 
-fromImm :: Args reg -> Bool
-fromImm (IR _ _) = True
-fromImm (IM _ _) = True
-fromImm _        = False
-
-fromMem :: Args reg -> Bool
-fromMem (MR _ _) = True
-fromMem _        = False
-
 -- reg is either Register or VisualRegister. We use AT&T syntax.
 data Instruction reg = OP BinOp (Args reg)
                      | UN UnOp (Arg reg)
@@ -258,17 +249,16 @@ getMemRegisters (Mem _ base Nothing          ) = [base]
 getMemRegisters (Mem _ base (Just (_, index))) = [base, index]
 
 getArgsRegisters :: BinOp -> Args reg -> ([reg], [reg])
-getArgsRegisters op (IR _ dst) | op == CMP = ([dst], [])
-                               | otherwise = ([], [dst])
-getArgsRegisters _ (IM _ mem) = (getMemRegisters mem, [])
-getArgsRegisters op (RR src dst) | op == MOV = ([src], [dst])
-                                 | op == CMP = ([src, dst], [])
-                                 | otherwise = ([src, dst], [dst])
-getArgsRegisters op (MR mem dst)
-  | op == MOV = (getMemRegisters mem, [dst])
-  | op == CMP = (getMemRegisters mem, [])
-  | otherwise = (dst : getMemRegisters mem, [dst])
-getArgsRegisters _ (RM src mem) = (src : getMemRegisters mem, [])
+getArgsRegisters CMP (IR _   dst) = ([dst], [])
+getArgsRegisters _   (IR _   dst) = ([], [dst])
+getArgsRegisters _   (IM _   mem) = (getMemRegisters mem, [])
+getArgsRegisters MOV (RR src dst) = ([src], [dst])
+getArgsRegisters CMP (RR src dst) = ([src, dst], [])
+getArgsRegisters _   (RR src dst) = ([src, dst], [dst])
+getArgsRegisters MOV (MR mem dst) = (getMemRegisters mem, [dst])
+getArgsRegisters CMP (MR mem _  ) = (getMemRegisters mem, [])
+getArgsRegisters _   (MR mem dst) = (dst : getMemRegisters mem, [dst])
+getArgsRegisters _   (RM src mem) = (src : getMemRegisters mem, [])
 
 getArgRegisters :: RegisterLike reg => UnOp -> Arg reg -> ([reg], [reg])
 getArgRegisters PUSH  (R reg) = ([reg], [])

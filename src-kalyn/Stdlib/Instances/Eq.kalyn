@@ -15,3 +15,13 @@
   (and
     (==String l1 l2)
     (==String r1 r2)))
+
+(public defn ==ListString (Eq (List String))
+  (l1 l2)
+  (case (Pair l1 l2)
+    ((Pair Null Null)
+     True)
+    ((Pair (Cons f1 r1) (Cons f2 r2))
+     (and (==String f1 f2)
+          (==ListString r1 r2)))
+    (_ False)))
