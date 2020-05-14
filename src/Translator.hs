@@ -9,6 +9,7 @@ import           Control.Monad.State
 import           Data.List
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe
+import qualified Data.Set                      as Set
 import           Prelude                 hiding ( mod )
 
 import           AST
@@ -32,18 +33,18 @@ withBinding :: String -> VirtualRegister -> Context -> Context
 withBinding name temp ctx =
   Context (Map.insert name (Right temp) (bindings ctx)) (fnName ctx)
 
-freeVariables :: Expr -> [String]
-freeVariables (Variable name) = [name]
-freeVariables (Const    _   ) = []
-freeVariables (Call lhs rhs ) = freeVariables lhs ++ freeVariables rhs
+freeVariables :: Expr -> Set.Set String
+freeVariables (Variable name) = Set.singleton name
+freeVariables (Const    _   ) = Set.empty
+freeVariables (Call lhs rhs ) = freeVariables lhs `Set.union` freeVariables rhs
 freeVariables (Case arg branches) =
-  freeVariables arg
-    ++ concatMap (\(pat, expr) -> freeVariables expr \\ freeVariables pat)
-                 branches
-freeVariables (Lambda arg body) = freeVariables body \\ [arg]
+  Set.unions
+    $ freeVariables arg
+    : map (\(pat, expr) -> freeVariables expr Set.\\ freeVariables pat) branches
+freeVariables (Lambda arg body) = Set.delete arg (freeVariables body)
 freeVariables (Let name val body) =
-  freeVariables val ++ (freeVariables body \\ [name])
-freeVariables (As name expr) = freeVariables expr \\ [name]
+  freeVariables val `Set.union` Set.delete name (freeVariables body)
+freeVariables (As name expr) = Set.delete name (freeVariables expr)
 
 translateVar :: Context -> VirtualRegister -> String -> [VirtualInstruction]
 translateVar ctx dst name = case Map.lookup name (bindings ctx) of
@@ -211,7 +212,7 @@ translateExpr ctx dst (Case arg branches) = do
     )
 translateExpr ctx dst form@(Lambda name body) = do
   temp <- newTemp
-  let possibleVars = nub (freeVariables form)
+  let possibleVars = Set.toList . freeVariables $ form
   let vars = mapMaybe
         (\var -> case (var, Map.lookup var (bindings ctx)) of
           (_, Just (Right reg)) | var /= name -> Just (var, reg)

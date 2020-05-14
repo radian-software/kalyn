@@ -40,13 +40,14 @@ tryAllocateFunctionRegs
   -> Either [Temporary] Allocation
 tryAllocateFunctionRegs liveness spillBlacklist =
   let
-    allRegs =
-      nub
+    allRegs = Set.toList
+      (      Set.fromList
           ( concatMap
               (\il -> Set.toList (instrUsed il) ++ Set.toList (instrDefined il))
           $ Map.elems liveness
           )
-        \\ map fromRegister specialRegisters
+      Set.\\ Set.fromList (map fromRegister specialRegisters)
+      )
     intervalMap = Map.fromList
       $ map (\reg -> (reg, computeLivenessInterval liveness reg)) allRegs
     disallowed = Map.mapWithKey
