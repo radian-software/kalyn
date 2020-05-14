@@ -39,4 +39,4 @@
                              (Pair 3 Empty)
                              (Pair 9 Empty)
                              (Pair 5 Empty)])))
-    (print (showIntList (map fst (mapToList m))))))
+    (print (append (showIntList (map fst (mapToList m))) "\n"))))
