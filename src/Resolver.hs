@@ -71,29 +71,32 @@ sanitizeModuleNames fullNames =
   in  Map.fromList $ zip fullNames (bestXForm fullNames)
 
 -- for now, doesn't handle Derive or Instance
-getDeclSymbols :: Decl -> [Symbol]
-getDeclSymbols (Data _ typeSpec ctors) = zipWith
-  (\(name, types) idx -> SymData { sdName      = name
-                                 , sdCtorIdx   = idx
-                                 , sdNumFields = length types
-                                 , sdNumCtors  = length ctors
-                                 , sdBoxed     = shouldBox ctors
-                                 , sdTypeSpec  = typeSpec
-                                 , sdTypes     = types
-                                 }
-  )
-  ctors
-  (iterate (+ 1) 0)
-getDeclSymbols (Def _ name t _) = [SymDef name t]
-getDeclSymbols _                = []
+getDeclSymbols :: Bool -> Decl -> [Symbol]
+getDeclSymbols isMain (Data pub typeSpec ctors) = if isMain || pub
+  then zipWith
+    (\(name, types) idx -> SymData { sdName      = name
+                                   , sdCtorIdx   = idx
+                                   , sdNumFields = length types
+                                   , sdNumCtors  = length ctors
+                                   , sdBoxed     = shouldBox ctors
+                                   , sdTypeSpec  = typeSpec
+                                   , sdTypes     = types
+                                   }
+    )
+    ctors
+    (iterate (+ 1) 0)
+  else []
+getDeclSymbols isMain (Def pub name t _) = [ SymDef name t | isMain || pub ]
+getDeclSymbols _      _                  = []
 
-getDeclTypes :: Decl -> [TypeName]
-getDeclTypes (Data _ (TypeSpec name _) _) = [name]
-getDeclTypes _                            = []
+getDeclTypes :: Bool -> Decl -> [TypeName]
+getDeclTypes isMain (Data pub (TypeSpec name _) _) = [ name | isMain || pub ]
+getDeclTypes _      _                              = []
 
-getDeclAliases :: Decl -> [(TypeSpec, Type)]
-getDeclAliases (Alias _ typeSpec t) = [(typeSpec, t)]
-getDeclAliases _                    = []
+getDeclAliases :: Bool -> Decl -> [(TypeSpec, Type)]
+getDeclAliases isMain (Alias pub typeSpec t) =
+  [ (typeSpec, t) | isMain || pub ]
+getDeclAliases _ _ = []
 
 mangleWith :: String -> String -> String
 mangleWith modAbbr name = "__" ++ modAbbr ++ "__" ++ sanitize name
@@ -114,9 +117,9 @@ resolveBundle (Bundle _ mmap) =
                     let modAbbr = modNames Map.! mod
                         decls   = fst . (mmap Map.!) $ mod
                     in  map (\name -> (name, mangleWith modAbbr name))
-                          $  concatMap getDeclTypes decls
+                          $  concatMap (getDeclTypes (mod == mainMod)) decls
                           ++ ( map (\(TypeSpec name _, _) -> name)
-                             . concatMap getDeclAliases
+                             . concatMap (getDeclAliases (mod == mainMod))
                              $ decls
                              )
                   )
@@ -144,7 +147,7 @@ resolveBundle (Bundle _ mmap) =
                       )
                     )
                   )
-                . concatMap getDeclAliases
+                . concatMap (getDeclAliases True)
                 . fst
                 $ info
             )
@@ -178,7 +181,7 @@ resolveBundle (Bundle _ mmap) =
                              sym
                            )
                          )
-                       . concatMap getDeclSymbols
+                       . concatMap (getDeclSymbols (mod == mainMod))
                        . fst
                        . (mmap Map.!)
                        $ mod
@@ -214,7 +217,7 @@ resolveBundle (Bundle _ mmap) =
                 (\mod ->
                   let modAbbr = modNames Map.! mod
                   in  ( map (\(TypeSpec name _, _) -> mangleWith modAbbr name)
-                      . concatMap getDeclAliases
+                      . concatMap (getDeclAliases (mod == mainMod))
                       . fst
                       . (mmap Map.!)
                       $ mod
