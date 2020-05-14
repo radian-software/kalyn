@@ -102,7 +102,7 @@ analyzePattern ctx var expr@(Call _ _) =
                 (uncurry $ analyzePattern ctx)
                 (zip fieldVars args)
               let patternCons =
-                    (ConsV var, ConsT origName fieldConsTypes)
+                    (ConsV var, ConsT origName (map ConsV paramVars))
                       : zipWith
                           (\fieldVar fieldConsType ->
                             (ConsV fieldVar, fieldConsType)
