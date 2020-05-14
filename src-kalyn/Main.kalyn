@@ -2,18 +2,20 @@
 
 (defn showInt (Func Int String)
   (i)
-  (if (== i 0)
-    "0"
-    (let ((showInt*
-           (lambda (i str)
-             (if (== i 0)
-               str
-               (showInt*
-                 (/ i 10)
-                 (Cons
-                   (Char (+ 0x30 (% i 10)))
-                   str))))))
-      (showInt* i ""))))
+  (if (< i 0)
+    (Cons '-' (showInt (- 0 i)))
+    (if (== i 0)
+      "0"
+      (let ((showInt*
+             (lambda (i str)
+               (if (== i 0)
+                 str
+                 (showInt*
+                   (/ i 10)
+                   (Cons
+                     (Char (+ 0x30 (% i 10)))
+                     str))))))
+        (showInt* i "")))))
 
 (defn showIntList (Func (List Int) String)
   (ints)

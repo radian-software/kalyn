@@ -11,8 +11,8 @@ basicOp name op = do
   temp <- newTemp
   return $ function
     (name ++ "__uncurried")
-    [ OP MOV $ MR (getArg 1) temp
-    , OP op $ MR (getArg 2) temp
+    [ OP MOV $ MR (getArg 2) temp
+    , OP op $ MR (getArg 1) temp
     , OP MOV $ RR temp rax
     , RET
     ]
@@ -220,8 +220,8 @@ compareOp name op = do
   yes  <- newLabel
   return $ function
     name
-    [ OP MOV $ MR (getArg 1) temp
-    , OP CMP $ MR (getArg 2) temp
+    [ OP MOV $ MR (getArg 2) temp
+    , OP CMP $ MR (getArg 1) temp
     , JUMP op yes
     , OP MOV $ IR 0 rax
     , RET
