@@ -2,7 +2,7 @@
 
 (public defn showInt (Show Int)
   (i)
-  (case (cmp i 0)
+  (case (compareInt i 0)
     (LT (Cons '-' (showInt (- 0 i))))
     (EQ "0")
     (GT (let ((showInt*

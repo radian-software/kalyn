@@ -14,7 +14,6 @@ module Liveness
   )
 where
 
-import           Data.Bifunctor
 import           Data.List
 import qualified Data.Map.Strict               as Map
 import qualified Data.Set                      as Set
@@ -40,17 +39,22 @@ lookupLabel labelMap label = case label `Map.lookup` labelMap of
   Nothing  -> error $ "liveness analysis hit unresolved label " ++ show label
   Just idx -> idx
 
-assertNoFreeVariables :: Show reg => Liveness reg -> Liveness reg
-assertNoFreeVariables analysis =
+assertNoFreeVariables :: Show reg => String -> Liveness reg -> Liveness reg
+assertNoFreeVariables name analysis =
   if Set.null . instrLiveIn . (Map.! 0) $ analysis
     then analysis
     else
       error
-      $  "free variables: "
+      $  "in function "
+      ++ show name
+      ++ ", free variables: "
       ++ (show . Set.toList . instrLiveIn . (Map.! 0) $ analysis)
 
 assertNoFreeVariablesP :: Show reg => ProgramLiveness reg -> ProgramLiveness reg
-assertNoFreeVariablesP = map (Data.Bifunctor.second assertNoFreeVariables)
+assertNoFreeVariablesP = map
+  (\(fn@(Function _ name _), liveness) ->
+    (fn, assertNoFreeVariables name liveness)
+  )
 
 computeLiveness
   :: (Eq reg, Ord reg, RegisterLike reg, Show reg)

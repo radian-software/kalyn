@@ -177,11 +177,11 @@ allocateFunctionRegs allSpilled liveness fn@(Function stackSpace name instrs) =
       , allSpilled
       )
     Left spilled ->
-      let fn'@(Function _ _ instrs') = foldr
+      let fn'@(Function _ fnName instrs') = foldr
             (uncurry spillTemporary)
             fn
             (zip (iterate (+ 1) (Set.size allSpilled)) spilled)
-          liveness' = assertNoFreeVariables . computeLiveness $ instrs'
+          liveness' = assertNoFreeVariables fnName . computeLiveness $ instrs'
       in  allocateFunctionRegs (allSpilled `Set.union` Set.fromList spilled)
                                liveness'
                                fn'

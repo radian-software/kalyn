@@ -1,9 +1,9 @@
 (import "../../Stdlib.kalyn")
 
-(public defn ordInt (Ord Int)
+(public defn compareInt (Ord Int)
   (x y)
-  (if (< x y)
+  (if (<Int x y)
     LT
-    (if (> x y)
+    (if (>Int x y)
       GT
       EQ)))

@@ -37,7 +37,7 @@
 
 (public defn replicate (Func Int a (List a))
   (n elt)
-  (case (<= n 0)
+  (case (<=Int n 0)
     (False (Cons elt (replicate (- n 1) elt)))
     (True Null)))
 
@@ -77,6 +77,6 @@
 
 (public defn iterate (Func (Func a a) a Int (List a))
   (func start num)
-  (if (<= num 0)
+  (if (<=Int num 0)
     []
     (Cons start (iterate func (func start) (- num 1)))))

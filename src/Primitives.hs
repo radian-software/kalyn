@@ -79,6 +79,7 @@ shiftOp name op = do
     , RET
     , LABEL fixup
     , if needsZeroing then OP MOV $ IR 0 arg else SHIFT (Just 63) op arg
+    , OP MOV $ RR arg rax
     , RET
     ]
 

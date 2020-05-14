@@ -7,12 +7,12 @@
 (def elfIdent String
   "The ELF magic header."
   (concat
-    [(bytes8 0x7f)                ; magic bytes
+    [(bytes8 0x7f)              ; magic bytes
      "ELF"
-     (bytes8 2)                   ; address size, 64-bit
-     (bytes8 1)                   ; endianness, little-endian
-     (bytes8 1)                   ; version of ELF specification
-     (concat (replicate 9 0))]))  ; padding to 16 bytes
+     (bytes8 2)                 ; address size, 64-bit
+     (bytes8 1)                 ; endianness, little-endian
+     (bytes8 1)                 ; version of ELF specification
+     (replicate 9 (Char 0))]))  ; padding to 16 bytes
 
 ;; see page 18; for architecture codes see
 ;; <https://opensource.apple.com/source/dtrace/dtrace-90/sys/elf.h>
@@ -60,7 +60,7 @@
          (fixedPoint
            ==PairStringString
            (Pair [] [])
-           (lambda (ehdr phdr)
+           (lambda ((Pair ehdr phdr))
              (let ((elen (length ehdr))
                    (plen (length phdr))
                    (imageSize (length code)))

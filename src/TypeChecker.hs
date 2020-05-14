@@ -217,7 +217,7 @@ expand resolver (ConsT name args) = case name `Map.lookup` resolver of
             Map.fromList (zip (map (mapping Map.!) params) appliedArgs)
       let (ConsT typeName typeArgs) =
             unnumberType (`Map.lookup` paramMap) defnCons
-      return $ ConsT typeName (typeArgs ++ remainingArgs)
+      expand resolver . ConsT typeName $ typeArgs ++ remainingArgs
 
 unify
   :: VarName
