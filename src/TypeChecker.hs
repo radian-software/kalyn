@@ -71,7 +71,19 @@ autoNumberType ty = do
 
 analyzePattern
   :: Bindings -> Int -> Expr -> Stateful (Constraints, Map.Map VarName Int)
-analyzePattern _ var (Variable name) = return ([], Map.singleton name var)
+analyzePattern ctx var (Variable name) = case name `Map.lookup` ctx of
+  Just (Left sd@(SymData _ _ _ _ _ _ _)) -> if sdNumFields sd /= 0
+    then
+      error
+      $  "data constructor "
+      ++ name
+      ++ " used with no fields but needs "
+      ++ show (sdNumFields sd)
+    else do
+      let TypeSpec origName origParams = sdTypeSpec sd
+      paramVars <- replicateM (length origParams) newVar
+      return ([(ConsV var, ConsT origName (map ConsV paramVars))], Map.empty)
+  _ -> return ([], Map.singleton name var)
 analyzePattern _ var (Const _) =
   return ([(ConsV var, ConsT "Int" [])], Map.empty)
 analyzePattern ctx var expr@(Call _ _) =
@@ -261,6 +273,12 @@ unify name fixed seen mappings (ConsV var) rhs = case rhs of
       ++ show name
       ++ ": can't unify free type parameter with "
       ++ show rhs
+  (ConsV other)
+    | var /= other && var `Set.member` fixed && other `Set.member` fixed
+    -> error
+      $  "in function "
+      ++ show name
+      ++ ": can't unify distinct free type parameters"
   _ -> case var `Map.lookup` mappings of
     Nothing -> return . Map.insert var rhs $ mappings
     Just (ConsV existing)
