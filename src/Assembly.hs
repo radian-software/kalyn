@@ -2,6 +2,7 @@ module Assembly where
 
 import qualified Data.ByteString.Lazy          as B
 import           Data.Int
+import           Data.List
 import           Data.Word
 import           Numeric
 
@@ -246,6 +247,9 @@ dataRegisters =
 syscallRegisters :: [Register]
 syscallRegisters = [RAX, RDI, RSI, RDX, RCX, R8, R9]
 
+callerSavedRegisters :: [Register]
+callerSavedRegisters = dataRegisters \\ [RBX, R12, R13, R14, R15]
+
 specialRegisters :: [Register]
 specialRegisters = [RSP, RBP, RIP]
 
@@ -254,8 +258,7 @@ getMemRegisters (Mem _ base Nothing          ) = [base]
 getMemRegisters (Mem _ base (Just (_, index))) = [base, index]
 
 getArgsRegisters :: BinOp -> Args reg -> ([reg], [reg])
-getArgsRegisters op (IR _ dst) | op == MOV = ([], [dst])
-                               | op == CMP = ([dst], [])
+getArgsRegisters op (IR _ dst) | op == CMP = ([dst], [])
                                | otherwise = ([], [dst])
 getArgsRegisters _ (IM _ mem) = (getMemRegisters mem, [])
 getArgsRegisters op (RR src dst) | op == MOV = ([src], [dst])
@@ -296,7 +299,7 @@ getRegisters (SYSCALL n) = if n + 1 >= length syscallRegisters
   then error "too many arguments for system call"
   else
     ( map fromRegister $ take (n + 1) syscallRegisters
-    , map fromRegister syscallRegisters
+    , map fromRegister callerSavedRegisters
     )
 getRegisters (LABEL  _) = ([], [])
 getRegisters (SYMBOL _) = ([], [])
