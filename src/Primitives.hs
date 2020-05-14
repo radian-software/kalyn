@@ -234,19 +234,19 @@ equal :: Stateful VirtualFunction
 equal = compareOp "equal__uncurried" JE
 
 notEqual :: Stateful VirtualFunction
-notEqual = compareOp "notEqual__uncurried" JE
+notEqual = compareOp "notEqual__uncurried" JNE
 
 lessThan :: Stateful VirtualFunction
-lessThan = compareOp "lessThan__uncurried" JE
+lessThan = compareOp "lessThan__uncurried" JL
 
 lessThanEqual :: Stateful VirtualFunction
-lessThanEqual = compareOp "lessThanEqual__uncurried" JE
+lessThanEqual = compareOp "lessThanEqual__uncurried" JLE
 
 greaterThan :: Stateful VirtualFunction
-greaterThan = compareOp "greaterThan__uncurried" JE
+greaterThan = compareOp "greaterThan__uncurried" JG
 
 greaterThanEqual :: Stateful VirtualFunction
-greaterThanEqual = compareOp "greaterThanEqual__uncurried" JE
+greaterThanEqual = compareOp "greaterThanEqual__uncurried" JGE
 
 monadPure :: Stateful VirtualFunction
 monadPure = return
