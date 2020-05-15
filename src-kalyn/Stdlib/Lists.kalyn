@@ -136,3 +136,7 @@
   (case elts
     ((Cons elt Null) elt)
     ((Cons _ rst) (last rst))))
+
+(public defn nub (Func (Ord a) (List a) (List a))
+  (cmp)
+  (comp setToList (setFromList cmp)))

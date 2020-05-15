@@ -101,11 +101,13 @@
 (public def memLabelV (Func Label (Mem VirtualRegister))
   (memLabel fromV))
 
-(public def dataRegisters (List Register)
-  [RAX RCX RDX RBX
-   RSI RDI R8  R9
-   R10 R11 R12 R13
-   R14 R15])
+(public def dataRegisters (Set Register)
+  (setFromList
+    compareRegister
+    [RAX RCX RDX RBX
+     RSI RDI R8  R9
+     R10 R11 R12 R13
+     R14 R15]))
 
 (public def syscallRegisters (List Register)
   [RAX RDI RSI RDX RCX R8 R9])
@@ -114,8 +116,8 @@
   [RAX RCX RDX RSI RDI
    R8  R9  R10 R11])
 
-(public def specialRegisters (List Register)
-  [RSP RBP RIP])
+(public def specialRegisters (Set Register)
+  (setFromList [RSP RBP RIP]))
 
 (public alias (UseDef reg) (Pair (List reg) (List reg)))
 

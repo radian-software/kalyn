@@ -1,0 +1,40 @@
+(import "Assembly.kalyn")
+(import "Stdlib.kalyn")
+
+(defn addFnBoilerplate (Func PhysicalFunction PhysicalFunction)
+  ((Function stackSpace name instrs))
+  (let ((clobberedRegs
+         (nub compareRegister
+              (filter
+                (lambda (reg)
+                  (and
+                    (setMember reg dataRegisters)
+                    (not (==Register reg RAX))))
+                (concatMap
+                  (comp snd getRegisters)
+                  instrs)))))
+    (function
+      name
+      (concat
+        [[(UN PUSH (R RBP))
+          (OP MOV (RR RSP RBP))]
+         (if (/=Int stackSpace 0)
+           [(OP SUB (IR stackSpace RSP))]
+           [])
+         (concatMap
+           (lambda (instr)
+             (case instr
+               (RET
+                (concat
+                  [(map (comp (UN POP) R) (reverse clobberedRegs))
+                   (if (/=Int stackSpace 0)
+                     [(OP ADD (IR stackSpace RSP))]
+                     [])
+                   [(UN POP (R RBP))
+                    instr]]))
+               (_ [instr])))
+           instrs)]))))
+
+(public defn addProgramBoilerplate (Func (Program Register) (Program Register))
+  ((Program mainFn fns datums))
+  (Program mainFn (map addFnBoilerplate fns) datums))
