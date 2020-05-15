@@ -5,6 +5,7 @@ where
 
 import           Data.List
 import qualified Data.Map.Strict               as Map
+import qualified Data.Set                      as Set
 import           System.Directory
 import           System.FilePath
 
@@ -42,17 +43,20 @@ readBundle' readDecls alreadyRead (curToRead : restToRead) declsSoFar =
 
 transitiveImports
   :: Map.Map FilePath ([Decl], [(FilePath, Bool)])
-  -> [FilePath]
+  -> Set.Set FilePath
   -> [FilePath]
   -> [FilePath]
   -> [FilePath]
 transitiveImports _       _    []           result = result
-transitiveImports modules seen (cur : next) result = if cur `elem` seen
+transitiveImports modules seen (cur : next) result = if Set.member cur seen
   then transitiveImports modules seen next result
   else
     let (_, deps) = modules Map.! cur
         new       = map fst $ filter snd deps
-    in  transitiveImports modules (cur : seen) (new ++ next) (cur : result)
+    in  transitiveImports modules
+                          (Set.insert cur seen)
+                          (new ++ next)
+                          (cur : result)
 
 readBundle :: IO () -> (String -> IO [Decl]) -> FilePath -> IO Bundle
 readBundle onReadFinished readDecls filename = do
@@ -63,7 +67,7 @@ readBundle onReadFinished readDecls filename = do
     (\name (decls, _) ->
       ( decls
       , nub $ transitiveImports modules
-                                [name]
+                                (Set.singleton name)
                                 (map fst $ snd $ modules Map.! name)
                                 []
       )
