@@ -31,24 +31,19 @@ data InstrLiveness reg = InstrLiveness
   }
   deriving (Eq)
 
-type Liveness reg = Map.Map Int (InstrLiveness reg)
+type Liveness reg = [InstrLiveness reg]
 type ProgramLiveness reg = [(Function reg, Liveness reg)]
-
-lookupLabel :: Map.Map Label Int -> Label -> Int
-lookupLabel labelMap label = case label `Map.lookup` labelMap of
-  Nothing  -> error $ "liveness analysis hit unresolved label " ++ show label
-  Just idx -> idx
 
 assertNoFreeVariables :: Show reg => String -> Liveness reg -> Liveness reg
 assertNoFreeVariables name analysis =
-  if Set.null . instrLiveIn . (Map.! 0) $ analysis
+  if Set.null . instrLiveIn . head $ analysis
     then analysis
     else
       error
       $  "in function "
       ++ show name
       ++ ", free variables: "
-      ++ (show . Set.toList . instrLiveIn . (Map.! 0) $ analysis)
+      ++ (show . Set.toList . instrLiveIn . head $ analysis)
 
 assertNoFreeVariablesP :: Show reg => ProgramLiveness reg -> ProgramLiveness reg
 assertNoFreeVariablesP = map
@@ -60,55 +55,46 @@ computeLiveness
   :: (Eq reg, Ord reg, RegisterLike reg, Show reg)
   => [Instruction reg]
   -> Liveness reg
-computeLiveness instrs = fixedPoint initial propagate
+computeLiveness instrs =
+  let (livenesses, _) = fixedPoint ([], Map.empty) propagate
+  in  zipWith
+        (\(liveIn, liveOut) (used, defined) -> InstrLiveness
+          { instrLiveIn  = liveIn
+          , instrLiveOut = liveOut
+          , instrUsed    = used
+          , instrDefined = defined
+          }
+        )
+        livenesses
+        useDefs
  where
-  instrMap = Map.fromList $ zip (iterate (+ 1) 0) instrs
-  labelMap = foldr
-    (\(idx, instr) lm -> case instr of
-      LABEL name -> Map.insert name idx lm
-      _          -> lm
+  special = Set.fromList (map fromRegister specialRegisters)
+  useDefs = map (both Set.fromList . getRegisters) instrs
+  propagate (_, origLabelLivenesses) = foldr
+    (\(instr, (used, defined)) (newLivenesses, labelLivenesses) ->
+      let getNextLiveness = case newLivenesses of
+            []             -> []
+            (liveness : _) -> [liveness]
+          getLabelLiveness label = case Map.lookup label labelLivenesses of
+            Nothing       -> [(Set.empty, Set.empty)]
+            Just liveness -> [liveness]
+          succLivenesses = case getJumpType instr of
+            Straightline -> getNextLiveness
+            Jump   label -> getLabelLiveness label
+            Branch label -> getNextLiveness ++ getLabelLiveness label
+            Return       -> []
+          liveOut = Set.unions (map fst succLivenesses)
+          liveIn = ((liveOut Set.\\ defined) `Set.union` used) Set.\\ special
+          newLiveness = (liveIn, liveOut)
+      in  case instr of
+            LABEL name ->
+              ( newLiveness : newLivenesses
+              , Map.insert name newLiveness labelLivenesses
+              )
+            _ -> (newLiveness : newLivenesses, labelLivenesses)
     )
-    Map.empty
-    (Map.toList instrMap)
-  flowGraph = Map.mapWithKey
-    (\idx instr -> case getJumpType instr of
-      Straightline | idx == length instrs - 1 -> []
-      Straightline | otherwise -> [idx + 1]
-      Jump label               -> [lookupLabel labelMap label]
-      Branch label | idx == length instrs - 1 -> [lookupLabel labelMap label]
-      Branch label | otherwise -> [lookupLabel labelMap label, idx + 1]
-      Return                   -> []
-    )
-    instrMap
-  initial = Map.map
-    (const InstrLiveness { instrLiveIn  = Set.empty
-                         , instrLiveOut = Set.empty
-                         , instrUsed    = Set.empty
-                         , instrDefined = Set.empty
-                         }
-    )
-    instrMap
-  propagate origInfo = foldr
-    (\idx info ->
-      let
-        (used, defined) = getRegisters $ instrMap Map.! idx
-        liveOut         = Set.unions
-          (map (\s -> instrLiveIn (info Map.! s)) (flowGraph Map.! idx))
-        liveIn =
-          ((liveOut Set.\\ Set.fromList defined) `Set.union` Set.fromList used)
-            Set.\\ Set.fromList (map fromRegister specialRegisters)
-      in
-        Map.insert
-          idx
-          InstrLiveness { instrLiveIn  = liveIn
-                        , instrLiveOut = liveOut
-                        , instrUsed    = Set.fromList used
-                        , instrDefined = Set.fromList defined
-                        }
-          info
-    )
-    origInfo
-    (Map.keys origInfo)
+    ([], origLabelLivenesses)
+    (zip instrs useDefs)
 
 computeProgramLiveness
   :: (Eq reg, Ord reg, RegisterLike reg, Show reg)
@@ -126,7 +112,7 @@ showLiveness
   => ProgramLiveness reg
   -> String
 showLiveness = intercalate "\n" . map
-  (\((Function _ name instrs), liveness) ->
+  (\((Function _ name instrs), livenesses) ->
     ".globl " ++ name ++ "\n" ++ name ++ ":\n" ++ concat
       (zipWith
         (\instr il ->
@@ -150,6 +136,6 @@ showLiveness = intercalate "\n" . map
             ++ "\n"
         )
         instrs
-        (Map.elems liveness)
+        livenesses
       )
   )

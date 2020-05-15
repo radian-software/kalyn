@@ -17,16 +17,15 @@ import           Liveness
 type Allocation = Map.Map VirtualRegister Register
 
 computeLivenessInterval :: Ord reg => Liveness reg -> reg -> (Int, Int)
-computeLivenessInterval intervalMap reg =
-  let indices = filter
-        (\idx ->
-          let liveness = (intervalMap Map.! idx)
-          in  reg
-                `Set.member` instrLiveIn liveness
-                ||           reg
-                `Set.member` instrDefined liveness
+computeLivenessInterval livenesses reg =
+  let indices = findIndices
+        (\liveness ->
+          reg
+            `Set.member` instrLiveIn liveness
+            ||           reg
+            `Set.member` instrDefined liveness
         )
-        (Map.keys intervalMap)
+        livenesses
   in  (head indices, last indices + 1)
 
 intervalsIntersect :: (Int, Int) -> (Int, Int) -> Bool
@@ -41,11 +40,8 @@ tryAllocateFunctionRegs
 tryAllocateFunctionRegs liveness spillBlacklist =
   let
     allRegs = Set.toList
-      (      Set.fromList
-          ( concatMap
-              (\il -> Set.toList (instrUsed il) ++ Set.toList (instrDefined il))
-          $ Map.elems liveness
-          )
+      (      Set.unions
+          (map (\il -> instrUsed il `Set.union` instrDefined il) liveness)
       Set.\\ Set.fromList (map fromRegister specialRegisters)
       )
     intervalMap = Map.fromList
@@ -153,6 +149,10 @@ spillTemporary :: Int -> Temporary -> VirtualFunction -> VirtualFunction
 spillTemporary spillIdx temp = spillFunction
   (Virtual temp)
   (Mem (Right . fromIntegral $ -(spillIdx + 1) * 8) rbp Nothing)
+
+-- step 1: only do max of 2 passes for liveness analysis
+-- step 2: only collect jump-target instructions into the map
+--           (otherwise operate on lists in linear time)
 
 allocateFunctionRegs
   :: Set.Set Temporary

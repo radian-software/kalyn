@@ -11,6 +11,10 @@ class Pretty a where
 fixedPoint :: Eq a => a -> (a -> a) -> a
 fixedPoint x f = let fx = f x in if x == fx then x else fixedPoint fx f
 
+fixedPointN :: Eq a => Int -> a -> (a -> a) -> (Int, a)
+fixedPointN n x f =
+  let fx = f x in if x == fx then (n, x) else fixedPointN (n + 1) fx f
+
 leftover :: Integral n => n -> n -> n
 leftover f x = (f - x) `mod` f
 
