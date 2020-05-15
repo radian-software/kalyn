@@ -217,7 +217,7 @@
     [(concat (map word8 opcode))
      (int32 rel)]))
 
-(defn compileInstr (Func (Map Label Word32) Word32 PhysicalInstruction Bytes)
+(defn compileInstr (Func (Map Label Word32) Word32 PInstruction Bytes)
   (labels pc instr)
   (let ((getOffset (lambda (label)
                      (case (mapLookup label labels)

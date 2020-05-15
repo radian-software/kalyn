@@ -15,3 +15,7 @@
 (public defn second (Func (Func b c) (Func (Pair a b) (Pair a c)))
   (func (Pair a b))
   (Pair a (func b)))
+
+(public defn both (Func (Func a b) (Func (Pair a a) (Pair b b)))
+  (func (Pair l r))
+  (Pair (func l) (func r)))

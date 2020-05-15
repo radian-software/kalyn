@@ -76,7 +76,7 @@ computeLiveness instrs =
             []             -> []
             (liveness : _) -> [liveness]
           getLabelLiveness label = case Map.lookup label labelLivenesses of
-            Nothing       -> [(Set.empty, Set.empty)]
+            Nothing       -> []
             Just liveness -> [liveness]
           succLivenesses = case getJumpType instr of
             Straightline -> getNextLiveness

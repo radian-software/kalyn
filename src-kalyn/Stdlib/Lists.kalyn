@@ -151,7 +151,7 @@
 
 (public defn sort (Func (Ord a) (List a) (List a))
   (cmp elts)
-  (mapToList (mapFromList cmp elts)))
+  (setToList (setFromList cmp elts)))
 
 (public defn sortOn (Func (Func a b) (Ord b) (List a) (List a))
   (key cmp)

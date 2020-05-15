@@ -109,11 +109,11 @@
 
 (public defn mapHead (Func (Map k v) (Maybe (Pair k v)))
   "Get an arbitrary key-value pair from the map."
-  ((Map _ t)
-   (case t
-     (Leaf Nothing)
-     ((Branch k v _ _ _)
-      (Just (Pair k v))))))
+  ((Map _ t))
+  (case t
+    (Leaf Nothing)
+    ((Branch k v _ _ _)
+     (Just (Pair k v)))))
 
 (defn nodeTail (Func (Node k v) (Node k v))
   "Remove the root of the tree and merge its subtrees."
@@ -194,7 +194,7 @@
                ((Just v) (Branch k* v d l r))))
          (_ br))))))
 
-(defn mapWithKey (Func (k a b) (Node k a) (Node k b))
+(defn mapWithKey (Func (Func k a b) (Node k a) (Node k b))
   "Map a function over an internal node to produce a new one."
   (func node)
   (case node
@@ -202,23 +202,24 @@
     ((Branch k a d l r)
      (Branch k (func k a) d (mapWithKey func l) (mapWithKey func r)))))
 
-(public defn mapMapWithKey (Func (Ord b) (Func k a b) (Map k a) (Map k b))
-  "Map a function over a map to produce a new map with the given
-   comparison function."
-  (cmp func (Map _ t))
+(public defn mapMapWithKey (Func (Func k a b) (Map k a) (Map k b))
+  "Map a function over the values of a map to produce a new map with
+   the same keys."
+  (func (Map cmp t))
   (Map cmp (mapWithKey func t)))
 
 (public defn mapUnionWithKey
   (Func (Func k v v v) (Map k v) (Map k v) (Map k v))
   "Merge two maps with a combining function. The combined map uses the
    comparison function from the left-hand map."
-  (comb (Map cmp left) right)
-  (foldr (lambda ((Pair k rv) m)
-           (mapAdjust
+  (comb left right)
+  (foldr (lambda ((Pair k rv))
+           (mapAlter
              (lambda (existing)
                (case existing
                  (Nothing (Just rv))
-                 ((Just lv) (Just (comb k lv rv)))))))
+                 ((Just lv) (Just (comb k lv rv)))))
+             k))
          left
          (mapToList right)))
 
@@ -230,19 +231,20 @@
     (lambda (_ lv _)
       lv)))
 
-(public def mapUnions1
-  (Func (List (Map k v)) (Map k v))
-  "Left-biased union of a list of maps. The combined map uses the
-   comparison function from the first map in the list."
-  (foldl1 mapUnion))
+(public defn mapUnions
+  (Func (Ord k) (List (Map k v)) (Map k v))
+  "Left-biased union of a list of maps. The provided comparison
+   function replaces the ones used in the constituent maps."
+  (cmp)
+  (foldl mapUnion (mapEmpty cmp)))
 
 (public def mapKeys (Func (Map k v) (List k))
   "Return the list of keys in a map."
-  (comp fst mapToList))
+  (comp (map fst) mapToList))
 
 (public def mapElems (Func (Map k v) (List v))
   "Return the list of values in a map."
-  (comp snd mapToList))
+  (comp (map snd) mapToList))
 
 (public defn map\\ (Func (Map k v) (Map k v) (Map k v))
   "Map difference. Remove all the elements of the right-hand map from
@@ -253,7 +255,7 @@
 (public defn mapFilter (Func (Func k Bool) (Map k v) (Map k v))
   "Filter a map to only the keys that pass the given predicate."
   (pred m@(Map cmp _))
-  (mapFromList cmp (filter (first pred) (mapToList m))))
+  (mapFromList cmp (filter (comp pred fst) (mapToList m))))
 
 (public defn mapMember (Func k (Map k v) Bool)
   "Check if the given key is in the map."
@@ -272,4 +274,5 @@
 
 (public defn mapNotMember (Func k (Map k v) Bool)
   "Check if the given key is NOT in the map."
-  (comp not mapMember))
+  (k)
+  (comp not (mapMember k)))

@@ -40,11 +40,11 @@
   "Left-biased set union."
   mapUnion)
 
-(public def setUnions1 (Func (List (Set k)) (Set k))
+(public def setUnions (Func (Ord k) (List (Set k)) (Set k))
   "Left-biased union of a list of sets."
-  mapUnions1)
+  mapUnions)
 
-(public def set\\ (Func (Set k) (Set k))
+(public def set\\ (Func (Set k) (Set k) (Set k))
   "Set difference. Remove all the elements of the right-hand set from
    the left-hand set."
   map\\)
@@ -62,9 +62,12 @@
   "Check if the given element is in the set."
   mapMember)
 
-(public def setHead (Func (Set k) (Maybe k))
+(public defn setHead (Func (Set k) (Maybe k))
   "Get an arbitrary key from the set."
-  (comp fst mapHead))
+  (set)
+  (case (mapHead set)
+    (Nothing Nothing)
+    ((Just (Pair k _)) (Just k))))
 
 (public def setNotMember (Func k (Set k) Bool)
   "Check if the given element is NOT in the set."

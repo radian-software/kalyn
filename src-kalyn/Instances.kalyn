@@ -1,3 +1,4 @@
 (import "Stdlib.kalyn")
 
 (public import "Instances/Eq.kalyn")
+(public import "Instances/Ord.kalyn")

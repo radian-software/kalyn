@@ -11,7 +11,7 @@
                     (setMember reg dataRegisters)
                     (not (==Register reg RAX))))
                 (concatMap
-                  (comp snd getRegisters)
+                  (comp snd (getRegisters fromP))
                   instrs)))))
     (function
       name

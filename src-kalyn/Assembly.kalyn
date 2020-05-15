@@ -1,5 +1,7 @@
 (import "Stdlib.kalyn")
 
+(public import "Instances.kalyn")
+
 (public data Register
   RAX RCX RDX RBX
   RSP RBP RSI RDI
@@ -118,8 +120,8 @@
   [RAX RCX RDX RSI RDI
    R8  R9  R10 R11])
 
-(public def specialRegisters (Set Register)
-  (setFromList [RSP RBP RIP]))
+(public def specialRegisters (List Register)
+  [RSP RBP RIP])
 
 (public alias (UseDef reg) (Pair (List reg) (List reg)))
 

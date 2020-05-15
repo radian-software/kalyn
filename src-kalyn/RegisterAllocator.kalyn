@@ -10,7 +10,7 @@
 (alias Interval (Pair Int Int))
 
 (defn computeLivenessIntervals (Func FnLiveness (Map VR Interval))
-  (livenesses)
+  ((FnLiveness _ livenesses))
   (let ((alter
          (lambda (idx)
            (mapAlter (lambda (interval)
@@ -28,9 +28,9 @@
       (mapEmpty compareVR)
       (zip livenesses (iterate (+ 1) 0 (length livenesses))))))
 
-(defn intervalsIntersect (Func Interval Interval)
+(defn intervalsIntersect (Func Interval Interval Bool)
   ((Pair a b) (Pair c d))
-  (not (or (<= b c) (<= d a))))
+  (not (or (<=Int b c) (<=Int d a))))
 
 (defn tryAllocateFunctionRegs (Func
                                 FnLiveness
@@ -39,7 +39,6 @@
   (liveness spillBlacklist)
   (let ((intervalMap (computeLivenessIntervals liveness))
         (disallowed (mapMapWithKey
-                      compareVR
                       (lambda (reg _)
                         (setFilter
                           (lambda (dataReg)
@@ -54,7 +53,7 @@
                       intervalMap))
         (allocate
          (lambda (spills allocs queue)
-           (case (Pair queue)
+           (case queue
              (Null (Pair spills allocs))
              ((Cons cur@(Physical phys) rst)
               (allocate spills (mapInsert cur phys allocs) rst))
@@ -110,83 +109,83 @@
 
 (defn spillInstr (Func VR (Mem VR) VInstruction (List VInstruction))
   (dir ind instr)
-  (case instr)
-  ((OP op (IR imm reg))
-   (if (==VR reg dir)
-     [OP op (IM imm ind)]
-     [instr]))
-  ((OP op (IM imm mem))
-   (if (spillMem dir mem)
-     [(MOV (MR ind dir))
-      (op (IM imm mem))]
-     [instr]))
-  ((OP op (RR src dst))
-   (if (==VR src dir)
-     (if (==VR dst dir)
-       [(MOV (MR ind dir))
-        (op (RM dir ind))]
-       [(MOV (MR ind dst))])
-     (if (==VR dst dir)
-       [(MOV (RM src ind))]
-       [instr])))
-  ((OP op (MR mem dst))
-   (if (spillMem dir mem)
-     (if (==VR dst dir)
-       [(MOV (MR ind dir))
-        (op (MR mem dir))
-        (MOV (RM dir ind))]
-       [(MOV (MR ind dir))
-        (op (MR mem dst))])
-     (if (==VR dst dir)
-       [(MOV (MR mem dir))
-        (op (RM dir ind))]
-       [instr])))
-  ((OP op (RM src mem))
-   (if (spillMem dir mem)
-     [(MOV (MR ind dir))
-      (op (RM src mem))]
+  (case instr
+    ((OP op (IR imm reg))
+     (if (==VR reg dir)
+       [(OP op (IM imm ind))]
+       [instr]))
+    ((OP op (IM imm mem))
+     (if (spillMem dir mem)
+       [(OP MOV (MR ind dir))
+        (OP op (IM imm mem))]
+       [instr]))
+    ((OP op (RR src dst))
      (if (==VR src dir)
-       [(MOV (MR ind dir))
-        (op (RM dir mem))]
-       [instr])))
-  ((UN op (R dst))
-   (if (==VR dst dir)
-     [(UN (M ind))]
-     [instr]))
-  ((UN op (M mem))
-   (if (spillMem dir mem)
-     [(MOV (MR ind dir))
-      (UN (M mem))]
-     [instr]))
-  ((MOV64 imm dst)
-   (if (==VR dst dir)
-     [(MOV64 imm dir)
-      (MOV (RM dir ind))]
-     [instr]))
-  ((SHIFT amt op dst)
-   (if (==VR dst dir)
-     [(MOV (MR ind dir))
-      (SHIFT amt dir)
-      (MOV (RM dir ind))]
-     [instr]))
-  ((LEA mem dst)
-   (if (spillMem dir mem)
+       (if (==VR dst dir)
+         [(OP MOV (MR ind dir))
+          (OP op (RM dir ind))]
+         [(OP MOV (MR ind dst))])
+       (if (==VR dst dir)
+         [(OP MOV (RM src ind))]
+         [instr])))
+    ((OP op (MR mem dst))
+     (if (spillMem dir mem)
+       (if (==VR dst dir)
+         [(OP MOV (MR ind dir))
+          (OP op (MR mem dir))
+          (OP MOV (RM dir ind))]
+         [(OP MOV (MR ind dir))
+          (OP op (MR mem dst))])
+       (if (==VR dst dir)
+         [(OP MOV (MR mem dir))
+          (OP op (RM dir ind))]
+         [instr])))
+    ((OP op (RM src mem))
+     (if (spillMem dir mem)
+       [(OP MOV (MR ind dir))
+        (OP op (RM src mem))]
+       (if (==VR src dir)
+         [(OP MOV (MR ind dir))
+          (OP op (RM dir mem))]
+         [instr])))
+    ((UN op (R dst))
      (if (==VR dst dir)
-       [(MOV (MR ind dir))
-        (LEA mem dst)
-        (MOV (RM dir ind))]
-       [(MOV (MR ind dir))
-        (LEA mem dst)])
+       [(UN op (M ind))]
+       [instr]))
+    ((UN op (M mem))
+     (if (spillMem dir mem)
+       [(OP MOV (MR ind dir))
+        (UN op (M mem))]
+       [instr]))
+    ((MOV64 imm dst)
      (if (==VR dst dir)
-       [(LEA mem dir)
-        (MOV (RM dir ind))]
-       [instr])))
-  ((IDIV src)
-   (if (==VR src dir)
-     [(MOV (MR ind dir))
-      (IDIV dir)]
-     [instr]))
-  (_ [instr]))
+       [(MOV64 imm dir)
+        (OP MOV (RM dir ind))]
+       [instr]))
+    ((SHIFT amt op dst)
+     (if (==VR dst dir)
+       [(OP MOV (MR ind dir))
+        (SHIFT amt op dir)
+        (OP MOV (RM dir ind))]
+       [instr]))
+    ((LEA mem dst)
+     (if (spillMem dir mem)
+       (if (==VR dst dir)
+         [(OP MOV (MR ind dir))
+          (LEA mem dst)
+          (OP MOV (RM dir ind))]
+         [(OP MOV (MR ind dir))
+          (LEA mem dst)])
+       (if (==VR dst dir)
+         [(LEA mem dir)
+          (OP MOV (RM dir ind))]
+         [instr])))
+    ((IDIV src)
+     (if (==VR src dir)
+       [(OP MOV (MR ind dir))
+        (IDIV dir)]
+       [instr]))
+    (_ [instr])))
 
 (defn spillFunction (Func VR (Mem VR) VFunction VFunction)
   (dir ind (Function name stackSpace instrs))
@@ -205,10 +204,11 @@
                              FnLiveness
                              VFunction
                              PFunction)
-  (case (tryAllocateFunctionRegs liveness (setMap Virtual allSpilled))
+  (allSpilled liveness fn@(Function stackSpace name instrs))
+  (case (tryAllocateFunctionRegs liveness (setMap compareVR Virtual allSpilled))
     ((Right allocation)
      (Function
-       (+ stackSpace (* 8 (length allSpilled)))
+       (+ stackSpace (* 8 (setSize allSpilled)))
        name
        (map
          (mapInstr
@@ -221,7 +221,7 @@
                ((Just reg) reg))))
          instrs)))
     ((Left spilled)
-     (let ((fn@(Function _ fnName instrs)
+     (let ((fn*@(Function _ fnName instrs)
             (foldr
               (uncurry spillTemporary)
               fn
@@ -232,11 +232,11 @@
             (assertNoFreeVariablesF fnName (computeLiveness instrs))))
        (allocateFunctionRegs
          (setUnion allSpilled (setFromList compareTemporary spilled))
-         liveness fn)))))
+         liveness fn*)))))
 
 (public defn allocateProgramRegs (Func VProgram ProgLiveness PProgram)
   ((Program main fns datums) liveness)
   (let ((allocate (allocateFunctionRegs (setEmpty compareTemporary)))
-        (main (allocate (snd (head liveness)) main))
-        (fns (zipWith allocate (map snd (tail liveness)) fns)))
-    (Program main fns datums)))
+        (main* (allocate (snd (head liveness)) main))
+        (fns* (zipWith allocate (map snd (tail liveness)) fns)))
+    (Program main* fns* datums)))

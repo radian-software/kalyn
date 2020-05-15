@@ -2,7 +2,7 @@
 
 (import "../Assembly.kalyn")
 
-(def registerToInt (Func Register Int)
+(defn registerToInt (Func Register Int)
   (reg)
   (case reg
     (RAX  0)

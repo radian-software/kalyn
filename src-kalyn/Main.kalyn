@@ -1,7 +1,11 @@
-(import "Assembler.kalyn")
 (import "Assembly.kalyn")
-(import "Linker.kalyn")
 (import "Stdlib.kalyn")
+
+(import "Liveness.kalyn")
+(import "RegisterAllocator.kalyn")
+(import "Boilerplate.kalyn")
+(import "Assembler.kalyn")
+(import "Linker.kalyn")
 
 (def helloWorld VProgram
   (Program
@@ -21,8 +25,15 @@
 
 (public def main (IO Empty)
   (do IO
+    (_ (print "Liveness\n"))
     (let liveness (computeProgramLiveness helloWorld))
+    (_ (print "RegisterAllocator\n"))
     (let physical (allocateProgramRegs helloWorld liveness))
-    (let bin (link (assemble physical)))
+    (_ (print "Boilerplate\n"))
+    (let physical* (addProgramBoilerplate physical))
+    (_ (print "Assembler\n"))
+    (let assembled (assemble physical))
+    (_ (print "Linker\n"))
+    (let bin (link assembled))
     (_ (writeFile "out-kalyn-rec/Main" bin))
     (setFileMode "out-kalyn-rec/Main" 0o755)))

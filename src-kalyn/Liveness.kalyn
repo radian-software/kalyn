@@ -3,7 +3,7 @@
 (import "Util.kalyn")
 
 (public data FnLiveness
-  (Set VR) (List (Set VR)))
+  (FnLiveness (Set VR) (List (Set VR))))
 
 (public alias ProgLiveness
   (List (Pair VFunction FnLiveness)))
@@ -21,7 +21,7 @@
   (map (lambda ((Pair fn@(Function _ name _) analysis))
          (Pair fn (assertNoFreeVariablesF name analysis)))))
 
-(defn computeLiveness (Func (List (Instruction VR)) FnLiveness)
+(public defn computeLiveness (Func (List VInstruction) FnLiveness)
   (instrs)
   (let ((special (setFromList
                    compareVR
@@ -30,7 +30,7 @@
                      specialRegisters)))
         (useDefs (map
                    (comp (both (setFromList compareVR))
-                         getRegisters)
+                         (getRegisters fromV))
                    instrs))
         (propagate
          (lambda ((Pair _ origLabelLivenesses))
@@ -44,8 +44,7 @@
                      (getLabelLiveness
                       (lambda (label)
                         (case (mapLookup label labelLivenesses)
-                          (Nothing [(setEmpty compareVR)
-                                    (setEmpty compareVR)])
+                          (Nothing [])
                           ((Just liveness) [liveness]))))
                      (succLivenesses
                       (case (getJumpType instr)
@@ -55,7 +54,7 @@
                                           getNextLiveness
                                           (getLabelLiveness label)))
                         (Return [])))
-                     (liveOut (setUnions1 (map fst succLivenesses)))
+                     (liveOut (setUnions compareVR (map fst succLivenesses)))
                      (liveIn (set\\
                                (setUnion
                                  (set\\
@@ -79,13 +78,23 @@
          (fixedPoint
            (lambda ((Pair l1 _) (Pair l2 _))
              (==List
-               (==Set ==VR)
-               l1 l2)))))))
+               (==Pair
+                 (==Set ==VR)
+                 (==Set ==VR))
+               l1 l2))
+           (Pair Null (mapEmpty compareString))
+           propagate)))
+    (FnLiveness
+      (fst (head livenesses))
+      (zipWith
+        (lambda ((Pair liveIn _) (Pair _ defined))
+          (setUnion liveIn defined))
+        livenesses
+        useDefs))))
 
-(public defn computeProgramLiveness
-  (Func VProgram ProgramLiveness)
-  ((Program mainFn fns _)
-   (map
-     (lambda (fn@(Function _ _ instrs))
-       (Pair fn (computeLiveness instrs)))
-     (Cons mainFn fns))))
+(public defn computeProgramLiveness (Func VProgram ProgLiveness)
+  ((Program mainFn fns _))
+  (map
+    (lambda (fn@(Function _ _ instrs))
+      (Pair fn (computeLiveness instrs)))
+    (Cons mainFn fns)))

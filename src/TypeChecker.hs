@@ -33,15 +33,17 @@ newVar = do
   put $ count + 1
   return count
 
-numberType :: (String -> Maybe Int) -> Type -> ConsE
-numberType func ty@(Type _ typeName typeArgs) = case func typeName of
+numberType :: VarName -> (String -> Maybe Int) -> Type -> ConsE
+numberType funcName func ty@(Type _ typeName typeArgs) = case func typeName of
   Just var -> case typeArgs of
     [] -> ConsV var
     _ ->
       error
-        $  "can't use metavariable as data constructor in type: "
+        $  "in function "
+        ++ show funcName
+        ++ ": can't use metavariable as data constructor in type: "
         ++ pretty ty
-  Nothing -> ConsT typeName (map (numberType func) typeArgs)
+  Nothing -> ConsT typeName (map (numberType funcName func) typeArgs)
 
 unnumberType :: (Int -> Maybe ConsE) -> ConsE -> ConsE
 unnumberType func (ConsV var) = case func var of
@@ -62,12 +64,12 @@ getTypeParams =
   getTypeParams' (Type _ typeName typeArgs) =
     typeName : concatMap getTypeParams' typeArgs
 
-autoNumberType :: Type -> Stateful (ConsE, Map.Map TypeName Int)
-autoNumberType ty = do
+autoNumberType :: VarName -> Type -> Stateful (ConsE, Map.Map TypeName Int)
+autoNumberType fnName ty = do
   let params = nub . getTypeParams $ ty
   vars <- replicateM (length params) newVar
   let paramMap = Map.fromList $ zip params vars
-  return (numberType (`Map.lookup` paramMap) ty, paramMap)
+  return (numberType fnName (`Map.lookup` paramMap) ty, paramMap)
 
 analyzePattern
   :: VarName
@@ -117,7 +119,7 @@ analyzePattern fnName ctx var expr@(Call _ _) =
               paramVars <- replicateM (length origParams) newVar
               let paramMap = Map.fromList $ zip origParams paramVars
               let fieldConsTypes =
-                    map (numberType (`Map.lookup` paramMap)) (sdTypes sd)
+                    map (numberType fnName (`Map.lookup` paramMap)) (sdTypes sd)
               (fieldConses, fieldCtxs) <- mapAndUnzipM
                 (uncurry $ analyzePattern fnName ctx)
                 (zip fieldVars args)
@@ -175,7 +177,7 @@ analyzeExpr fnName ctx var (Variable name) = case name `Map.lookup` ctx of
       ++ ": type checker found free variable "
       ++ show name
   Just (Left (SymDef _ ty)) -> do
-    (labeledType, _) <- autoNumberType ty
+    (labeledType, _) <- autoNumberType fnName ty
     return [(ConsV var, labeledType)]
   Just (Left sd@(SymData _ _ _ _ _ _ _)) -> do
     let TypeSpec typeName params = sdTypeSpec sd
@@ -183,7 +185,7 @@ analyzeExpr fnName ctx var (Variable name) = case name `Map.lookup` ctx of
           (\lhs rhs -> Type [] "Func" [lhs, rhs])
           (Type [] typeName (map (\param -> Type [] param []) params))
           (sdTypes sd)
-    (labeledType, _) <- autoNumberType ctorType
+    (labeledType, _) <- autoNumberType fnName ctorType
     return [(ConsV var, labeledType)]
   Just (Right existingVar) -> return [(ConsV var, ConsV existingVar)]
 analyzeExpr _      _   var (Const _     ) = return [(ConsV var, ConsT "Int" [])]
@@ -230,10 +232,10 @@ analyzeExpr fnName ctx var (Let name val body) = do
   return $ (ConsV var, ConsV bodyVar) : valCons ++ bodyCons
 analyzeExpr fnName ctx var (As _ expr) = analyzeExpr fnName ctx var expr
 
-expand :: ModAliasResolver -> ConsE -> Stateful ConsE
-expand _        (ConsV var      ) = return $ ConsV var
-expand resolver (ConsT name args) = case name `Map.lookup` resolver of
-  Nothing             -> ConsT name <$> mapM (expand resolver) args
+expand :: VarName -> ModAliasResolver -> ConsE -> Stateful ConsE
+expand _      _        (ConsV var      ) = return $ ConsV var
+expand fnName resolver (ConsT name args) = case name `Map.lookup` resolver of
+  Nothing             -> ConsT name <$> mapM (expand fnName resolver) args
   Just (params, defn) -> if length args < length params
     then
       error
@@ -245,13 +247,13 @@ expand resolver (ConsT name args) = case name `Map.lookup` resolver of
       ++ show (length params)
       ++ " needed)"
     else do
-      (defnCons, mapping) <- autoNumberType defn
+      (defnCons, mapping) <- autoNumberType fnName defn
       let (appliedArgs, remainingArgs) = splitAt (length params) args
       let paramMap =
             Map.fromList (zip (map (mapping Map.!) params) appliedArgs)
       let (ConsT typeName typeArgs) =
             unnumberType (`Map.lookup` paramMap) defnCons
-      expand resolver . ConsT typeName $ typeArgs ++ remainingArgs
+      expand fnName resolver . ConsT typeName $ typeArgs ++ remainingArgs
 
 unify
   :: VarName
@@ -364,11 +366,11 @@ typeCheckDecl resolver (Def _ name _ expr) =
     mappings = flip evalState 0 $ do
       tlVar <- newVar
       let SymDef _ ty = fst resolver Map.! name
-      (tlConsType, mapping) <- autoNumberType ty
+      (tlConsType, mapping) <- autoNumberType name ty
       let fixed  = Set.fromList . Map.elems $ mapping
       let tlCons = (ConsV tlVar, tlConsType)
       exprConses <- analyzeExpr name (Map.map Left (fst resolver)) tlVar expr
-      let expander = expand (snd resolver)
+      let expander = expand name (snd resolver)
       constraints <-
         mapM (\(lhs, rhs) -> (,) <$> expander lhs <*> expander rhs)
         $ tlCons
