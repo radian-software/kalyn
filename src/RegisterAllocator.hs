@@ -7,6 +7,7 @@ where
 
 import           Data.List
 import qualified Data.Map                      as Map
+import           Data.Maybe
 import qualified Data.Set                      as Set
 
 import           Assembly
@@ -46,7 +47,7 @@ tryAllocateFunctionRegs
 tryAllocateFunctionRegs liveness spillBlacklist =
   let intervalMap = computeLivenessIntervals liveness
       disallowed  = Map.mapWithKey
-        (\reg _ -> Set.fromList $ filter
+        (\reg _ -> Set.filter
           (\dataReg ->
             Physical dataReg `Map.member` intervalMap && intervalsIntersect
               (intervalMap Map.! reg)
@@ -75,23 +76,26 @@ tryAllocateFunctionRegs liveness spillBlacklist =
             allocate spills (Map.insert cur phys allocs) rst
           allocate spills allocs (cur@(Virtual temp) : rst) =
             case
-                filter
-                  (\dataReg ->
-                    not (dataReg `Set.member` (disallowed Map.! cur)) && not
-                      (any
-                        (\other ->
-                          Map.lookup other allocs
-                            == Just dataReg
-                            && intervalsIntersect (intervalMap Map.! cur)
-                                                  (intervalMap Map.! other)
-                        )
-                        (Map.keys intervalMap)
+                let curInterval      = intervalMap Map.! cur
+                    conflictingTemps = mapMaybe
+                      (\(otherTemp, otherInterval) ->
+                        if intervalsIntersect curInterval otherInterval
+                          then Just otherTemp
+                          else Nothing
                       )
-                  )
-                  dataRegisters
+                      (Map.toList intervalMap)
+                    curDisallowed = foldr
+                      (\conflictingTemp set ->
+                        case Map.lookup conflictingTemp allocs of
+                          Just phys -> Set.insert phys set
+                          Nothing   -> set
+                      )
+                      (disallowed Map.! cur)
+                      conflictingTemps
+                in  Set.lookupMin (dataRegisters Set.\\ curDisallowed)
               of
-                []       -> allocate (temp : spills) allocs rst
-                free : _ -> allocate spills (Map.insert cur free allocs) rst
+                Nothing   -> allocate (temp : spills) allocs rst
+                Just free -> allocate spills (Map.insert cur free allocs) rst
   in  case spilled of
         [] -> Right allocation
         _  -> Left spilled

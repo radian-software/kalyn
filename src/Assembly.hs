@@ -2,7 +2,7 @@ module Assembly where
 
 import qualified Data.ByteString.Lazy          as B
 import           Data.Int
-import           Data.List
+import qualified Data.Set                      as Set
 import           Data.Word
 import           Numeric
 
@@ -231,15 +231,15 @@ instance Show reg => Show (Instruction reg) where
   show (LABEL   name) = name ++ ":"
   show (SYMBOL  name) = name ++ ":"
 
-dataRegisters :: [Register]
-dataRegisters =
+dataRegisters :: Set.Set Register
+dataRegisters = Set.fromList
   [RAX, RCX, RDX, RBX, RSI, RDI, R8, R9, R10, R11, R12, R13, R14, R15]
 
 syscallRegisters :: [Register]
 syscallRegisters = [RAX, RDI, RSI, RDX, RCX, R8, R9]
 
-callerSavedRegisters :: [Register]
-callerSavedRegisters = dataRegisters \\ [RBX, R12, R13, R14, R15]
+callerSavedRegisters :: Set.Set Register
+callerSavedRegisters = foldr Set.delete dataRegisters [RBX, R12, R13, R14, R15]
 
 specialRegisters :: [Register]
 specialRegisters = [RSP, RBP, RIP]
@@ -289,7 +289,7 @@ getRegisters (SYSCALL n) = if n + 1 >= length syscallRegisters
   then error "too many arguments for system call"
   else
     ( map fromRegister $ take (n + 1) syscallRegisters
-    , map fromRegister callerSavedRegisters
+    , map fromRegister . Set.toList $ callerSavedRegisters
     )
 getRegisters (LABEL  _) = ([], [])
 getRegisters (SYMBOL _) = ([], [])
