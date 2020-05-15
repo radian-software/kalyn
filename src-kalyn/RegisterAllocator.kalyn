@@ -217,7 +217,8 @@
                (Nothing (error (concat
                                  ["in function "
                                   name
-                                  ", liveness analysis found dead register"])))
+                                  ", liveness analysis found dead register "
+                                  (showVR reg)])))
                ((Just reg) reg))))
          instrs)))
     ((Left spilled)

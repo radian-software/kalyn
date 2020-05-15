@@ -22,3 +22,18 @@
     ["["
      (intercalate ", " (map show elts))
      "]"]))
+
+(public defn showPair (Func (Show a) (Show b) (Show (Pair a b)))
+  (showA showB (Pair a b))
+  (concat
+    ["("
+     (showA a)
+     ", "
+     (showB b)
+     ")"]))
+
+(public defn showBool (Show Bool)
+  (bool)
+  (if bool
+    "True"
+    "False"))

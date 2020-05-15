@@ -87,6 +87,20 @@ parseExpr (RoundList [Symbol "let", RoundList bindings, body]) = foldr
   )
   (parseExpr body)
   bindings
+parseExpr (RoundList [Symbol "and", lhs, rhs]) = Let
+  "gensym"
+  (parseExpr lhs)
+  (Case
+    (Variable "gensym")
+    [(Variable "False", Variable "False"), (Variable "True", parseExpr rhs)]
+  )
+parseExpr (RoundList [Symbol "or", lhs, rhs]) = Let
+  "gensym"
+  (parseExpr lhs)
+  (Case
+    (Variable "gensym")
+    [(Variable "True", Variable "True"), (Variable "False", parseExpr rhs)]
+  )
 parseExpr (RoundList  elts) = foldl1 Call (map parseExpr elts)
 parseExpr (SquareList elts) = parseExpr $ foldr
   (\char rest -> RoundList [Symbol "Cons", char, rest])

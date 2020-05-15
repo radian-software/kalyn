@@ -315,3 +315,13 @@ monadify numArgs fnName = do
          [1 .. numArgs]
     ++ [RET]
     )
+
+primitiveTrace :: Stateful VirtualFunction
+primitiveTrace = return $ function
+  "trace__uncurried"
+  [ UN PUSH $ M (getArg 2)
+  , JUMP CALL "print__uncurried__unmonadified"
+  , unpush 1
+  , OP MOV $ MR (getArg 1) rax
+  , RET
+  ]

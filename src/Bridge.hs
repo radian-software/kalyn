@@ -104,6 +104,9 @@ stdlibPublic = Map.fromList
     , handleCurriedM 2 "bind" monadBind
       $ funcType' [ioType "a", funcType' [baseType "a", ioType "b"], ioType "b"]
     )
+  , ( "trace"
+    , handleCurried 2 "trace" primitiveTrace $ funcType ["String", "a", "a"]
+    )
   ]
 
 stdlibPrivate :: [Stateful VirtualFunction]

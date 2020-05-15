@@ -18,7 +18,10 @@
   '("alias" "class" "data" "defn" "def" "derive" "import" "instance" "public" "with"))
 
 (defvar kalyn--special-form-builtins
-  '("case" "do" "if" "lambda" "let"))
+  '("and" "case" "do" "if" "lambda" "let" "or"))
+
+(defvar kalyn--functionlike-builtins
+  '("and" "or"))
 
 (defun kalyn--builtins ()
   (append kalyn--declaration-builtins kalyn--special-form-builtins))
@@ -110,7 +113,8 @@
         starting-column)
        ;; (let bar
        ;;   baz)
-       ((member first-sexp (kalyn--builtins))
+       ((and (member first-sexp (kalyn--builtins))
+             (not (member first-sexp kalyn--functionlike-builtins)))
         (1+ starting-column))
        ;; (foo bar
        ;;      baz)

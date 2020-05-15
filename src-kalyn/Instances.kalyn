@@ -2,3 +2,4 @@
 
 (public import "Instances/Eq.kalyn")
 (public import "Instances/Ord.kalyn")
+(public import "Instances/Show.kalyn")
