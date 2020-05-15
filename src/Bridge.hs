@@ -96,10 +96,10 @@ stdlibPublic = Map.fromList
     , handleCurried 2 "greaterThanEqual" greaterThanEqual
       $ funcType ["Int", "Int", "Bool"]
     )
-  , ( "pure"
+  , ( "pureIO"
     , handleCurriedM 1 "pure" monadPure $ funcType' [baseType "a", ioType "a"]
     )
-  , ( ">>="
+  , ( ">>=IO"
     , handleCurriedM 2 "bind" monadBind
       $ funcType' [ioType "a", funcType' [baseType "a", ioType "b"], ioType "b"]
     )

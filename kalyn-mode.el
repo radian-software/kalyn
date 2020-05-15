@@ -18,7 +18,7 @@
   '("alias" "class" "data" "defn" "def" "derive" "import" "instance" "public" "with"))
 
 (defvar kalyn--special-form-builtins
-  '("case" "if" "lambda" "let"))
+  '("case" "do" "if" "lambda" "let"))
 
 (defun kalyn--builtins ()
   (append kalyn--declaration-builtins kalyn--special-form-builtins))

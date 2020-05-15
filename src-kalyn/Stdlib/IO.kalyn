@@ -1,5 +1,0 @@
-(import "../Stdlib.kalyn")
-
-(public defn >> (Func (IO a) (IO b) (IO b))
-  (left right)
-  (>>= left (const right)))

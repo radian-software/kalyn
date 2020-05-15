@@ -2,7 +2,6 @@
 (public import "Stdlib/Collections.kalyn")
 (public import "Stdlib/DataTypes.kalyn")
 (public import "Stdlib/Functions.kalyn")
-(public import "Stdlib/IO.kalyn")
 (public import "Stdlib/Instances.kalyn")
 (public import "Stdlib/Lists.kalyn")
 (public import "Stdlib/Tuples.kalyn")

@@ -9,7 +9,7 @@
       "main"
       [(OP MOV (IR 1 RAX))
        (OP MOV (IR 1 RDI))
-       (OP MOV (MR (memLabelP "message") RSI))
+       (LEA (memLabelP "message") RSI)
        (OP MOV (IR 14 RDX))
        (SYSCALL 3)  ; write
        (OP MOV (IR 60 RAX))
@@ -20,4 +20,7 @@
     [(Pair "message" "Hello, world!\n")]))
 
 (public def main (IO Empty)
-  (writeFile "out-kalyn-rec/Main" (link (assemble helloWorld))))
+  (do IO
+    (let bin (link (assemble helloWorld)))
+    (_ (writeFile "out-kalyn-rec/Main" bin))
+    (setFileMode "out-kalyn-rec/Main" 0o755)))

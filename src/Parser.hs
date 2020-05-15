@@ -49,6 +49,23 @@ parseExpr (RoundList (Symbol "case" : expr : branches)) = Case
     RoundList [pat, res] -> (parseExpr pat, parseExpr res)
     _                    -> error $ "failed to parse case branch: " ++ pretty br
   )
+parseExpr (RoundList (Symbol "do" : Symbol monadName : items)) = if null items
+  then error "empty do"
+  else parseExpr $ foldr1
+    (\item dbody -> case item of
+      RoundList [Symbol "let", binding, value] -> RoundList
+        [ Symbol $ ">>=" ++ monadName
+        , RoundList [Symbol $ "pure" ++ monadName, value]
+        , RoundList [Symbol "lambda", RoundList [binding], dbody]
+        ]
+      RoundList [binding, value] -> RoundList
+        [ Symbol $ ">>=" ++ monadName
+        , value
+        , RoundList [Symbol "lambda", RoundList [binding], dbody]
+        ]
+      _ -> error $ "failed to parse do item: " ++ pretty item
+    )
+    items
 parseExpr (RoundList [Symbol "if", cond, true, false]) = Case
   (parseExpr cond)
   [(Variable "True", parseExpr true), (Variable "False", parseExpr false)]
