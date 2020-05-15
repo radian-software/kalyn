@@ -59,7 +59,7 @@
   (code)
   (let (((Pair ehdr phdr)
          (fixedPoint
-           ==PairStringString
+           (==Pair ==String ==String)
            (Pair [] [])
            (lambda ((Pair ehdr phdr))
              (let ((elen (length ehdr))

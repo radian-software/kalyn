@@ -1,27 +1,28 @@
 (import "../../Stdlib.kalyn")
 
-(public defn ==String (Eq String)
-  (s1 s2)
-  (case (Pair s1 s2)
-    ((Pair Null Null)
-     True)
-    ((Pair (Cons (Char f1) r1) (Cons (Char f2) r2))
-     (and (==Int f1 f2)
-          (==String r1 r2)))
-    (_ False)))
+(public defn ==Char (Eq Char)
+  ((Char c1) (Char c2))
+  (==Int c1 c2))
 
-(public defn ==PairStringString (Eq (Pair String String))
-  ((Pair l1 r1) (Pair l2 r2))
-  (and
-    (==String l1 l2)
-    (==String r1 r2)))
-
-(public defn ==ListString (Eq (List String))
-  (l1 l2)
+(public defn ==List (Func (Eq a) (Eq (List a)))
+  (== l1 l2)
   (case (Pair l1 l2)
     ((Pair Null Null)
      True)
     ((Pair (Cons f1 r1) (Cons f2 r2))
-     (and (==String f1 f2)
-          (==ListString r1 r2)))
+     (and (== f1 f2)
+          (==List == r1 r2)))
     (_ False)))
+
+(public def ==String (Eq String)
+  (==List ==Char))
+
+(public defn ==Pair (Func (Eq a) (Eq b) (Eq (Pair a b)))
+  (==l ==r (Pair l1 r1) (Pair l2 r2))
+  (and
+    (==l l1 l2)
+    (==r r1 r2)))
+
+(public defn ==Set (Func (Eq a) (Eq (Set a)))
+  (== s1 s2)
+  (==List == (setToList s1) (setToList s2)))

@@ -55,7 +55,7 @@ parseExpr (RoundList (Symbol "do" : Symbol monadName : items)) = if null items
     (\item dbody -> case item of
       RoundList [Symbol "let", binding, value] -> RoundList
         [ Symbol $ ">>=" ++ monadName
-        , RoundList [Symbol $ "pure" ++ monadName, value]
+        , RoundList [Symbol $ "return" ++ monadName, value]
         , RoundList [Symbol "lambda", RoundList [binding], dbody]
         ]
       RoundList [binding, value] -> RoundList

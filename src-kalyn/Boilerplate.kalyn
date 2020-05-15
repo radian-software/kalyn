@@ -1,7 +1,7 @@
 (import "Assembly.kalyn")
 (import "Stdlib.kalyn")
 
-(defn addFnBoilerplate (Func PhysicalFunction PhysicalFunction)
+(defn addFnBoilerplate (Func PFunction PFunction)
   ((Function stackSpace name instrs))
   (let ((clobberedRegs
          (nub compareRegister
@@ -35,6 +35,6 @@
                (_ [instr])))
            instrs)]))))
 
-(public defn addProgramBoilerplate (Func (Program Register) (Program Register))
+(public defn addProgramBoilerplate (Func PProgram PProgram)
   ((Program mainFn fns datums))
   (Program mainFn (map addFnBoilerplate fns) datums))

@@ -253,9 +253,9 @@ greaterThan = compareOp "greaterThan__uncurried" JG
 greaterThanEqual :: Stateful VirtualFunction
 greaterThanEqual = compareOp "greaterThanEqual__uncurried" JGE
 
-monadPure :: Stateful VirtualFunction
-monadPure = return
-  $ function "pure__uncurried__unmonadified" [OP MOV $ MR (getArg 1) rax, RET]
+monadReturn :: Stateful VirtualFunction
+monadReturn = return $ function "return__uncurried__unmonadified"
+                                [OP MOV $ MR (getArg 1) rax, RET]
 
 monadBind :: Stateful VirtualFunction
 monadBind = do

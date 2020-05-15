@@ -140,3 +140,20 @@
 (public defn nub (Func (Ord a) (List a) (List a))
   (cmp)
   (comp setToList (setFromList cmp)))
+
+(public defn foldr1 (Func (Func a a a) (List a) a)
+  (func (Cons init elts))
+  (foldr func init elts))
+
+(public defn foldl1 (Func (Func a a a) (List a) a)
+  (func (Cons init elts))
+  (foldl func init elts))
+
+(public defn sort (Func (Ord a) (List a) (List a))
+  (cmp elts)
+  (mapToList (mapFromList cmp elts)))
+
+(public defn sortOn (Func (Func a b) (Ord b) (List a) (List a))
+  (key cmp)
+  (sort (lambda (e1 e2)
+          (cmp (key e1) (key e2)))))

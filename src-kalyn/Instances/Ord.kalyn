@@ -32,7 +32,7 @@
   ((Temporary t1) (Temporary t2))
   (compareInt t1 t2))
 
-(public defn compareVirtualRegister (Ord VirtualRegister)
+(public defn compareVR (Ord VR)
   (r1 r2)
   (case (Pair r1 r2)
     ((Pair (Physical p1) (Physical p2))

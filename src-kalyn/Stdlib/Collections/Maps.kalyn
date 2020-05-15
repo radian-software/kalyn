@@ -100,14 +100,22 @@
          (GT (Branch k v (+ d 1) l (Branch k1 v1 (+ (- d (size l)) 1) Leaf r)))
          (EQ (Branch k v d l r)))))))
 
-(defn mapHead (Func (Node k v) (Pair k v))
+(defn nodeHead (Func (Node k v) (Pair k v))
   "Get the key-value pair of the root."
   (t)
   (case t
     (Leaf (error "tree corruption\n"))
     ((Branch k v _ _ _) (Pair k v))))
 
-(defn mapTail (Func (Node k v) (Node k v))
+(public defn mapHead (Func (Map k v) (Maybe (Pair k v)))
+  "Get an arbitrary key-value pair from the map."
+  ((Map _ t)
+   (case t
+     (Leaf Nothing)
+     ((Branch k v _ _ _)
+      (Just (Pair k v))))))
+
+(defn nodeTail (Func (Node k v) (Node k v))
   "Remove the root of the tree and merge its subtrees."
   (t)
   (case t
@@ -130,7 +138,7 @@
       (_ (case (lookup cmp k t)
            (t*@(Branch k1 _ _ _ _)
             (case (cmp k k1)
-              (EQ (mapTail t*))
+              (EQ (nodeTail t*))
               (_ t*)))
            (Leaf (error "tree corruption\n")))))))
 
@@ -163,6 +171,105 @@
                   (case t
                     (Leaf [])
                     (h@(Branch _ _ _ Leaf _)
-                     (Cons (mapHead h) (toList (mapTail h))))
+                     (Cons (nodeHead h) (toList (nodeTail h))))
                     (h (toList (splayLeft h)))))))
     (toList t)))
+
+(public defn mapAlter (Func
+                        (Func (Maybe v) (Maybe v))
+                        k (Map k v) (Map k v))
+  (func k (Map cmp t))
+  (Map
+    cmp
+    (case (lookup cmp k t)
+      (Leaf
+       (case (func Nothing)
+         (Nothing Leaf)
+         ((Just v)
+          (Branch k v 0 Leaf Leaf))))
+      (br@(Branch k* v* d l r)
+       (case (cmp k k*)
+         (EQ (case (func (Just v*))
+               (Nothing (nodeTail br))
+               ((Just v) (Branch k* v d l r))))
+         (_ br))))))
+
+(defn mapWithKey (Func (k a b) (Node k a) (Node k b))
+  "Map a function over an internal node to produce a new one."
+  (func node)
+  (case node
+    (Leaf Leaf)
+    ((Branch k a d l r)
+     (Branch k (func k a) d (mapWithKey func l) (mapWithKey func r)))))
+
+(public defn mapMapWithKey (Func (Ord b) (Func k a b) (Map k a) (Map k b))
+  "Map a function over a map to produce a new map with the given
+   comparison function."
+  (cmp func (Map _ t))
+  (Map cmp (mapWithKey func t)))
+
+(public defn mapUnionWithKey
+  (Func (Func k v v v) (Map k v) (Map k v) (Map k v))
+  "Merge two maps with a combining function. The combined map uses the
+   comparison function from the left-hand map."
+  (comb (Map cmp left) right)
+  (foldr (lambda ((Pair k rv) m)
+           (mapAdjust
+             (lambda (existing)
+               (case existing
+                 (Nothing (Just rv))
+                 ((Just lv) (Just (comb k lv rv)))))))
+         left
+         (mapToList right)))
+
+(public def mapUnion
+  (Func (Map k v) (Map k v) (Map k v))
+  "Left-biased union of two maps. The combined map uses the comparison
+   function from the left-hand map."
+  (mapUnionWithKey
+    (lambda (_ lv _)
+      lv)))
+
+(public def mapUnions1
+  (Func (List (Map k v)) (Map k v))
+  "Left-biased union of a list of maps. The combined map uses the
+   comparison function from the first map in the list."
+  (foldl1 mapUnion))
+
+(public def mapKeys (Func (Map k v) (List k))
+  "Return the list of keys in a map."
+  (comp fst mapToList))
+
+(public def mapElems (Func (Map k v) (List v))
+  "Return the list of values in a map."
+  (comp snd mapToList))
+
+(public defn map\\ (Func (Map k v) (Map k v) (Map k v))
+  "Map difference. Remove all the elements of the right-hand map from
+   the left-hand map."
+  (left right)
+  (foldr mapDelete left (mapKeys right)))
+
+(public defn mapFilter (Func (Func k Bool) (Map k v) (Map k v))
+  "Filter a map to only the keys that pass the given predicate."
+  (pred m@(Map cmp _))
+  (mapFromList cmp (filter (first pred) (mapToList m))))
+
+(public defn mapMember (Func k (Map k v) Bool)
+  "Check if the given key is in the map."
+  (k m)
+  (case (mapLookup k m)
+    (Nothing False)
+    ((Just _) True)))
+
+(public defn map! (Func k (Map k v) v)
+  "Get the value for the given key, or throw an error if it's not
+   present."
+  (k m)
+  (case (mapLookup k m)
+    (Nothing (error "no such key in map\n"))
+    ((Just v) v)))
+
+(public defn mapNotMember (Func k (Map k v) Bool)
+  "Check if the given key is NOT in the map."
+  (comp not mapMember))

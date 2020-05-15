@@ -14,31 +14,33 @@
   (Physical Register)
   (Virtual Temporary))
 
+(public alias VR VirtualRegister)
+
 (public alias (RegisterLike reg) (Func Register reg))
 
 (public def fromP (RegisterLike Register)
   id)
 
-(public def fromV (RegisterLike VirtualRegister)
+(public def fromV (RegisterLike VR)
   Physical)
 
-(public def rax VirtualRegister (Physical RAX))
-(public def rcx VirtualRegister (Physical RCX))
-(public def rdx VirtualRegister (Physical RDX))
-(public def rbx VirtualRegister (Physical RBX))
-(public def rsp VirtualRegister (Physical RSP))
-(public def rbp VirtualRegister (Physical RBP))
-(public def rsi VirtualRegister (Physical RSI))
-(public def rdi VirtualRegister (Physical RDI))
-(public def r8  VirtualRegister (Physical R8 ))
-(public def r9  VirtualRegister (Physical R9 ))
-(public def r10 VirtualRegister (Physical R10))
-(public def r11 VirtualRegister (Physical R11))
-(public def r12 VirtualRegister (Physical R12))
-(public def r13 VirtualRegister (Physical R13))
-(public def r14 VirtualRegister (Physical R14))
-(public def r15 VirtualRegister (Physical R15))
-(public def rip VirtualRegister (Physical RIP))
+(public def rax VR (Physical RAX))
+(public def rcx VR (Physical RCX))
+(public def rdx VR (Physical RDX))
+(public def rbx VR (Physical RBX))
+(public def rsp VR (Physical RSP))
+(public def rbp VR (Physical RBP))
+(public def rsi VR (Physical RSI))
+(public def rdi VR (Physical RDI))
+(public def r8  VR (Physical R8 ))
+(public def r9  VR (Physical R9 ))
+(public def r10 VR (Physical R10))
+(public def r11 VR (Physical R11))
+(public def r12 VR (Physical R12))
+(public def r13 VR (Physical R13))
+(public def r14 VR (Physical R14))
+(public def r15 VR (Physical R15))
+(public def rip VR (Physical RIP))
 
 (public alias Label String)
 
@@ -88,8 +90,8 @@
   (SYSCALL Word)
   (LABEL Label))
 
-(public alias VirtualInstruction (Instruction VirtualRegister))
-(public alias PhysicalInstruction (Instruction Register))
+(public alias VInstruction (Instruction VR))
+(public alias PInstruction (Instruction Register))
 
 (public defn memLabel (Func (RegisterLike reg) Label (Mem reg))
   (from name)
@@ -98,7 +100,7 @@
 (public def memLabelP (Func Label (Mem Register))
   (memLabel fromP))
 
-(public def memLabelV (Func Label (Mem VirtualRegister))
+(public def memLabelV (Func Label (Mem VR))
   (memLabel fromV))
 
 (public def dataRegisters (Set Register)
@@ -237,10 +239,13 @@
 (public def function (Func Label (List (Instruction reg)) (Function reg))
   (Function 0))
 
-(public alias VirtualFunction (Function VirtualRegister))
-(public alias PhysicalFunction (Function Register))
+(public alias VFunction (Function VR))
+(public alias PFunction (Function Register))
 
 (public alias Datum (Pair Label Bytes))
 
 (public data (Program reg)
   (Program (Function reg) (List (Function reg)) (List Datum)))
+
+(public alias VProgram (Program VR))
+(public alias PProgram (Program Register))

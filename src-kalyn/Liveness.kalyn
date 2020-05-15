@@ -1,0 +1,91 @@
+(import "Assembly.kalyn")
+(import "Stdlib.kalyn")
+(import "Util.kalyn")
+
+(public data FnLiveness
+  (Set VR) (List (Set VR)))
+
+(public alias ProgLiveness
+  (List (Pair VFunction FnLiveness)))
+
+(public defn assertNoFreeVariablesF (Func String FnLiveness FnLiveness)
+  (name analysis@(FnLiveness freeVariables _))
+  (if (setNull freeVariables)
+    analysis
+    (error (concat
+             ["in function "
+              name
+              ", liveness analysis found free variables"]))))
+
+(public def assertNoFreeVariablesP (Func ProgLiveness ProgLiveness)
+  (map (lambda ((Pair fn@(Function _ name _) analysis))
+         (Pair fn (assertNoFreeVariablesF name analysis)))))
+
+(defn computeLiveness (Func (List (Instruction VR)) FnLiveness)
+  (instrs)
+  (let ((special (setFromList
+                   compareVR
+                   (map
+                     fromV
+                     specialRegisters)))
+        (useDefs (map
+                   (comp (both (setFromList compareVR))
+                         getRegisters)
+                   instrs))
+        (propagate
+         (lambda ((Pair _ origLabelLivenesses))
+           (foldr
+             (lambda ((Pair instr (Pair used defined))
+                      (Pair newLivenesses labelLivenesses))
+               (let ((getNextLiveness
+                      (case newLivenesses
+                        (Null Null)
+                        ((Cons liveness _) [liveness])))
+                     (getLabelLiveness
+                      (lambda (label)
+                        (case (mapLookup label labelLivenesses)
+                          (Nothing [(setEmpty compareVR)
+                                    (setEmpty compareVR)])
+                          ((Just liveness) [liveness]))))
+                     (succLivenesses
+                      (case (getJumpType instr)
+                        (Straightline getNextLiveness)
+                        ((Jump label) (getLabelLiveness label))
+                        ((Branch label) (append
+                                          getNextLiveness
+                                          (getLabelLiveness label)))
+                        (Return [])))
+                     (liveOut (setUnions1 (map fst succLivenesses)))
+                     (liveIn (set\\
+                               (setUnion
+                                 (set\\
+                                   liveOut
+                                   defined)
+                                 used)
+                               special))
+                     (newLiveness (Pair liveIn liveOut)))
+                 (case instr
+                   ((LABEL name)
+                    (Pair
+                      (Cons newLiveness newLivenesses)
+                      (mapInsert name newLiveness labelLivenesses)))
+                   (_
+                    (Pair
+                      (Cons newLiveness newLivenesses)
+                      labelLivenesses)))))
+             (Pair [] origLabelLivenesses)
+             (zip instrs useDefs))))
+        ((Pair livenesses _)
+         (fixedPoint
+           (lambda ((Pair l1 _) (Pair l2 _))
+             (==List
+               (==Set ==VR)
+               l1 l2)))))))
+
+(public defn computeProgramLiveness
+  (Func VProgram ProgramLiveness)
+  ((Program mainFn fns _)
+   (map
+     (lambda (fn@(Function _ _ instrs))
+       (Pair fn (computeLiveness instrs)))
+     (Cons mainFn fns))))

@@ -1,5 +1,14 @@
 (import "../../Stdlib.kalyn")
 
+(public defn compareBool (Ord Bool)
+  (x y)
+  (case (Pair x y)
+    ((Pair False True)
+     LT)
+    ((Pair True False)
+     GT)
+    (_ EQ)))
+
 (public defn compareInt (Ord Int)
   (x y)
   (if (<Int x y)
@@ -8,8 +17,8 @@
       GT
       EQ)))
 
-(public defn compareString (Ord String)
-  (s1 s2)
+(public defn compareList (Func (Ord a) (Ord (List a)))
+  (compare s1 s2)
   (case (Pair s1 s2)
     ((Pair Null Null)
      EQ)
@@ -17,8 +26,21 @@
      LT)
     ((Pair (Cons _ _) Null)
      GT)
-    ((Pair (Cons (Char c1) r1) (Cons (Char c2) r2))
-     (case (compareInt c1 c2)
+    ((Pair (Cons f1 r1) (Cons f2 r2))
+     (case (compare f1 f2)
        (LT LT)
        (GT GT)
-       (EQ (compareString r1 r2))))))
+       (EQ (compareList compare r1 r2))))))
+
+(public defn compareChar (Ord Char)
+  ((Char c1) (Char c2))
+  (compareInt c1 c2))
+
+(public def compareString (Ord String)
+  (compareList compareChar))
+
+(public defn comparePair (Func (Ord a) (Ord b) (Ord (Pair a b)))
+  (cmpA cmpB (Pair a1 b1) (Pair a2 b2))
+  (case (cmpA a1 a2)
+    (EQ (cmpB b1 b2))
+    (res res)))

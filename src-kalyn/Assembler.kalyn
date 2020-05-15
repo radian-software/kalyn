@@ -352,12 +352,12 @@
   ((Function _ name instrs))
   (Cons (LABEL name) instrs))
 
-(public defn assemble (Func (Program Register) Bytes)
+(public defn assemble (Func PProgram Bytes)
   ((Program main fns datums))
   (let ((allInstrs (append (fnInstrs main) (concatMap fnInstrs fns)))
         (binInstrs
          (fixedPoint
-           ==ListString
+           (==List ==String)
            (replicate (length allInstrs) Null)
            (lambda (binInstrs)
              (let ((codeOffsets

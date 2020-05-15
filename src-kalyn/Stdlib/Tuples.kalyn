@@ -7,3 +7,11 @@
 (public defn snd (Func (Pair a b) b)
   ((Pair _ b))
   b)
+
+(public defn first (Func (Func a c) (Func (Pair a b) (Pair c b)))
+  (func (Pair a b))
+  (Pair (func a) b))
+
+(public defn second (Func (Func b c) (Func (Pair a b) (Pair a c)))
+  (func (Pair a b))
+  (Pair a (func b)))

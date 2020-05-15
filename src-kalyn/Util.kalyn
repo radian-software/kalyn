@@ -48,3 +48,7 @@
     (if (eq x fx)
       x
       (fixedPoint eq fx f))))
+
+(public defn both (Func (Func a b) (Func (Pair a a) (Pair b b)))
+  (func (Pair l r))
+  (Pair (func l) (func r)))

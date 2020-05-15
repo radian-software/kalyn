@@ -1,0 +1,11 @@
+(import "../Stdlib.kalyn")
+
+(public defn mapMaybe (Func (Func a (Maybe b)) (List a) (List b))
+  (func elts)
+  (case elts
+    (Null Null)
+    ((Cons fst rst)
+     (case (func fst)
+       (Nothing (mapMaybe func rst))
+       ((Just fst*)
+        (Cons fst* (mapMaybe func rst)))))))

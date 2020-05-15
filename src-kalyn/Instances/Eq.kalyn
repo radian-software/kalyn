@@ -28,7 +28,7 @@
   ((Temporary t1) (Temporary t2))
   (==Int t1 t2))
 
-(public defn ==VirtualRegister (Eq VirtualRegister)
+(public defn ==VR (Eq VR)
   (r1 r2)
   (case (Pair r1 r2)
     ((Pair (Physical p1) (Physical p2))

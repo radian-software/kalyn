@@ -3,17 +3,17 @@
 (import "Linker.kalyn")
 (import "Stdlib.kalyn")
 
-(def helloWorld (Program Register)
+(def helloWorld VProgram
   (Program
     (function
       "main"
-      [(OP MOV (IR 1 RAX))
-       (OP MOV (IR 1 RDI))
-       (LEA (memLabelP "message") RSI)
-       (OP MOV (IR 14 RDX))
+      [(OP MOV (IR 1 rax))
+       (OP MOV (IR 1 rdi))
+       (LEA (memLabelV "message") rsi)
+       (OP MOV (IR 14 rdx))
        (SYSCALL 3)  ; write
-       (OP MOV (IR 60 RAX))
-       (OP MOV (IR 0 RDI))
+       (OP MOV (IR 60 rax))
+       (OP MOV (IR 0 rdi))
        (SYSCALL 1)  ; exit
        ])
     []
@@ -21,6 +21,8 @@
 
 (public def main (IO Empty)
   (do IO
-    (let bin (link (assemble helloWorld)))
+    (let liveness (computeProgramLiveness helloWorld))
+    (let physical (allocateProgramRegs helloWorld liveness))
+    (let bin (link (assemble physical)))
     (_ (writeFile "out-kalyn-rec/Main" bin))
     (setFileMode "out-kalyn-rec/Main" 0o755)))

@@ -16,9 +16,9 @@
                        str))))))
           (showInt* i "")))))
 
-(public defn showListInt (Show (List Int))
-  (ints)
+(public defn showList (Func (Show a) (Show (List a)))
+  (show elts)
   (concat
     ["["
-     (intercalate ", " (map showInt ints))
+     (intercalate ", " (map show elts))
      "]"]))
