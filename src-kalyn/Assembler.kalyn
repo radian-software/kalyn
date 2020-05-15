@@ -39,7 +39,7 @@
     (R13 (Pair True  0x5))
     (R14 (Pair True  0x6))
     (R15 (Pair True  0x7))
-    (RIP (error "can't use %rip here"))))
+    (RIP (error "can't use %rip here\n"))))
 
 (defn rex (Func (Maybe Register) (Maybe Register) (Maybe Register) Word8)
   (reg rm index)
@@ -122,7 +122,7 @@
                      (_ (Just base)))
                    (case (Pair base msi)
                      ((Pair RIP (Just _))
-                      (error "can't use scale with %rip"))
+                      (error "can't use scale with %rip\n"))
                      ((Pair RIP Nothing) Nothing)
                      (_ (case msi
                           ((Just (Pair _ r)) (Just r))
@@ -224,7 +224,7 @@
                        (Nothing
                         (error
                           (concat
-                            ["no such label " label])))
+                            ["no such label " label "\n"])))
                        ((Just labelOffset)
                         (- labelOffset pc)))))
         (fromDisp (lambda (disp)
@@ -234,7 +234,7 @@
     (case instr
       ((OP op args)
        (let ((memDisallowed
-              "cannot imulq into memory address")
+              "cannot imulq into memory address \n")
              ((Quad immOp immExt stdOp memOp)
               (case op
                 (MOV  (Quad [0xc7] (Just 0 ) [0x8b     ] [0x89]))
