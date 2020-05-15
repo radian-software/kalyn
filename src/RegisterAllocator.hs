@@ -12,21 +12,27 @@ import qualified Data.Set                      as Set
 import           Assembly
 import           Liveness
 
+{-# ANN module "HLint: ignore Use lambda-case" #-}
+
 -- http://web.cs.ucla.edu/~palsberg/course/cs132/linearscan.pdf
 
 type Allocation = Map.Map VirtualRegister Register
 
-computeLivenessInterval :: Ord reg => Liveness reg -> reg -> (Int, Int)
-computeLivenessInterval livenesses reg =
-  let indices = findIndices
-        (\liveness ->
-          reg
-            `Set.member` instrLiveIn liveness
-            ||           reg
-            `Set.member` instrDefined liveness
+computeLivenessIntervals :: Ord reg => Liveness reg -> Map.Map reg (Int, Int)
+computeLivenessIntervals livenesses =
+  let alter idx = Map.alter
+        (\interval -> case interval of
+          Nothing         -> Just (idx, idx + 1)
+          Just (start, _) -> Just (start, idx + 1)
         )
-        livenesses
-  in  (head indices, last indices + 1)
+  in  foldl'
+        (\intervals (liveness, idx) -> Set.foldr
+          (alter idx)
+          (Set.foldr (alter idx) intervals (instrDefined liveness))
+          (instrLiveIn liveness)
+        )
+        Map.empty
+        (zip livenesses (iterate (+ 1) 0))
 
 intervalsIntersect :: (Int, Int) -> (Int, Int) -> Bool
 intervalsIntersect (a, b) (c, d) = not (b <= c || d <= a)
@@ -38,65 +44,57 @@ tryAllocateFunctionRegs
   -> Set.Set VirtualRegister
   -> Either [Temporary] Allocation
 tryAllocateFunctionRegs liveness spillBlacklist =
-  let
-    allRegs = Set.toList
-      (      Set.unions
-          (map (\il -> instrUsed il `Set.union` instrDefined il) liveness)
-      Set.\\ Set.fromList (map fromRegister specialRegisters)
-      )
-    intervalMap = Map.fromList
-      $ map (\reg -> (reg, computeLivenessInterval liveness reg)) allRegs
-    disallowed = Map.mapWithKey
-      (\reg _ -> Set.fromList $ filter
-        (\dataReg ->
-          Physical dataReg `Map.member` intervalMap && intervalsIntersect
-            (intervalMap Map.! reg)
-            (intervalMap Map.! Physical dataReg)
+  let intervalMap = computeLivenessIntervals liveness
+      disallowed  = Map.mapWithKey
+        (\reg _ -> Set.fromList $ filter
+          (\dataReg ->
+            Physical dataReg `Map.member` intervalMap && intervalsIntersect
+              (intervalMap Map.! reg)
+              (intervalMap Map.! Physical dataReg)
+          )
+          dataRegisters
         )
-        dataRegisters
-      )
-      intervalMap
-    (spilled, allocation) = allocate
-      []
-      (Map.fromList (map (\reg -> (fromRegister reg, reg)) specialRegisters))
-      -- allocate to smaller live intervals first, hopefully meaning
-      -- we spill less. also allocate to already-spilled registers
-      -- first, so we don't spill the same register repeatedly and
-      -- fall into an infinite loop.
-      (sortOn
-        (\reg ->
-          let (start, end) = intervalMap Map.! reg
-          in  (reg `Set.notMember` spillBlacklist, end - start)
+        intervalMap
+      (spilled, allocation) = allocate
+        []
+        (Map.fromList (map (\reg -> (fromRegister reg, reg)) specialRegisters))
+        -- allocate to smaller live intervals first, hopefully meaning
+        -- we spill less. also allocate to already-spilled registers
+        -- first, so we don't spill the same register repeatedly and
+        -- fall into an infinite loop.
+        (sortOn
+          (\reg ->
+            let (start, end) = intervalMap Map.! reg
+            in  (reg `Set.notMember` spillBlacklist, end - start)
+          )
+          (Map.keys intervalMap)
         )
-        allRegs
-      )
-     where
-      allocate spills allocs [] = (spills, allocs)
-      allocate spills allocs (cur@(Physical phys) : rst) =
-        allocate spills (Map.insert cur phys allocs) rst
-      allocate spills allocs (cur@(Virtual temp) : rst) =
-        case
-            filter
-              (\dataReg ->
-                not (dataReg `Set.member` (disallowed Map.! cur)) && not
-                  (any
-                    (\other ->
-                      Map.lookup other allocs
-                        == Just dataReg
-                        && intervalsIntersect (intervalMap Map.! cur)
-                                              (intervalMap Map.! other)
-                    )
-                    allRegs
+         where
+          allocate spills allocs [] = (spills, allocs)
+          allocate spills allocs (cur@(Physical phys) : rst) =
+            allocate spills (Map.insert cur phys allocs) rst
+          allocate spills allocs (cur@(Virtual temp) : rst) =
+            case
+                filter
+                  (\dataReg ->
+                    not (dataReg `Set.member` (disallowed Map.! cur)) && not
+                      (any
+                        (\other ->
+                          Map.lookup other allocs
+                            == Just dataReg
+                            && intervalsIntersect (intervalMap Map.! cur)
+                                                  (intervalMap Map.! other)
+                        )
+                        (Map.keys intervalMap)
+                      )
                   )
-              )
-              dataRegisters
-          of
-            []       -> allocate (temp : spills) allocs rst
-            free : _ -> allocate spills (Map.insert cur free allocs) rst
-  in
-    case spilled of
-      [] -> Right allocation
-      _  -> Left spilled
+                  dataRegisters
+              of
+                []       -> allocate (temp : spills) allocs rst
+                free : _ -> allocate spills (Map.insert cur free allocs) rst
+  in  case spilled of
+        [] -> Right allocation
+        _  -> Left spilled
 
 spillMem :: Eq reg => reg -> Mem reg -> Bool
 spillMem reg (Mem _ base msi) =
@@ -182,7 +180,8 @@ allocateFunctionRegs allSpilled liveness fn@(Function stackSpace name instrs) =
             (uncurry spillTemporary)
             fn
             (zip (iterate (+ 1) (Set.size allSpilled)) spilled)
-          liveness' = assertNoFreeVariables fnName . computeLiveness $ instrs'
+          liveness' =
+              assertNoFreeVariables fnName . computeLiveness fnName $ instrs'
       in  allocateFunctionRegs (allSpilled `Set.union` Set.fromList spilled)
                                liveness'
                                fn'
