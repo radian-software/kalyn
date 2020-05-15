@@ -3,7 +3,6 @@ module Bundler
   )
 where
 
-import           Data.List
 import qualified Data.Map.Strict               as Map
 import qualified Data.Set                      as Set
 import           System.Directory
@@ -44,19 +43,20 @@ readBundle' readDecls alreadyRead (curToRead : restToRead) declsSoFar =
 transitiveImports
   :: Map.Map FilePath ([Decl], [(FilePath, Bool)])
   -> Set.Set FilePath
-  -> [FilePath]
-  -> [FilePath]
-  -> [FilePath]
-transitiveImports _       _    []           result = result
-transitiveImports modules seen (cur : next) result = if Set.member cur seen
-  then transitiveImports modules seen next result
-  else
-    let (_, deps) = modules Map.! cur
-        new       = map fst $ filter snd deps
-    in  transitiveImports modules
-                          (Set.insert cur seen)
-                          (new ++ next)
-                          (cur : result)
+  -> Set.Set FilePath
+  -> Set.Set FilePath
+  -> Set.Set FilePath
+transitiveImports modules seen queue result = case Set.minView queue of
+  Nothing          -> result
+  Just (cur, next) -> if Set.member cur seen
+    then transitiveImports modules seen next result
+    else
+      let (_, deps) = modules Map.! cur
+          new       = map fst $ filter snd deps
+      in  transitiveImports modules
+                            (Set.insert cur seen)
+                            (foldr Set.insert next new)
+                            (Set.insert cur result)
 
 readBundle :: IO () -> (String -> IO [Decl]) -> FilePath -> IO Bundle
 readBundle onReadFinished readDecls filename = do
@@ -66,10 +66,11 @@ readBundle onReadFinished readDecls filename = do
   return $ Bundle absFilename $ Map.mapWithKey
     (\name (decls, _) ->
       ( decls
-      , nub $ transitiveImports modules
-                                (Set.singleton name)
-                                (map fst $ snd $ modules Map.! name)
-                                []
+      , Set.toList $ transitiveImports
+        modules
+        (Set.singleton name)
+        (Set.fromList . map fst . snd $ modules Map.! name)
+        Set.empty
       )
     )
     modules
