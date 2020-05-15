@@ -180,8 +180,7 @@ allocateFunctionRegs allSpilled liveness fn@(Function stackSpace name instrs) =
             (uncurry spillTemporary)
             fn
             (zip (iterate (+ 1) (Set.size allSpilled)) spilled)
-          liveness' =
-              assertNoFreeVariables fnName . computeLiveness fnName $ instrs'
+          liveness' = assertNoFreeVariables fnName . computeLiveness $ instrs'
       in  allocateFunctionRegs (allSpilled `Set.union` Set.fromList spilled)
                                liveness'
                                fn'
