@@ -58,6 +58,8 @@ getToken full@('\'' : s) =
         else error $ "character literal had more than one character: " ++ full
 getToken s@(c : _) | isDigit c =
   let (d, s') = span isAlphaNum s in (Just . INTEGER . read $ d, s')
+getToken ('-' : s@(c : _)) | isDigit c =
+  let (d, s') = span isAlphaNum s in (Just . INTEGER . read $ '-' : d, s')
 getToken s =
   let (v, s') =
           span (\c -> (not . isSpace $ c) && c `notElem` disallowedChars) s
