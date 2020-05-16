@@ -176,7 +176,7 @@ analyzeExpr fnName ctx var (Variable name) = case name `Map.lookup` ctx of
       ++ show fnName
       ++ ": type checker found free variable "
       ++ show name
-  Just (Left (SymDef _ ty)) -> do
+  Just (Left (SymDef _ ty _)) -> do
     (labeledType, _) <- autoNumberType fnName ty
     return [(ConsV var, labeledType)]
   Just (Left sd@(SymData _ _ _ _ _ _ _)) -> do
@@ -365,7 +365,7 @@ typeCheckDecl resolver (Def _ name _ expr) =
   let
     mappings = flip evalState 0 $ do
       tlVar <- newVar
-      let SymDef _ ty = fst resolver Map.! name
+      let SymDef _ ty _ = fst resolver Map.! name
       (tlConsType, mapping) <- autoNumberType name ty
       let fixed  = Set.fromList . Map.elems $ mapping
       let tlCons = (ConsV tlVar, tlConsType)

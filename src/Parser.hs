@@ -69,13 +69,34 @@ parseExpr (RoundList (Symbol "do" : Symbol monadName : items)) = if null items
 parseExpr (RoundList [Symbol "if", cond, true, false]) = Case
   (parseExpr cond)
   [(Variable "True", parseExpr true), (Variable "False", parseExpr false)]
-parseExpr (RoundList [Symbol "lambda", RoundList args, body]) = foldr
-  (\arg lbody -> case arg of
-    Symbol name -> Lambda name lbody
-    _ -> Lambda "gensym" (Case (Variable "gensym") [(parseExpr arg, lbody)])
-  )
-  (parseExpr body)
-  args
+parseExpr form@(RoundList [Symbol "lambda", RoundList _, _]) =
+  -- translate 'em like this to maximize the number of sublambdas we
+  -- can call through in code generation
+  let (args, body) = uncurryLambdas form
+      gensyms =
+          take (length args)
+            . map (("gensym" ++) . show)
+            . iterate (+ 1)
+            $ (0 :: Int)
+  in  foldr
+        (\(arg, gensym) lbody -> case arg of
+          Symbol name -> Lambda name lbody
+          _           -> Lambda gensym lbody
+        )
+        (foldr
+          (\(arg, gensym) lbody -> case arg of
+            Symbol _ -> lbody
+            _        -> Case (Variable gensym) [(parseExpr arg, lbody)]
+          )
+          (parseExpr body)
+          (zip args gensyms)
+        )
+        (zip args gensyms)
+ where
+  uncurryLambdas (RoundList [Symbol "lambda", RoundList args, body]) =
+    let (restArgs, innerBody) = uncurryLambdas body
+    in  (args ++ restArgs, innerBody)
+  uncurryLambdas body = ([], body)
 parseExpr (RoundList [Symbol "let", RoundList bindings, body]) = foldr
   (\binding lbody -> case binding of
     RoundList [Symbol name, val] -> Let name (parseExpr val) lbody

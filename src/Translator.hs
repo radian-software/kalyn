@@ -27,11 +27,22 @@ type TopLevelBindings = Map.Map String Symbol
 data Context = Context
   { bindings :: Bindings
   , fnName :: String
+  , sublambdaCount :: Int
+  , sublambdasLeft :: Int
   }
 
 withBinding :: String -> VirtualRegister -> Context -> Context
-withBinding name temp ctx =
-  Context (Map.insert name (Right temp) (bindings ctx)) (fnName ctx)
+withBinding name temp ctx = Context
+  (Map.insert name (Right temp) (bindings ctx))
+  (fnName ctx)
+  (sublambdaCount ctx)
+  (sublambdasLeft ctx)
+
+lessOneSublambda :: Context -> Context
+lessOneSublambda ctx = Context (bindings ctx)
+                               (fnName ctx)
+                               (sublambdaCount ctx)
+                               (sublambdasLeft ctx - 1)
 
 freeVariables :: Expr -> Set.Set String
 freeVariables (Variable name) = Set.singleton name
@@ -219,12 +230,20 @@ translateExpr ctx dst form@(Lambda name body) = do
           _ -> Nothing
         )
         possibleVars
-  baseLambdaName <- newLambda (fnName ctx)
-  argTemps       <- replicateM (length vars + 1) newTemp
   let argNames = map fst vars ++ [name]
-  let lambdaName =
-        baseLambdaName ++ "__" ++ intercalate "_" (map sanitize argNames)
-  let bodyCtx = foldr (uncurry withBinding) ctx (zip argNames argTemps)
+  lambdaName <- if sublambdasLeft ctx <= 0
+    then (++ "__" ++ intercalate "_" (map sanitize argNames))
+      <$> newLambda (fnName ctx)
+    else if sublambdasLeft ctx == 1
+      then return (fnName ctx ++ "__uncurried")
+      else return
+        (fnName ctx ++ "__curried" ++ show
+          (sublambdaCount ctx - sublambdasLeft ctx)
+        )
+  argTemps <- replicateM (length vars + 1) newTemp
+  let bodyCtx = foldr (uncurry withBinding)
+                      (lessOneSublambda ctx)
+                      (zip argNames argTemps)
   let argsCode = zipWith
         (\argTemp argIdx -> OP MOV $ MR (getArg argIdx) argTemp)
         argTemps
@@ -311,11 +330,12 @@ translateDecl binds (Data _ typeSpec ctors) = concat <$> zipWithM
   ctors
   (iterate (+ 1) 0)
 translateDecl binds (Def _ name _ value) = do
-  let mangledName = symName $ binds Map.! name
+  let SymDef mangledName _ numSublambdas = binds Map.! name
   dst           <- newTemp
-  (instrs, fns) <- translateExpr (Context (Map.map Left binds) mangledName)
-                                 dst
-                                 value
+  (instrs, fns) <- translateExpr
+    (Context (Map.map Left binds) mangledName numSublambdas numSublambdas)
+    dst
+    value
   return $ function mangledName (instrs ++ [OP MOV $ RR dst rax, RET]) : fns
 translateDecl _ (Derive _ _) = return []
 translateDecl _ (Import _ _) = error "translator shouldn't be handling imports"

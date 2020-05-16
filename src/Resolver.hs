@@ -33,7 +33,8 @@ mapType func (Type classSpecs typeName typeArgs) =
   Type classSpecs (mapTypeName func typeName) (map (mapType func) typeArgs)
 
 mapSymbol :: (String -> String) -> (String -> String) -> Symbol -> Symbol
-mapSymbol func tfunc (SymDef name t) = SymDef (func name) (mapType tfunc t)
+mapSymbol func tfunc (SymDef name t num) =
+  SymDef (func name) (mapType tfunc t) num
 mapSymbol func tfunc (SymData name ctorIdx numFields numCtors boxed typeSpec types)
   = SymData (func name)
             ctorIdx
@@ -70,6 +71,10 @@ sanitizeModuleNames fullNames =
       bestXForm = head $ filter (\xform -> listUnique $ xform fullNames) xforms
   in  Map.fromList $ zip fullNames (bestXForm fullNames)
 
+countSublambdas :: Expr -> Int
+countSublambdas (Lambda _ body) = 1 + countSublambdas body
+countSublambdas _               = 0
+
 -- for now, doesn't handle Derive or Instance
 getDeclSymbols :: Bool -> Decl -> [Symbol]
 getDeclSymbols isMain (Data pub typeSpec ctors) = if isMain || pub
@@ -86,8 +91,9 @@ getDeclSymbols isMain (Data pub typeSpec ctors) = if isMain || pub
     ctors
     (iterate (+ 1) 0)
   else []
-getDeclSymbols isMain (Def pub name t _) = [ SymDef name t | isMain || pub ]
-getDeclSymbols _      _                  = []
+getDeclSymbols isMain (Def pub name t expr) =
+  [ SymDef name t (countSublambdas expr) | isMain || pub ]
+getDeclSymbols _ _ = []
 
 getDeclTypes :: Bool -> Decl -> [TypeName]
 getDeclTypes isMain (Data pub (TypeSpec name _) _) = [ name | isMain || pub ]
@@ -189,7 +195,7 @@ resolveBundle (Bundle _ mmap) =
                    mods
               ++ map
                    (\(publicName, (privateName, _, ty)) ->
-                     let sym = SymDef privateName ty
+                     let sym = SymDef privateName ty 0
                      in
                        ( publicName
                        , mapSymbol

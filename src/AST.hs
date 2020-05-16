@@ -42,7 +42,7 @@ data Decl = Alias Bool TypeSpec Type
           | Instance Bool [ClassSpec] ClassSpec [(VarName, Expr)]
   deriving (Show)
 
-data Symbol = SymDef String Type
+data Symbol = SymDef String Type Int
             | SymData { sdName :: String
                       , sdCtorIdx :: Int
                       , sdNumFields :: Int
@@ -65,7 +65,7 @@ sdHasHeader SymData { sdNumCtors = numCtors } = numCtors > 1
 sdHasHeader _ = error "can only call sdHasHeader on SymDef"
 
 symName :: Symbol -> String
-symName (SymDef name _           ) = name
+symName (SymDef name _ _         ) = name
 symName (SymData name _ _ _ _ _ _) = name
 
 data Bundle = Bundle String (Map.Map String ([Decl], [String]))
@@ -239,8 +239,20 @@ instance Pretty Decl where
     prettyPub True  = "public "
 
 instance Pretty Symbol where
-  pretty (SymDef name t) =
-    "regular symbol " ++ name ++ " with type " ++ pretty t
+  pretty (SymDef name t sublambdaCount) =
+    "regular symbol "
+      ++ name
+      ++ " with type "
+      ++ pretty t
+      ++ (if sublambdaCount /= 0
+           then
+             " (and "
+             ++ show sublambdaCount
+             ++ " sublambda"
+             ++ (if sublambdaCount == 1 then "" else "s")
+             ++ ")"
+           else ""
+         )
   pretty sd@(SymData _ _ _ _ _ _ _) =
     "data constructor "
       ++ sdName sd
