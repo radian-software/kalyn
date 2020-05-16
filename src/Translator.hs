@@ -28,7 +28,7 @@ data Context = Context
   { bindings :: Bindings
   , fnName :: String
   , sublambdaCount :: Int
-  , sublambdasLeft :: Int
+  , sublambdaArgs :: [String]
   }
 
 withBinding :: String -> VirtualRegister -> Context -> Context
@@ -36,13 +36,16 @@ withBinding name temp ctx = Context
   (Map.insert name (Right temp) (bindings ctx))
   (fnName ctx)
   (sublambdaCount ctx)
-  (sublambdasLeft ctx)
+  (sublambdaArgs ctx)
 
-lessOneSublambda :: Context -> Context
-lessOneSublambda ctx = Context (bindings ctx)
-                               (fnName ctx)
-                               (sublambdaCount ctx)
-                               (sublambdasLeft ctx - 1)
+withSublambdaArg :: String -> Context -> Context
+withSublambdaArg arg ctx = Context (bindings ctx)
+                                   (fnName ctx)
+                                   (sublambdaCount ctx)
+                                   (arg : sublambdaArgs ctx)
+
+withoutSublambdas :: Context -> Context
+withoutSublambdas ctx = Context (bindings ctx) (fnName ctx) 0 []
 
 freeVariables :: Expr -> Set.Set String
 freeVariables (Variable name) = Set.singleton name
@@ -61,7 +64,12 @@ translateVar :: Context -> VirtualRegister -> String -> [VirtualInstruction]
 translateVar ctx dst name = case Map.lookup name (bindings ctx) of
   Just (Left  sym) -> [JUMP CALL (symName sym), OP MOV $ RR rax dst]
   Just (Right reg) -> [OP MOV $ RR reg dst]
-  Nothing          -> error $ "reference to free variable: " ++ show name
+  Nothing ->
+    error
+      $  "in function "
+      ++ show (fnName ctx)
+      ++ ": reference to free variable: "
+      ++ show name
 
 translatePattern
   :: Context
@@ -279,26 +287,30 @@ translateExpr ctx dst (Case arg branches) = do
 translateExpr ctx dst form@(Lambda name body) = do
   temp <- newTemp
   let possibleVars = Set.toList . freeVariables $ form
-  let vars = mapMaybe
-        (\var -> case (var, Map.lookup var (bindings ctx)) of
-          (_, Just (Right reg)) | var /= name -> Just (var, reg)
-          _ -> Nothing
-        )
-        possibleVars
-  let argNames = map fst vars ++ [name]
-  lambdaName <- if sublambdasLeft ctx <= 0
+  let
+    vars = mapMaybe
+      (\var -> case (var, Map.lookup var (bindings ctx)) of
+        (_, Just (Right reg)) | var `notElem` (name : sublambdaArgs ctx) ->
+          Just (var, reg)
+        _ -> Nothing
+      )
+      possibleVars
+  let argNames = map fst vars ++ reverse (name : sublambdaArgs ctx)
+  lambdaName <- if length (sublambdaArgs ctx) >= sublambdaCount ctx
     then (++ "__" ++ intercalate "_" (map sanitize argNames))
       <$> newLambda (fnName ctx)
-    else if sublambdasLeft ctx == 1
+    else if length (sublambdaArgs ctx) == sublambdaCount ctx - 1
       then return (fnName ctx ++ "__uncurried")
       else return
-        (fnName ctx ++ "__curried" ++ show
-          (sublambdaCount ctx - sublambdasLeft ctx)
+        (fnName ctx ++ "__curried" ++ show (length (sublambdaArgs ctx)))
+  argTemps <- replicateM (length argNames) newTemp
+  let bodyCtx = foldr
+        (uncurry withBinding)
+        (if length (sublambdaArgs ctx) + 1 < sublambdaCount ctx
+          then withSublambdaArg name ctx
+          else withoutSublambdas ctx
         )
-  argTemps <- replicateM (length vars + 1) newTemp
-  let bodyCtx = foldr (uncurry withBinding)
-                      (lessOneSublambda ctx)
-                      (zip argNames argTemps)
+        (zip argNames argTemps)
   let argsCode = zipWith
         (\argTemp argIdx -> OP MOV $ MR (getArg argIdx) argTemp)
         argTemps
@@ -308,17 +320,23 @@ translateExpr ctx dst form@(Lambda name body) = do
   -- work directly on dst because we want to allow for recursive
   -- lambda let-bindings
   return
-    ( [ PUSHI (fromIntegral $ (length vars + 2) * 8)
+    ( [ PUSHI (fromIntegral $ (length argNames + 1) * 8)
       , JUMP CALL "memoryAlloc"
       , unpush 1
       , OP MOV $ RR rax dst
       , LEA (memLabel lambdaName) temp
       , OP MOV $ RM temp (getField 0 dst)
-      , OP MOV $ IM (fromIntegral $ length vars) (getField 1 dst)
+      , OP MOV $ IM (fromIntegral $ length argNames - 1) (getField 1 dst)
       ]
       ++ zipWith
            (\varTemp idx -> OP MOV $ RM varTemp (getField (idx + 2) dst))
-           (map snd vars)
+           (map
+             (\arg -> case Map.lookup arg (bindings ctx) of
+               Just (Right reg) -> reg
+               _                -> error "sublambda arg not bound somehow"
+             )
+             (init argNames)
+           )
            (iterate (+ 1) 0)
     , function lambdaName
                (argsCode ++ bodyCode ++ [OP MOV $ RR bodyDst rax, RET])
@@ -388,7 +406,7 @@ translateDecl binds (Def _ name _ value) = do
   let SymDef mangledName _ numSublambdas = binds Map.! name
   dst           <- newTemp
   (instrs, fns) <- translateExpr
-    (Context (Map.map Left binds) mangledName numSublambdas numSublambdas)
+    (Context (Map.map Left binds) mangledName numSublambdas [])
     dst
     value
   return $ function mangledName (instrs ++ [OP MOV $ RR dst rax, RET]) : fns
