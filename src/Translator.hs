@@ -210,7 +210,11 @@ translateExpr ctx dst expr@(Call lhs rhs) =
   in
     case lhs' of
       Variable name -> case Map.lookup name (bindings ctx) of
-        Just (Left (SymDef mangledName _ numSublambdas)) -> do
+        Just (Left sym) -> do
+          let mangledName = symName sym
+          let numSublambdas = case sym of
+                SymDef _ _ num        -> num
+                SymData _ _ _ _ _ _ _ -> sdNumFields sym
           let (directArgs, indirectArgs) = splitAt numSublambdas args
           let directName
                 | null directArgs
@@ -245,8 +249,6 @@ translateExpr ctx dst expr@(Call lhs rhs) =
             ( concat directArgsCode ++ directCallCode ++ indirectCallCode
             , concat directArgsFns ++ indirectCallFns
             )
-        Just (Left (SymData _ _ _ _ _ _ _)) ->
-          translateIndirectCall ctx dst lhs rhs -- FIXME
         _ -> translateIndirectCall ctx dst lhs rhs
       _ -> translateIndirectCall ctx dst lhs rhs
  where
