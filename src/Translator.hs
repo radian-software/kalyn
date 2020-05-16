@@ -175,14 +175,13 @@ translatePattern ctx nextBranch temp (As name pat) = do
       (Map.fromList [(name, temp)])
     )
 
-translateExpr
+translateIndirectCall
   :: Context
   -> VirtualRegister
   -> Expr
+  -> Expr
   -> Stateful ([VirtualInstruction], [VirtualFunction])
-translateExpr ctx dst (Variable name) = return (translateVar ctx dst name, [])
-translateExpr _   dst (Const    val ) = return ([MOV64 val dst], [])
-translateExpr ctx dst (Call lhs rhs ) = do
+translateIndirectCall ctx dst lhs rhs = do
   lhsTemp           <- newTemp
   rhsTemp           <- newTemp
   (lhsCode, lhsFns) <- translateExpr ctx lhsTemp lhs
@@ -190,6 +189,62 @@ translateExpr ctx dst (Call lhs rhs ) = do
   callCode          <- translateCall lhsTemp (Just rhsTemp)
   return
     (lhsCode ++ rhsCode ++ callCode ++ [OP MOV $ RR rax dst], lhsFns ++ rhsFns)
+
+translateExpr
+  :: Context
+  -> VirtualRegister
+  -> Expr
+  -> Stateful ([VirtualInstruction], [VirtualFunction])
+translateExpr ctx dst (Variable name) = return (translateVar ctx dst name, [])
+translateExpr _   dst (Const    val ) = return ([MOV64 val dst], [])
+translateExpr ctx dst expr@(Call lhs rhs) =
+  let (lhs', args) = reverse <$> uncurryArgs expr
+  in
+    case lhs' of
+      Variable name -> case Map.lookup name (bindings ctx) of
+        Just (Left (SymDef mangledName _ numSublambdas)) -> do
+          let (directArgs, indirectArgs) = splitAt numSublambdas args
+          let directName
+                | null directArgs
+                = mangledName
+                | length directArgs == numSublambdas
+                = mangledName ++ "__uncurried"
+                | otherwise
+                = mangledName ++ "__curried" ++ show (length directArgs - 1)
+          directArgsTemps <- replicateM (length directArgs) newTemp
+          (directArgsCode, directArgsFns) <-
+            unzip
+              <$> zipWithM
+                    (\arg temp -> do
+                      (evalCode, evalFns) <- translateExpr ctx temp arg
+                      return (evalCode ++ [UN PUSH (R temp)], evalFns)
+                    )
+                    directArgs
+                    directArgsTemps
+          directCallTemp <- newTemp
+          let directCallCode =
+                [JUMP CALL directName]
+                  ++ [ unpush (fromIntegral $ length directArgs)
+                     | not . null $ directArgs
+                     ]
+                  ++ [OP MOV $ RR rax directCallTemp]
+          let indirectCallExpr = foldl' Call (Variable "gensym") indirectArgs
+          (indirectCallCode, indirectCallFns) <- translateExpr
+            (withBinding "gensym" directCallTemp ctx)
+            dst
+            indirectCallExpr
+          return
+            ( concat directArgsCode ++ directCallCode ++ indirectCallCode
+            , concat directArgsFns ++ indirectCallFns
+            )
+        Just (Left (SymData _ _ _ _ _ _ _)) ->
+          translateIndirectCall ctx dst lhs rhs -- FIXME
+        _ -> translateIndirectCall ctx dst lhs rhs
+      _ -> translateIndirectCall ctx dst lhs rhs
+ where
+  uncurryArgs (Call lhs' rhs') =
+    let (lhs'', args) = uncurryArgs lhs' in (lhs'', rhs' : args)
+  uncurryArgs lhs' = (lhs', [])
 translateExpr ctx dst (Case arg branches) = do
   argTemp           <- newTemp
   (argCode, argFns) <- translateExpr ctx argTemp arg

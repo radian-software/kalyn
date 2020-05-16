@@ -1,6 +1,5 @@
 module MemoryManager where
 
-import qualified Data.ByteString.Lazy          as B
 import           Data.ByteString.Lazy.Builder
 
 import           Assembly
@@ -12,9 +11,6 @@ memoryFirstFree = ("mmFirstFree", toLazyByteString $ word64LE 0)
 
 memoryProgramBreak :: Datum
 memoryProgramBreak = ("mmProgramBreak", toLazyByteString $ word64LE 0)
-
-heap :: Datum
-heap = ("heap", B.empty)
 
 memoryInit :: Stateful VirtualFunction
 memoryInit = return $ function

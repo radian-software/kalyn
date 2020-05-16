@@ -16,15 +16,15 @@ handleCurried
   -> String
   -> Stateful VirtualFunction
   -> Type
-  -> (String, Stateful [VirtualFunction], Type)
-handleCurried n name fn ty = (name, (:) <$> fn <*> curryify n name, ty)
+  -> (String, Stateful [VirtualFunction], Type, Int)
+handleCurried n name fn ty = (name, (:) <$> fn <*> curryify n name, ty, n)
 
 handleCurriedM
   :: Int
   -> String
   -> Stateful VirtualFunction
   -> Type
-  -> (String, Stateful [VirtualFunction], Type)
+  -> (String, Stateful [VirtualFunction], Type, Int)
 handleCurriedM n name fn ty =
   ( name
   , do
@@ -33,6 +33,7 @@ handleCurriedM n name fn ty =
     curried    <- curryify n name
     return ([core, monadified] ++ curried)
   , ty
+  , n
   )
 
 baseType :: TypeName -> Type
@@ -49,7 +50,7 @@ funcType = funcType' . map baseType
 ioType :: TypeName -> Type
 ioType name = Type [] "IO" [Type [] name []]
 
-stdlibPublic :: Map.Map String (String, Stateful [VirtualFunction], Type)
+stdlibPublic :: Map.Map String (String, Stateful [VirtualFunction], Type, Int)
 stdlibPublic = Map.fromList
   [ ("+"  , handleCurried 2 "plus" plus $ funcType ["Int", "Int", "Int"])
   , ("-"  , handleCurried 2 "minus" minus $ funcType ["Int", "Int", "Int"])
@@ -121,17 +122,15 @@ getCalls (Function _ _ instrs) = Set.fromList $ concatMap
   instrs
 
 stdlibFns :: [VirtualFunction] -> Stateful [VirtualFunction]
-stdlibFns fns = do
-  let calls = Set.unions . map getCalls $ fns
-  public <-
-    concat
-      <$> ( mapM (\(_, fn, _) -> fn)
-          . filter (\(name, _, _) -> name `Set.member` calls)
-          . Map.elems
-          $ stdlibPublic
-          )
+stdlibFns userFns = do
+  let calls = Set.unions . map getCalls $ userFns
+  allPublic <- mapM (\(_, fns, _, _) -> fns) . Map.elems $ stdlibPublic
+  let public =
+        concat
+          . filter (any (\(Function _ fnName _) -> Set.member fnName calls))
+          $ allPublic
   private <- sequence stdlibPrivate
   return $ public ++ private
 
 stdlibData :: [Datum]
-stdlibData = [memoryFirstFree, memoryProgramBreak] ++ msgDatums ++ [heap]
+stdlibData = [memoryFirstFree, memoryProgramBreak] ++ msgDatums

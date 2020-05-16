@@ -194,8 +194,8 @@ resolveBundle (Bundle _ mmap) =
                    )
                    mods
               ++ map
-                   (\(publicName, (privateName, _, ty)) ->
-                     let sym = SymDef privateName ty 0
+                   (\(publicName, (privateName, _, ty, numSublambdas)) ->
+                     let sym = SymDef privateName ty numSublambdas
                      in
                        ( publicName
                        , mapSymbol
