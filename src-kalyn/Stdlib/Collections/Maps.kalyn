@@ -163,7 +163,7 @@
     (Leaf Leaf)
     (h@(Branch _ _ _ Leaf _) h)
     ((Branch k1 v1 d1 (Branch k2 v2 _ l2 r2) r1)
-     (splayLeft (Branch k2 v2 d1 l2 (Branch k1 v2 (- d1 (size l2)) r2 r1))))))
+     (splayLeft (Branch k2 v2 d1 l2 (Branch k1 v1 (- d1 (size l2)) r2 r1))))))
 
 (public defn mapFromList (Func (Ord k) (List (Pair k v)) (Map k v))
   "Given an unordered list of key-value pairs, create a map with the
@@ -173,7 +173,7 @@
 
 (public defn mapToList (Func (Map k v) (List (Pair k v)))
   "Convert a map to a list of its key-value pairs in ascending order."
-  ((Map cmp t))
+  ((Map _ t))
   (let ((toList (lambda (t)
                   (case t
                     (Leaf [])
