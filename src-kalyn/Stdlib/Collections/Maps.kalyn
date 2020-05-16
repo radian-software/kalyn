@@ -86,19 +86,26 @@
        (EQ (Just v))
        (_ Nothing)))))
 
+(defn insert (Func (Ord k) k v (Node k v) (Node k v))
+  "Insert a key-value pair into the map, replacing the existing
+   mapping if one exists. Assume that the key was already splayed to
+   the top."
+  (cmp k v t)
+  (case t
+    (Leaf (Branch k v 0 Leaf Leaf))
+    ((Branch k1 v1 d l r)
+     (case (cmp k1 k)
+       (LT (Branch k v (+ d 1) (Branch k1 v1 (+ (- d (size r)) 1) l Leaf) r))
+       (GT (Branch k v (+ d 1) l (Branch k1 v1 (+ (- d (size l)) 1) Leaf r)))
+       (EQ (Branch k v d l r))))))
+
 (public defn mapInsert (Func k v (Map k v) (Map k v))
   "Insert a key-value pair into the map, replacing the existing
    mapping if one exists."
   (k v (Map cmp t))
   (Map
     cmp
-    (case (lookup cmp k t)
-      (Leaf (Branch k v 0 Leaf Leaf))
-      ((Branch k1 v1 d l r)
-       (case (cmp k1 k)
-         (LT (Branch k v (+ d 1) (Branch k1 v1 (+ (- d (size r)) 1) l Leaf) r))
-         (GT (Branch k v (+ d 1) l (Branch k1 v1 (+ (- d (size l)) 1) Leaf r)))
-         (EQ (Branch k v d l r)))))))
+    (insert cmp k v (lookup cmp k t))))
 
 (defn nodeHead (Func (Node k v) (Pair k v))
   "Get the key-value pair of the root."
@@ -192,7 +199,10 @@
          (EQ (case (func (Just v*))
                (Nothing (nodeTail br))
                ((Just v) (Branch k* v d l r))))
-         (_ br))))))
+         (_ (case (func Nothing)
+              (Nothing br)
+              ((Just v)
+               (insert cmp k v br)))))))))
 
 (defn mapWithKey (Func (Func k a b) (Node k a) (Node k b))
   "Map a function over an internal node to produce a new one."

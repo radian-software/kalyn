@@ -37,3 +37,17 @@
   (if bool
     "True"
     "False"))
+
+(public defn showMap (Func (Show k) (Show v) (Show (Map k v)))
+  (showK showV)
+  (comp (showList (showPair showK showV)) mapToList))
+
+(public defn showSet (Func (Show a) (Show (Set a)))
+  (show)
+  (comp (showList show) setToList))
+
+(public defn showMaybe (Func (Show a) (Show (Maybe a)))
+  (show elt)
+  (case elt
+    (Nothing "Nothing")
+    ((Just a) (append "Just " (show a)))))
