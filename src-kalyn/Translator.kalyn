@@ -405,13 +405,13 @@
      (do State
        (with temp newTemp)
        (let possibleVars
-         (setToList (freeVariables form)))
+         (setToList compareString (freeVariables form)))
        (let vars
          (mapMaybe
            (lambda (var)
              (case (Pair var (mapLookup var (bindings ctx)))
                ((Pair _ (Just (Right reg)))
-                (if (notElem var (Cons name (sublambdaArgs ctx)))
+                (if (notElem ==String var (Cons name (sublambdaArgs ctx)))
                   (Just (Pair var reg))
                   Nothing))
                (_ Nothing)))
