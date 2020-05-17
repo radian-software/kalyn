@@ -394,7 +394,7 @@
                       branchCodes
                       exprCodes
                       nextBranches))
-                  [(LEA (memLabel "msgPatternMatchFailed") msg)
+                  [(LEA (memLabelV "msgPatternMatchFailed") msg)
                    (UN PUSH (R msg))
                    (JUMP CALL "crash")
                    (LABEL endLabel)]])
@@ -469,7 +469,7 @@
               (JUMP CALL "memoryAlloc")
               (unpush 1)
               (OP MOV (RR rax dst))
-              (LEA (memLabel lambdaName) temp)
+              (LEA (memLabelV lambdaName) temp)
               (OP MOV (RM temp (getField 0 dst)))
               (OP MOV (IM (- (length argNames) 1)
                           (getField 1 dst)))]
