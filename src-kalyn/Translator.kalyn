@@ -405,7 +405,7 @@
      (do State
        (with temp newTemp)
        (let possibleVars
-         (setToList compareString (freeVariables form)))
+         (setToList (freeVariables form)))
        (let vars
          (mapMaybe
            (lambda (var)
