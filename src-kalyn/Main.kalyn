@@ -18,7 +18,7 @@
 
 (def empty Decl
   (Data
-    False (TypeSpec "Empty" []) []))
+    False (TypeSpec "Empty" []) [(Pair "Empty" [])]))
 
 (def helloWorldBundle Bundle
   (Bundle
@@ -42,20 +42,20 @@
              [(Pair
                 "main"
                 (SymDef
-                  "main"
-                  (Type [] "IO" [(Type [] "Empty" [])])
+                  "__main"
+                  (Type [] "IO" [(Type [] "__Empty" [])])
                   0))
               (Pair
                 "returnIO"
                 (SymDef
-                  "returnIO"
+                  "return"
                   (Type [] "Func" [(Type [] "a" [])
                                    (Type [] "IO" [(Type [] "a" [])])])
                   1))
               (Pair
                 "Empty"
                 (SymData
-                  "Empty"
+                  "__Empty"
                   0 0 1 False
                   (TypeSpec "Empty" [])
                   []))])
