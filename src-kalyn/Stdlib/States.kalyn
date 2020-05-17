@@ -6,7 +6,7 @@
            (let (((Pair s* a) (go s)))
              (Pair s* (f a))))))
 
-(public defn returnState (State s a)
+(public defn returnState (Func a (State s a))
   (a)
   (State (lambda (s) (Pair s a))))
 
@@ -33,10 +33,10 @@
   (case states
     (Null (returnState Null))
     ((Cons state states)
-     (do >>=State
+     (do State
        (with fst state)
        (with rst (sequenceState states))
-       (return (Cons fst rst))))))
+       (returnState (Cons fst rst))))))
 
 (public defn mapMState (Func (Func a (State s b)) (List a) (State s (List b)))
   (func as)
@@ -49,3 +49,7 @@
                              (State s (List c)))
   (func as bs)
   (sequenceState (zipWith func as bs)))
+
+(public defn replicateMState (Func Int (State s a) (State s (List a)))
+  (n m)
+  (sequenceState (replicate n m)))

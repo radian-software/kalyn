@@ -78,7 +78,7 @@
   (cmp func set)
   (setFromList cmp (map func (setToList set))))
 
-(public defn setSingleton (Func (Ord k) k (Map k v))
+(public defn setSingleton (Func (Ord k) k (Set k))
   "Make a set with just one element."
   (cmp k)
   (mapSingleton cmp k Empty))

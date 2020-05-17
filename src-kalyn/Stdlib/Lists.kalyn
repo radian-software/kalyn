@@ -202,3 +202,27 @@
      (if (func elt)
        (all func elts)
        False))))
+
+(public defn splitAt (Func Int (List a) (Pair (List a) (List a)))
+  (n elts)
+  (if (<=Int n 0)
+    (Pair Null elts)
+    (case elts
+      (Null (Pair Null Null))
+      ((Cons elt elts)
+       (let (((Pair left right)
+              (splitAt (- n 1) elts)))
+         (Pair (Cons elt left) right))))))
+
+(public defn zipWith3 (Func (Func a b c d) (List a) (List b) (List c) (List d))
+  (func as bs cs)
+  (case (Triplet as bs cs)
+    ((Triplet (Cons a as) (Cons b bs) (Cons c cs))
+     (Cons (func a b c) (zipWith func as bs cs)))
+    (_ Null)))
+
+(public defn init (Func (List a) (List a))
+  ((Cons elt elts))
+  (case elts
+    (Null Null)
+    ((Cons _ _) (Cons elt (init elts)))))

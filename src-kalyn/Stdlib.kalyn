@@ -5,6 +5,5 @@
 (public import "Stdlib/Instances.kalyn")
 (public import "Stdlib/Lists.kalyn")
 (public import "Stdlib/Maybes.kalyn")
-(public import "Stdlib/Monads.kalyn")
 (public import "Stdlib/States.kalyn")
 (public import "Stdlib/Tuples.kalyn")

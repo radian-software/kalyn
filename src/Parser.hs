@@ -112,6 +112,10 @@ parseExpr (RoundList [Symbol "let", RoundList bindings, body]) = foldr
   )
   (parseExpr body)
   bindings
+parseExpr (RoundList (Symbol "and" : lhs : rhs : more@(_ : _))) = parseExpr
+  (RoundList [Symbol "and", lhs, RoundList (Symbol "and" : rhs : more)])
+parseExpr (RoundList (Symbol "or" : lhs : rhs : more@(_ : _))) =
+  parseExpr (RoundList [Symbol "or", lhs, RoundList (Symbol "or" : rhs : more)])
 parseExpr (RoundList [Symbol "and", lhs, rhs]) = Let
   "gensym"
   (parseExpr lhs)

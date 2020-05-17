@@ -9,12 +9,13 @@
   (name op)
   (do State
     (with temp newTemp)
-    (return (function
-              (append name "__uncurried")
-              [(OP MOV (MR (getArg 2) temp))
-               (OP op (MR (getArg 1) temp))
-               (OP MOV (RR temp rax))
-               RET]))))
+    (returnState
+      (function
+        (append name "__uncurried")
+        [(OP MOV (MR (getArg 2) temp))
+         (OP op (MR (getArg 1) temp))
+         (OP MOV (RR temp rax))
+         RET]))))
 
 (public def plus (Stateful VFunction)
   (basicOp "plus" ADD))
@@ -29,7 +30,7 @@
   (name post)
   (do State
     (with temp newTemp)
-    (return
+    (returnState
       (function
         (append name  "__uncurried")
         (concat
@@ -52,13 +53,13 @@
 (public def bitOr (Stateful VFunction)
   (basicOp "or" OR))
 
-(public def xor (Stateful VFunction)
+(public def bitXor (Stateful VFunction)
   (basicOp "xor" XOR))
 
-(public defn bitNot (Stateful VFunction)
+(public def bitNot (Stateful VFunction)
   (do State
     (with temp newTemp)
-    (return
+    (returnState
       (function
         "not"
         [(OP MOV (MR (getArg 1) temp))
@@ -71,45 +72,47 @@
     (with arg       newTemp)
     (with fixup     newLabel)
     (with fixupDone newLabel)
-    (let needsZeroing (case op
-                        (SHL True)
-                        (SAL True)
-                        (SHR True)
-                        (SAR False)))
-    (return (function
-              (append name "__uncurried")
-              [(OP MOV (MR (getArg 2) arg))
-               (OP MOV (MR (getArg 1) rcx))
-               (OP CMP (IR 64 rcx))
-               (JUMP JGE fixup)
-               (SHIFT Nothing op arg)
-               (LABEL fixupDone)
-               (OP MOV (RR arg rax))
-               RET
-               (LABEL fixup)
-               (if needsZeroing
-                 (OP MOV (IR 0 arg))
-                 (SHIFT (Just 63) op arg))
-               (OP MOV (RR arg rax))
-               RET]))))
+    (let needsZeroing
+      (case op
+        (SHL True)
+        (SAL True)
+        (SHR True)
+        (SAR False)))
+    (returnState
+      (function
+        (append name "__uncurried")
+        [(OP MOV (MR (getArg 2) arg))
+         (OP MOV (MR (getArg 1) rcx))
+         (OP CMP (IR 64 rcx))
+         (JUMP JGE fixup)
+         (SHIFT Nothing op arg)
+         (LABEL fixupDone)
+         (OP MOV (RR arg rax))
+         RET
+         (LABEL fixup)
+         (if needsZeroing
+           (OP MOV (IR 0 arg))
+           (SHIFT (Just 63) op arg))
+         (OP MOV (RR arg rax))
+         RET]))))
 
-(public def shl (Stateful VFunction)
+(public def bitSHL (Stateful VFunction)
   (shiftOp "shl" SHL))
 
-(public def shr (Stateful VFunction)
+(public def bitSHR (Stateful VFunction)
   (shiftOp "shr" SHR))
 
-(public def sal (Stateful VFunction)
+(public def bitSAL (Stateful VFunction)
   (shiftOp "sal" SAL))
 
-(public def sar (Stateful VFunction)
+(public def bitSAR (Stateful VFunction)
   (shiftOp "sar" SAR))
 
-(public defn monadPrint (Stateful VFunction)
+(public def monadPrint (Stateful VFunction)
   (do State
     (with temp newTemp)
     (with str  newTemp)
-    (return
+    (returnState
       (function
         "print__uncurried__unmonadified"
         [(OP MOV (MR (getArg 1) temp))
@@ -124,7 +127,7 @@
          (SYSCALL 3)  ; write
          RET]))))
 
-(public defn monadWriteFile (Stateful VFunction)
+(public def monadWriteFile (Stateful VFunction)
   (do State
     (with temp       newTemp)
     (with filename   newTemp)
@@ -137,68 +140,69 @@
     (with writeDone  newLabel)
     (with crash      newLabel)
     (with msg        newTemp)
-    (return (function
-              "writeFile__uncurried__unmonadified"
-              [(OP MOV (MR (getArg 2) temp))
-               (UN PUSH (R temp))
-               (JUMP CALL "memoryPackString")
-               (unpush 1)
-               (OP MOV (RR rax filename))
-               (OP MOV (MR (getArg 1) temp))
-               (UN PUSH (R temp))
-               (JUMP CALL "memoryPackString")
-               (unpush 1)
-               (OP MOV (RR rax contents))
-               (OP MOV (IR 87 rax))
-               (LEA (getField 1 filename) rdi)
-               (SYSCALL 1)  ; unlink
-               (OP CMP (IR (-2) rax))
-               (JUMP JE notExists)
-               (OP CMP (IR 0 rax))
-               (JUMP JL crash)
-               (LABEL notExists)
-               (OP MOV (IR 2 rax))
-               (LEA (getField 1 filename) rdi)
-               (OP MOV (IR 0x41 rsi))
-               (OP MOV (IR 0o666 rdx))
-               (SYSCALL 2)  ; open
-               (OP CMP (IR 0 rax))
-               (JUMP JL crash)
-               (OP MOV (RR rax fd))
-               (LEA (getField 1 contents) ptr)
-               (OP MOV (MR (getField 0 contents) bytesLeft))
-               (LABEL writeStart)
-               (OP CMP (IR 0 bytesLeft))
-               (JUMP JLE writeDone)
-               (OP MOV (IR 1 rax))
-               (OP MOV (RR fd rdi))
-               (OP MOV (RR ptr rsi))
-               (OP MOV (RR bytesLeft rdx))
-               (SYSCALL 3)  ; write
-               (OP CMP (IR 0 rax))
-               (JUMP JL crash)
-               (OP ADD (RR rax ptr))
-               (OP SUB (RR rax bytesLeft))
-               (JUMP JMP writeStart)
-               (LABEL writeDone)
-               (OP MOV (IR 3 rax))
-               (OP MOV (RR fd rdi))
-               (SYSCALL 1)  ; close
-               (OP CMP (IR 0 rax))
-               (JUMP JL crash)
-               RET
-               (LABEL crash)
-               (LEA (memLabel "msgWriteFileFailed") msg)
-               (UN PUSH (R msg))
-               (JUMP CALL "crash")]))))
+    (returnState
+      (function
+        "writeFile__uncurried__unmonadified"
+        [(OP MOV (MR (getArg 2) temp))
+         (UN PUSH (R temp))
+         (JUMP CALL "memoryPackString")
+         (unpush 1)
+         (OP MOV (RR rax filename))
+         (OP MOV (MR (getArg 1) temp))
+         (UN PUSH (R temp))
+         (JUMP CALL "memoryPackString")
+         (unpush 1)
+         (OP MOV (RR rax contents))
+         (OP MOV (IR 87 rax))
+         (LEA (getField 1 filename) rdi)
+         (SYSCALL 1)  ; unlink
+         (OP CMP (IR (-2) rax))
+         (JUMP JE notExists)
+         (OP CMP (IR 0 rax))
+         (JUMP JL crash)
+         (LABEL notExists)
+         (OP MOV (IR 2 rax))
+         (LEA (getField 1 filename) rdi)
+         (OP MOV (IR 0x41 rsi))
+         (OP MOV (IR 0o666 rdx))
+         (SYSCALL 2)  ; open
+         (OP CMP (IR 0 rax))
+         (JUMP JL crash)
+         (OP MOV (RR rax fd))
+         (LEA (getField 1 contents) ptr)
+         (OP MOV (MR (getField 0 contents) bytesLeft))
+         (LABEL writeStart)
+         (OP CMP (IR 0 bytesLeft))
+         (JUMP JLE writeDone)
+         (OP MOV (IR 1 rax))
+         (OP MOV (RR fd rdi))
+         (OP MOV (RR ptr rsi))
+         (OP MOV (RR bytesLeft rdx))
+         (SYSCALL 3)  ; write
+         (OP CMP (IR 0 rax))
+         (JUMP JL crash)
+         (OP ADD (RR rax ptr))
+         (OP SUB (RR rax bytesLeft))
+         (JUMP JMP writeStart)
+         (LABEL writeDone)
+         (OP MOV (IR 3 rax))
+         (OP MOV (RR fd rdi))
+         (SYSCALL 1)  ; close
+         (OP CMP (IR 0 rax))
+         (JUMP JL crash)
+         RET
+         (LABEL crash)
+         (LEA (memLabel "msgWriteFileFailed") msg)
+         (UN PUSH (R msg))
+         (JUMP CALL "crash")]))))
 
-(public defn setFileMode (Stateful VFunction)
+(public def monadSetFileMode (Stateful VFunction)
   (do State
     (with temp     newTemp)
     (with filename newTemp)
     (with crash    newLabel)
     (with msg      newTemp)
-    (return
+    (returnState
       (function
         "setFileMode__uncurried__unmonadified"
         [(OP MOV (MR (getArg 2) temp))
@@ -218,8 +222,8 @@
          (UN PUSH (R msg))
          (JUMP CALL "crash")]))))
 
-(public defn primitiveError (Stateful VFunction)
-  (return
+(public def primitiveError (Stateful VFunction)
+  (returnState
     (function
       "error__uncurried"
       [(UN PUSH (M (getArg 1)))
@@ -233,7 +237,7 @@
   (do State
     (with temp newTemp)
     (with yes  newLabel)
-    (return
+    (returnState
       (function
         name
         [(OP MOV (MR (getArg 2) temp))
@@ -264,11 +268,12 @@
   (compareOp "greaterThanEqual__uncurried" JGE))
 
 (public def monadReturn (Stateful VFunction)
-  (return (function
-            "return__uncurried__unmonadified"
-            [(OP MOV (MR (getArg 1) rax)) RET])))
+  (returnState
+    (function
+      "return__uncurried__unmonadified"
+      [(OP MOV (MR (getArg 1) rax)) RET])))
 
-(public defn monadBind (Stateful VFunction)
+(public def monadBind (Stateful VFunction)
   (do State
     (with firstMonad     newTemp)
     (with secondMonad    newTemp)
@@ -277,7 +282,7 @@
     (with firstCallCode  (translateCall firstMonad Nothing))
     (with secondCallCode (translateCall fn (Just arg)))
     (with thirdCallCode  (translateCall secondMonad Nothing))
-    (return
+    (returnState
       (function
         "bind__uncurried__unmonadified"
         (concat [[OP MOV (MR (getArg 2) firstMonad)]
@@ -289,27 +294,28 @@
                  thirdCallCode
                  [RET]])))))
 
-(public defn primitiveCrash (Stateful VFunction)
+(public def primitiveCrash (Stateful VFunction)
   (do State
     (with msg newTemp)
-    (return (function
-              "crash"
-              [(OP MOV (MR (getArg 1) msg))
-               (OP MOV (IR 1 rax))
-               (OP MOV (IR 2 rdi))
-               (LEA (Mem (Right 8) msg Nothing) rsi)
-               (OP MOV (MR (deref msg) rdx))
-               (SYSCALL 3)  ; write
-               (OP MOV (IR 60 rax))
-               (OP MOV (IR 1 rdi))
-               (SYSCALL 1)]))))  ; exit
+    (returnState
+      (function
+        "crash"
+        [(OP MOV (MR (getArg 1) msg))
+         (OP MOV (IR 1 rax))
+         (OP MOV (IR 2 rdi))
+         (LEA (Mem (Right 8) msg Nothing) rsi)
+         (OP MOV (MR (deref msg) rdx))
+         (SYSCALL 3)  ; write
+         (OP MOV (IR 60 rax))
+         (OP MOV (IR 1 rdi))
+         (SYSCALL 1)]))))  ; exit
 
 (public defn monadify (Func Int String (Stateful VFunction))
   (numArgs fnName)
   (do State
     (with fnPtr newTemp)
     (with arg   newTemp)
-    (return
+    (returnState
       (function
         fnName
         (concat
@@ -326,8 +332,8 @@
              (iterate (+ 1) 1 numArgs))
            [RET]])))))
 
-(public defn primitiveTrace (Stateful VFunction)
-  (return
+(public def primitiveTrace (Stateful VFunction)
+  (returnState
     (function
       "trace__uncurried"
       [(UN PUSH (M (getArg 2)))

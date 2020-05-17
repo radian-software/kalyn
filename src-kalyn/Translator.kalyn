@@ -3,6 +3,7 @@
 (import "Bridge.kalyn")
 (import "Stdlib.kalyn")
 (import "Subroutines.kalyn")
+(import "Util.kalyn")
 
 (alias Bindings (Map String (Either Symbol VR)))
 (alias TopLevelBindings (Map String Symbol))
@@ -66,6 +67,7 @@
        (freeVariables rhs)))
     ((Case arg branches)
      (setUnions
+       compareString
        (Cons
          (freeVariables arg)
          (map
@@ -90,7 +92,7 @@
      [(JUMP CALL (symName sym))
       (OP MOV (RR rax dst))])
     ((Just (Right reg))
-     [OP MOV (RR reg dst)])
+     [(OP MOV (RR reg dst))])
     (Nothing
      (error
        (concat
@@ -99,7 +101,10 @@
           ": reference to free variable "
           name])))))
 
-(defn translatePattern (Func Context Label VR Expr (Stateful (Pair (List VInstruction) Map String VR)))
+(defn translatePattern
+  (Func
+    Context Label VR Expr
+    (Stateful (Pair (List VInstruction) (Map String VR))))
   (ctx nextBranch temp expr)
   (case expr
     ((Variable name)
@@ -109,8 +114,8 @@
           (0 (case (sdNumCtors sd)
                (0 (error
                     "somehow a nonexistent data constructor has appeared"))
-               (1 (return (Pair [] (mapEmpty compareString))))
-               (_ (return
+               (1 (returnState (Pair [] (mapEmpty compareString))))
+               (_ (returnState
                     (Pair [(OP
                              CMP
                              ((if (sdBoxed sd)
@@ -127,16 +132,16 @@
                 " used with no fields in case pattern (needs "
                 (showInt (sdNumFields sd))
                 ")"])))))
-       (_ (return
+       (_ (returnState
             (Pair
               []
               (mapFromList
                 compareString
                 [(Pair name temp)]))))))
     ((Const val)
-     (do
+     (do State
        (with imm newTemp)
-       (return
+       (returnState
          (Pair
            [(MOV64 val imm)
             (OP CMP (RR imm temp))
@@ -166,34 +171,34 @@
                     (if (==Int (length args) 1) "" "s")
                     " but needs "
                     (showInt (sdNumFields sd))]))
-               (do
+               (do State
                  (with fieldTemps
-                   (replicateM (sdNumFields sd) newTemp))
+                   (replicateMState (sdNumFields sd) newTemp))
                  (let extractCode
                    (if (sdBoxed sd)
                      (concat
                        (zipWith
                          (lambda (temp idx)
-                           [OP MOV
-                            (MR (getField
-                                  (+ idx (if sdHasHeader sd 1 0))
-                                  obj)
-                                temp)])
+                           [(OP MOV
+                                (MR (getField
+                                      (+ idx (if (sdHasHeader sd) 1 0))
+                                      temp)
+                                    temp))])
                          fieldTemps
                          (iterate (+ 1) 0 (length fieldTemps))))
                      ;; only one fieldTemp in this case
-                     [(OP MOV (RR obj (head fieldTemps)))]))
+                     [(OP MOV (RR temp (head fieldTemps)))]))
                  (let mainCheck
                    (if (sdHasHeader sd)
-                     [(OP CMP (IM (sdCtorIdx sd) (getField 0 obj)))
+                     [(OP CMP (IM (sdCtorIdx sd) (getField 0 temp)))
                       (JUMP JNE nextBranch)]
                      []))
                  (with fieldChecks
-                   (zipWithM
+                   (zipWithMState
                      (translatePattern ctx nextBranch)
                      fieldTemps
                      args))
-                 (return
+                 (returnState
                    (Pair (concat
                            [extractCode
                             mainCheck
@@ -216,10 +221,10 @@
     ((Case _ _) (error "can't use case in case pattern"))
     ((Lambda _ _) (error "can't use lambda in case pattern"))
     ((Let _ _ _) (error "can't use let in case pattern"))
-    ((As name pat) (do
+    ((As name pat) (do State
                      (with (Pair instrs binds)
                        (translatePattern ctx nextBranch temp pat))
-                     (return
+                     (returnState
                        (Pair instrs
                              (mapUnionWithKey
                                (lambda (var _ _)
@@ -234,12 +239,12 @@
                                  [(Pair name temp)]))))))))
 
 (defn translateIndirectCall (Func
-                                     Context VR Expr Expr
-                                     (Stateful (Pair
-                                                 (List VInstruction)
-                                                 (List VFunction))))
+                              Context VR Expr Expr
+                              (Stateful (Pair
+                                          (List VInstruction)
+                                          (List VFunction))))
   (ctx dst lhs rhs)
-  (do
+  (do State
     (with lhsTemp newTemp)
     (with rhsTemp newTemp)
     (with (Pair lhsCode lhsFns)
@@ -248,41 +253,41 @@
       (translateExpr ctx rhsTemp rhs))
     (with callCode
       (translateCall lhsTemp (Just rhsTemp)))
-    (return
+    (returnState
       (Pair
         (concat
           [lhsCode
            rhsCode
            callCode
-           [OP MOV (RR rax dst)]])
+           [(OP MOV (RR rax dst))]])
         (append lhsFns rhsFns)))))
 
 (defn translateExpr (Func
-                             Context VR Expr
-                             (Stateful (Pair
-                                         (List VInstruction)
-                                         (List VFunction))))
+                      Context VR Expr
+                      (Stateful (Pair
+                                  (List VInstruction)
+                                  (List VFunction))))
   (ctx dst expr)
   (case expr
     ((Variable name)
-     (return (Pair (translateVar ctx dst name) [])))
+     (returnState (Pair (translateVar ctx dst name) [])))
     ((Const    val )
-     (return (Pair [(MOV64 val dst)] [])))
+     (returnState (Pair [(MOV64 val dst)] [])))
     ((Call lhs rhs)
-     (let (((Pair lhs* args)
-            (second reverse (uncurryArgs expr)))
-           (uncurryArgs
+     (let ((uncurryArgs
             (lambda (expr)
               (case expr
                 ((Call lhs* rhs*)
-                 (let ((Pair lhs** args) (uncurryArgs lhs*))
+                 (let (((Pair lhs** args) (uncurryArgs lhs*)))
                    (Pair lhs** (Cons rhs* args))))
-                (lhs* (Pair lhs* []))))))
+                (lhs* (Pair lhs* [])))))
+           ((Pair lhs* args)
+            (second reverse (uncurryArgs expr))))
        (case lhs*
          ((Variable name)
           (case (mapLookup name (bindings ctx))
             ((Just (Left sym))
-             (do
+             (do State
                (let mangledName (symName sym))
                (let numSublambdas
                  (case sym
@@ -302,18 +307,18 @@
                         "__curried"
                         (showInt (- (length directArgs) 1))]))))
                (with directArgsTemps
-                 (replicateM (length directArgs) newTemp))
+                 (replicateMState (length directArgs) newTemp))
                (with (Pair directArgsCode directArgsFns)
                  (fmapState
                    unzip
                    zipWithMState
                    (lambda (arg temp)
-                     (do
+                     (do State
                        (with (Pair evalCode evalFns)
                          (translateExpr ctx temp arg))
-                       (return
+                       (returnState
                          (Pair
-                           (append evalCode [UN PUSH (R temp)])
+                           (append evalCode [(UN PUSH (R temp))])
                            evalFns))))
                    directArgs
                    directArgsTemps))
@@ -324,7 +329,7 @@
                     (if (notNull directArgs)
                       (unpush (length directArgs))
                       [])
-                    [OP MOV (RR rax directCallTemp)]]))
+                    [(OP MOV (RR rax directCallTemp))]]))
                (let indirectCallExpr
                  (foldl
                    Call
@@ -335,7 +340,7 @@
                    (withBinding "gensym" directCallTemp ctx)
                    dst
                    indirectCallExpr))
-               (return
+               (returnState
                  (Pair
                    (concat
                      [(concat directArgsCode)
@@ -347,32 +352,33 @@
             (_ (translateIndirectCall ctx dst lhs rhs))))
          (_ (translateIndirectCall ctx dst lhs rhs)))))
     ((Case arg branches)
-     (do
+     (do State
        (with argTemp newTemp)
        (with (Pair argCode argFns)
          (translateExpr ctx argTemp arg))
        (with endLabel newLabel)
        (with nextBranches
-         (replicateM
+         (replicateMState
            (length branches)
            newLabel))
        (with branchCodes
-         (zipWithM (lambda (label)
-                     (translatePattern ctx label argTemp))
-                   nextBranches
-                   (map fst branches)))
-       (with exprCodes (zipWithM
-                         (lambda (branch ctx*)
-                           (translateExpr ctx* dst branch))
-                         (map snd branches)
-                         (map (lambda (code)
-                                (foldr
-                                  (uncurry withBinding)
-                                  ctx
-                                  (mapToList (snd code))))
-                              branchCodes)
-                         (with msg newTemp)))
-       (return
+         (zipWithMState (lambda (label)
+                          (translatePattern ctx label argTemp))
+                        nextBranches
+                        (map fst branches)))
+       (with exprCodes
+         (zipWithMState
+           (lambda (branch ctx*)
+             (translateExpr ctx* dst branch))
+           (map snd branches)
+           (map (lambda (code)
+                  (foldr
+                    (uncurry withBinding)
+                    ctx
+                    (mapToList (snd code))))
+                branchCodes)))
+       (with msg newTemp)
+       (returnState
          (Pair (concat
                  [argCode
                   (concat
@@ -396,7 +402,7 @@
                  argFns
                  (concatMap snd exprCodes))))))
     (form@(Lambda name body)
-     (do
+     (do State
        (with temp newTemp)
        (let possibleVars
          (setToList (freeVariables form)))
@@ -415,8 +421,8 @@
            (map fst vars)
            (reverse (Cons name (sublambdaArgs ctx)))))
        (with lambdaName
-         ((if (>= (length (sublambdaArgs ctx))
-                  (sublambdaCount ctx))
+         ((if (>=Int (length (sublambdaArgs ctx))
+                     (sublambdaCount ctx))
             (fmapState
               (lambda (prefix)
                 (concat
@@ -426,20 +432,20 @@
               (newLambda (fnName ctx)))
             (if (==Int (length (sublambdaArgs ctx))
                        (- (sublambdaCount ctx) 1))
-              (return
+              (returnState
                 (append
                   (fnName ctx)
                   "__uncurried"))
-              (return
+              (returnState
                 (concat
                   [(fnName ctx)
                    "__curried"
                    (showInt (length (sublambdaArgs ctx)))]))))))
-       (with argTemps (replicateM (length argNames) newTemp))
+       (with argTemps (replicateMState (length argNames) newTemp))
        (let bodyCtx (foldr
                       (uncurry withBinding)
-                      (if (< (+ (length (sublambdaArgs ctx)) 1)
-                             (sublambdaCount ctx))
+                      (if (<Int (+ (length (sublambdaArgs ctx)) 1)
+                                (sublambdaCount ctx))
                         (withSublambdaArg name ctx)
                         (withoutSublambdas ctx))
                       (zip argNames argTemps)))
@@ -456,7 +462,7 @@
          (translateExpr bodyCtx bodyDst body))
        ;; work directly on dst because we want to allow for recursive
        ;; lambda let-bindings
-       (return
+       (returnState
          (Pair
            (append
              [(PUSHI (* 8 (+ 1 (length argNames))))
@@ -487,14 +493,14 @@
                    RET]]))
              bodyFns)))))
     ((Let name val body)
-     (do
+     (do State
        (with temp newTemp)
        (let ctx* (withBinding name temp ctx))
        (with (Pair letCode letFns)
          (translateExpr ctx* temp val))
        (with (Pair bodyCode bodyFns)
          (translateExpr ctx* dst body))
-       (return
+       (returnState
          (Pair (append letCode bodyCode)
                (append letFns bodyFns)))))
     ((As _ expr)
@@ -502,20 +508,20 @@
 
 ;; don't handle Derive or Instance for now
 (defn translateDecl (Func
-                             TopLevelBindings Decl
-                             (Stateful (List VFunction)))
+                      TopLevelBindings Decl
+                      (Stateful (List VFunction)))
   (binds decl)
   (case decl
     ((Alias _ _ _)
-     (return []))
+     (returnState []))
     ((Class _ _ _ _)
-     (return []))
+     (returnState []))
     ((Data _ typeSpec ctors)
      (fmapState
        concat
-       (zipWithM
+       (zipWithMState
          (lambda ((Pair ctor types) ctorIdx)
-           (do
+           (do State
              (with arg newTemp)
              (let baseName (symName (map! ctor binds)))
              (let mainName (if (null types)
@@ -562,13 +568,13 @@
                               (iterate (+ 1) 0 (length types)))
                             [RET]]))))
              (with extraFns ((if (null types)
-                               (return [])
+                               (returnState [])
                                (curryify (length types) baseName))))
-             (return (Cons mainFn extraFns))))
+             (returnState (Cons mainFn extraFns))))
          ctors
          (iterate (+ 1) 0 (length ctors)))))
     ((Def _ name _ value)
-     (do
+     (do State
        (let (SymDef mangledName _ numSublambdas)
          (map! name binds))
        (with dst newTemp)
@@ -579,7 +585,7 @@
              mangledName numSublambdas [])
            dst
            value))
-       (return
+       (returnState
          (Cons
            (function
              mangledName
@@ -589,15 +595,15 @@
                 RET]))
            fns))))
     ((Derive _ _)
-     (return []))
+     (returnState []))
     ((Import _ _)
      (error "translator shouldn't be handling imports"))
     ((Instance _ _ _ _)
-     (return []))))
+     (returnState []))))
 
 (defn translateBundle* (Func Resolver Bundle (Stateful (Program VR)))
   ((Resolver resolver) (Bundle mmod mmap))
-  (do
+  (do State
     (let mainName (symName (map! "main" (fst (map! mmod resolver)))))
     (with fns (fmapState
                 concat
@@ -609,7 +615,7 @@
                         (translateDecl (fst (map! mod resolver)))
                         decls)))
                   (mapToList mmap))))
-    (with mainFn (do
+    (with mainFn (do State
                    (with fnPtr newTemp)
                    (let setupCode
                      [(JUMP CALL "memoryInit")
@@ -620,7 +626,7 @@
                      [(OP MOV (IR 60 rax))
                       (OP MOV (IR 0 rdi))
                       (SYSCALL 1)])  ; exit
-                   (return
+                   (returnState
                      (function
                        "main"
                        (concat
@@ -628,7 +634,7 @@
                           callCode
                           teardownCode])))
                    (with stdlib (stdlibFns fns))))
-    (return (Program mainFn (append fns stdlib) stdlibData))))
+    (returnState (Program mainFn (append fns stdlib) stdlibData))))
 
 (public defn translateBundle (Func Resolver Bundle (Program VR))
   (resolver bundle)

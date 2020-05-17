@@ -3,6 +3,7 @@
 (import "MemoryManager.kalyn")
 (import "Primitives.kalyn")
 (import "Stdlib.kalyn")
+(import "Subroutines.kalyn")
 
 (defn handleCurried
   (Func
@@ -14,7 +15,7 @@
     (do State
       (with mainFn fn)
       (with curried (currify n name))
-      (return (Cons mainFn curried)))
+      (returnState (Cons mainFn curried)))
     ty
     n))
 
@@ -29,7 +30,7 @@
       (with core fn)
       (with monadified (monadify n (append name "__uncurried")))
       (with curried (currify n name))
-      (return (append [core monadified] curried)))
+      (returnState (append [core monadified] curried)))
     ty
     n))
 
@@ -51,7 +52,7 @@
   (name)
   (Type [] "IO" [(Type [] name [])]))
 
-(public defn stdlibPublic
+(public def stdlibPublic
   (Map String (Quad String (Stateful (List VFunction)) Type Int))
   (mapFromList
     compareString
@@ -77,22 +78,22 @@
                  2 "or" bitOr
                  (funcType ["Int" "Int" "Int"])))
      (Pair "^" (handleCurried
-                 2 "xor" xor
+                 2 "xor" bitXor
                  (funcType ["Int" "Int" "Int"])))
      (Pair "~" (handleCurried
                  1 "not" bitNot
                  (funcType ["Int" "Int"])))
      (Pair "shl" (handleCurried
-                   2 "shl" shl
+                   2 "shl" bitSHL
                    (funcType ["Int" "Int" "Int"])))
      (Pair "shr" (handleCurried
-                   2 "shr" shr
+                   2 "shr" bitSHR
                    (funcType ["Int" "Int" "Int"])))
      (Pair "sal" (handleCurried
-                   2 "sal" sal
+                   2 "sal" bitSAL
                    (funcType ["Int" "Int" "Int"])))
      (Pair "sar" (handleCurried
-                   2 "sar" sar
+                   2 "sar" bitSAR
                    (funcType ["Int" "Int" "Int"])))
      (Pair "print" (handleCurriedM
                      1 "print" monadPrint
@@ -103,7 +104,7 @@
                                      (baseType "String")
                                      (ioType "Empty")])))
      (Pair "setFileMode" (handleCurriedM
-                           2 "setFileMode" setFileMode
+                           2 "setFileMode" monadSetFileMode
                            (funcType* [(baseType "String")
                                        (baseType "Int")
                                        (ioType "Empty")])))
@@ -168,7 +169,7 @@
                                            (setMember fnName calls)))
                                     allPublic)))
     (with private (sequenceState stdlibPrivate))
-    (return (append usedPublic private))))
+    (returnState (append usedPublic private))))
 
 (public def stdlibData (List Datum)
   (append [memoryFirstFree memoryProgramBreak] msgDatums))

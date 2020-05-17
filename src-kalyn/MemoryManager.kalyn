@@ -4,14 +4,14 @@
 (import "Subroutines.kalyn")
 (import "Util.kalyn")
 
-(public defn memoryFirstFree Datum
+(public def memoryFirstFree Datum
   (Pair "mmFirstFree" (word64 0)))
 
-(public defn memoryProgramBreak Datum
+(public def memoryProgramBreak Datum
   (Pair "mmProgramBreak" (word64 0)))
 
-(public def memoryInit (Stateful VirtualFunction)
-  (return
+(public def memoryInit (Stateful VFunction)
+  (returnState
     (function
       "memoryInit"
       [(OP MOV (IR 12 rax))
@@ -21,7 +21,7 @@
        (OP MOV (RM rax (memLabel $ fst memoryFirstFree)))
        RET])))
 
-(public def memoryAlloc (Stateful VirtualFunction)
+(public def memoryAlloc (Stateful VFunction)
   (do
     (with firstFree newTemp)
     (with ptr       newTemp)
@@ -29,7 +29,7 @@
     (with done      newLabel)
     (with crash     newLabel)
     (with msg       newTemp)
-    (return
+    (returnState
       (function
         "memoryAlloc"
         [(OP MOV (MR (memLabel "mmFirstFree") firstFree))
@@ -62,7 +62,7 @@
          (UN PUSH (R msg))
          (JUMP CALL "crash")]))))
 
-(public def memoryPackString (Stateful VirtualFunction)
+(public def memoryPackString (Stateful VFunction)
   (do
     (with arg         newTemp)
     (with ptr         newTemp)
@@ -75,7 +75,7 @@
     (with lengthDone  newLabel)
     (with copyStart   newLabel)
     (with copyDone    newLabel)
-    (return
+    (returnState
       (function
         "memoryPackString"
         [(OP MOV (MR (getArg 1) arg))

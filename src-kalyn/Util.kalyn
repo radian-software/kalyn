@@ -53,14 +53,14 @@
   ((Char c))
   (or
     (and
-      (>= c 0x30)
-      (<= c 0x39))
+      (>=Int c 0x30)
+      (<=Int c 0x39))
     (and
-      (>= c 0x41)
-      (<= c 0x5a))
+      (>=Int c 0x41)
+      (<=Int c 0x5a))
     (and
-      (>= c 0x61)
-      (<= c 0x7a))))
+      (>=Int c 0x61)
+      (<=Int c 0x7a))))
 
 ;; important properties: deterministic, stateless, and injective
 (public def sanitize (Func String String)

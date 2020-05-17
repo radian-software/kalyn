@@ -1,6 +1,8 @@
+(import "AST.kalyn")
 (import "Assembly.kalyn")
 (import "Stdlib.kalyn")
 
+(import "Translator.kalyn")
 (import "Liveness.kalyn")
 (import "RegisterAllocator.kalyn")
 (import "Boilerplate.kalyn")
@@ -58,22 +60,6 @@
                   (TypeSpec "Empty" [])
                   []))])
            (mapEmpty compareString)))])))
-
-(def helloWorld VProgram
-  (Program
-    (function
-      "main"
-      [(OP MOV (IR 1 rax))
-       (OP MOV (IR 1 rdi))
-       (LEA (memLabelV "message") rsi)
-       (OP MOV (IR 14 rdx))
-       (SYSCALL 3)  ; write
-       (OP MOV (IR 60 rax))
-       (OP MOV (IR 0 rdi))
-       (SYSCALL 1)  ; exit
-       ])
-    []
-    [(Pair "message" "Hello, world!\n")]))
 
 (public def main (IO Empty)
   (do IO

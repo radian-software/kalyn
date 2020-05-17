@@ -181,7 +181,11 @@ resolveBundle (Bundle _ mmap) =
                              (\name ->
                                case name `Map.lookup` (gTypeMap Map.! mod) of
                                  Nothing ->
-                                   error $ "no such type: " ++ show name
+                                   error
+                                     $  "in module "
+                                     ++ show mod
+                                     ++ ": no such type "
+                                     ++ show name
                                  Just name' -> name'
                              )
                              sym

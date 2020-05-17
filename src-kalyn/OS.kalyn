@@ -1,0 +1,4 @@
+(import "Stdlib.kalyn")
+
+(public def pageSize Int
+  0x1000)
