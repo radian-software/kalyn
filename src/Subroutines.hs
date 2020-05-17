@@ -5,6 +5,7 @@ import qualified Data.ByteString.Lazy          as B
 import           Data.ByteString.Lazy.Builder
 
 import           Assembly
+import           OS
 
 type Stateful = State Int
 
@@ -135,8 +136,13 @@ packMsg str =
 
 msgDatums :: [Datum]
 msgDatums =
-  [ ("msgPatternMatchFailed", packMsg "pattern match failed\n")
-  , ("msgMemoryAllocFailed" , packMsg "memoryAlloc failed\n")
-  , ("msgWriteFileFailed"   , packMsg "writeFile failed\n")
-  , ("msgSetFileModeFailed" , packMsg "setFileMode failed\n")
+  [ ("msgPatternMatchFailed"       , packMsg "pattern match failed\n")
+  , ("msgMemoryAllocFailed"        , packMsg "memoryAlloc failed\n")
+  , ("msgWriteFileFailed"          , packMsg "writeFile failed\n")
+  , ("msgSetFileModeFailed"        , packMsg "setFileMode failed\n")
+  , ("msgReadFileFailed"           , packMsg "readFile failed\n")
+  , ("msgGetWorkingDirectoryFailed", packMsg "getWorkingDirectory failed\n")
   ]
+
+syscallBuffer :: Datum
+syscallBuffer = ("syscallBuffer", B.pack (replicate syscallBufferSize 0))

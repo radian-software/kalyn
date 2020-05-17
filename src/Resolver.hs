@@ -50,7 +50,7 @@ uniquify = uniquify' Set.empty
   uniquify' _ [] = []
   uniquify' seen (str : strs) =
     let str' = findUnused str seen
-    in  (str' : uniquify' (Set.insert str seen) strs)
+    in  (str' : uniquify' (Set.insert str' seen) strs)
   findUnused str seen = head $ filter (`Set.notMember` seen) $ str : map
     (\num -> str ++ show num)
     (iterate (+ 1) (1 :: Int))

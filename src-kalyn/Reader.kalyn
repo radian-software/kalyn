@@ -1,0 +1,48 @@
+(import "Stdlib.kalyn")
+(import "Tokens.kalyn")
+
+;; Simple recursive descent parser for Lisp syntax.
+
+(defn parseForm (Func (List Token) (Pair Form (List Token)))
+  (tokens)
+  (case tokens
+    ((Cons (SYMBOL name) (Cons AT rest))
+     (let (((Pair aliased rest*) (parseForm rest)))
+       (Pair (At name aliased) rest*)))
+    ((Cons (SYMBOL s) rest)
+     (Pair (Symbol s) rest))
+    ((Cons (INTEGER i) rest)
+     (Pair (IntAtom i) rest))
+    ((Cons (CHAR c) rest)
+     (Pair (CharAtom c) rest))
+    ((Cons (STRING s) rest)
+     (Pair (StrAtom s) rest))
+    ((Cons LPAREN rest)
+     (let (((Pair forms rest*) (parseForms rest)))
+       (case rest*
+         ((Cons RPAREN rest**) (Pair (RoundList forms) rest**))
+         (token (error "reader error inside round list \n")))))
+    ((Cons LBRACKET rest)
+     (let (((Pair forms rest*) (parseForms rest)))
+       (case rest*
+         ((Cons RBRACKET rest**) (Pair (SquareList forms) rest**))
+         (token (error "reader error inside square list \n")))))
+    (tokens (error "reader error\n"))))
+
+(defn parseForms (Func (List Token) (Pair (List Form) (List Token)))
+  (tokens)
+  (case tokens
+    (Null (Pair [] []))
+    ((Cons RPAREN rest) (Pair [] (Cons token rest)))
+    ((Cons RBRACKET rest) (Pair [] (Cons token rest)))
+    (tokens
+     (let (((Pair form rest) (parseForm tokens))
+           ((Pair forms rest*) (parseForms rest)))
+       (Pair (Cons form forms) rest*)))))
+
+(public defn readModule (Func (List Token) (List Form))
+  (tokens)
+  (let (((Pair forms rest) (parseForms tokens)))
+    (case rest
+      (Null forms)
+      (_ (error "reader found trailing garbage\n")))))

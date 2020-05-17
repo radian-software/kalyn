@@ -1,0 +1,113 @@
+(import "AST.kalyn")
+(import "Stdlib.kalyn")
+
+(defn extractImports (Func
+                       (List Decl)
+                       (Pair
+                         (List (Pair FilePath Bool))
+                         (List Decl)))
+  (decls)
+  (case decls
+    (Null (Pair Null Null))
+    ((Cons (Import pub file) decls)
+     (let (((Pair files decls*) (extractImports decls)))
+       (Pair
+         (Cons (Pair file pub) files)
+         decls*)))
+    ((Cons decl decls)
+     (let (((Pair files decls*) (extractImports decls)))
+       (Pair
+         files
+         (Cons decl decls*))))))
+
+(defn readBundle* (Func
+                    (Func String (IO (List Decl)))
+                    (List FilePath)
+                    (List FilePath)
+                    (Map
+                      FilePath
+                      (Pair
+                        (List Decl)
+                        (List (Pair FilePath Bool))))
+                    (IO (Map
+                          FilePath
+                          (Pair
+                            (List Decl)
+                            (List (Pair FilePath Bool))))))
+  (readDecls alreadyRead toRead declsSoFar)
+  (case toRead
+    (Null (return declsSoFar))
+    ((Cons curToRead restToRead)
+     (if (elem ==String curToRead alreadyRead)
+       (readBundle* readDecls alreadyRead restToRead declsSoFar)
+       (do IO
+         (with (Pair newToRead newDecls)
+           (fmapIO extractImports (readDecls curToRead)))
+         (with absNewToRead
+           (mapMIO
+             (lambda ((Pair path pub))
+               (do IO
+                 (with curAbsPath (expandPath Nothing curToRead))
+                 (let workdir (takeDirectory curAbsPath))
+                 (with absPath (expandPath (Just workdir) path))
+                 (return (Pair absPath pub))))
+             newToRead))
+         (readBundle*
+           readDecls
+           (Cons curToRead alreadyRead)
+           (append (map fst absNewToRead) restToRead)
+           (mapInsert curToRead (Pair newDecls absNewToRead) declsSoFar)))))))
+
+(defn transitiveImports (Func
+                          (Map
+                            FilePath
+                            (Pair
+                              (List Decl)
+                              (List (Pair FilePath Bool))))
+                          (Set FilePath)
+                          (Set FilePath)
+                          (Set FilePath)
+                          (Set FilePath))
+  (modules seen queue result)
+  (case (setHead queue)
+    (Nothing result)
+    ((Just cur)
+     (let ((next (setDelete cur queue)))
+       (if (setMember cur seen)
+         (transitiveImports modules seen next result)
+         (let (((Pair _ deps) (map! cur modules))
+               (new (map fst (filter snd deps))))
+           (transitiveImports
+             modules
+             (setInsert cur seen)
+             (foldr setInsert next new)
+             (setInsert cur result))))))))
+
+(public defn readBundle (Func
+                          (IO Empty)
+                          (Func String (IO (List Decl)))
+                          FilePath
+                          (IO Bundle))
+  (onReadFinished readDecls filename)
+  (do IO
+    (with absFilename (expandPath Nothing filename))
+    (with modules (readBundle*
+                    readDecls [] [absFilename]
+                    (mapEmpty compareString)))
+    onReadFinished
+    (return
+      (Bundle
+        absFilename
+        (mapMapWithKey
+          (lambda (name (Pair decls _))
+            (Pair
+              decls
+              (setToList
+                (transitiveImports
+                  modules
+                  (setSingleton compareString name)
+                  (setFromList
+                    compareString
+                    (map fst (snd (map! name modules))))
+                  (setEmpty compareString)))))
+          modules)))))

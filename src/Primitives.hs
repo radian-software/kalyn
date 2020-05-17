@@ -1,6 +1,7 @@
 module Primitives where
 
 import           Assembly
+import           OS
 import           Subroutines
 
 -- https://filippo.io/linux-syscall-table/
@@ -111,6 +112,7 @@ monadPrint = do
     , LEA (Mem (Right 8) str Nothing) rsi
     , OP MOV $ MR (deref str) rdx
     , SYSCALL 3 -- write
+    , OP MOV $ IR 0 rax
     , RET
     ]
 
@@ -151,7 +153,7 @@ monadWriteFile = do
     , LEA (getField 1 filename) rdi
     , OP MOV $ IR 0x41 rsi
     , OP MOV $ IR 0o666 rdx
-    , SYSCALL 2 -- open
+    , SYSCALL 3 -- open
     , OP CMP $ IR 0 rax
     , JUMP JL crash
     , OP MOV $ RR rax fd
@@ -176,6 +178,7 @@ monadWriteFile = do
     , SYSCALL 1 -- close
     , OP CMP $ IR 0 rax
     , JUMP JL crash
+    , OP MOV $ IR 0 rax
     , RET
     , LABEL crash
     , LEA (memLabel "msgWriteFileFailed") msg
@@ -202,9 +205,100 @@ setFileMode = do
     , SYSCALL 2 -- chmod
     , OP CMP $ IR 0 rax
     , JUMP JL crash
+    , OP MOV $ IR 0 rax
     , RET
     , LABEL crash
     , LEA (memLabel "msgSetFileModeFailed") msg
+    , UN PUSH $ R msg
+    , JUMP CALL "crash"
+    ]
+
+monadGetWorkingDirectory :: Stateful VirtualFunction
+monadGetWorkingDirectory = do
+  msg   <- newTemp
+  crash <- newLabel
+  return $ function
+    "getWorkingDirectory__unmonadified"
+    [ OP MOV $ IR 79 rax
+    , LEA (memLabel "memoryPathBuffer") rdi
+    , OP MOV $ IR (fromIntegral syscallBufferSize) rsi
+    , SYSCALL 2  -- getcwd
+    , UN PUSH $ R rax
+    , PUSHI (-1)
+    , JUMP CALL "memoryUnpackString"
+    , unpush 2
+    , RET
+    , LABEL crash
+    , LEA (memLabel "msgGetWorkingDirectoryFailed") msg
+    , UN PUSH $ R msg
+    , JUMP CALL "crash"
+    ]
+
+monadReadFile :: Stateful VirtualFunction
+monadReadFile = do
+  buffer          <- newTemp
+  filename        <- newTemp
+  fd              <- newTemp
+  strStart        <- newTemp
+  strEnd          <- newTemp
+  bytesRead       <- newTemp
+  msg             <- newTemp
+  newString       <- newTemp
+  allocedLength   <- newTemp
+  readStart       <- newLabel
+  readDone        <- newLabel
+  skipStartUpdate <- newLabel
+  skipEndUpdate   <- newLabel
+  crash           <- newLabel
+  return $ function
+    "readFile__unmonadified"
+    [ LEA (memLabel "syscallBuffer") buffer
+    , UN PUSH $ M (getArg 1)
+    , JUMP CALL "memoryPackString"
+    , unpush 1
+    , OP MOV $ RR rax filename
+    , OP MOV $ IR 2 rax
+    , LEA (getField 1 filename) rdi
+    , OP MOV $ IR 0 rsi
+    , SYSCALL 2  -- open
+    , OP MOV $ RR rax fd
+    , OP MOV $ IR 0 strStart
+    , LABEL readStart
+    , OP MOV $ IR 0 rax
+    , OP MOV $ RR fd rdi
+    , OP MOV $ RR buffer rsi
+    , OP MOV $ IR (fromIntegral syscallBufferSize) rdx
+    , SYSCALL 3  -- read
+    , OP MOV $ RR rax bytesRead
+    , OP CMP $ IR 0 bytesRead
+    , JUMP JE readDone
+    , JUMP JL crash
+    , UN PUSH $ R buffer
+    , UN PUSH $ R bytesRead
+    , JUMP CALL "memoryUnpackString"
+    , unpush 2
+    , OP MOV $ RR rax newString
+    , OP CMP $ IR 0 strStart
+    , JUMP JNE skipStartUpdate
+    , OP MOV $ RR newString strStart
+    , JUMP JMP skipEndUpdate
+    , LABEL skipStartUpdate
+    , OP MOV $ RM newString (deref strEnd)
+    , LABEL skipEndUpdate
+    , OP MOV $ RR bytesRead allocedLength
+    , OP IMUL $ IR 24 allocedLength
+    , LEA (Mem (Right $ -8) newString (Just (Scale1, allocedLength))) strEnd
+    , JUMP JMP readStart
+    , LABEL readDone
+    , OP MOV $ IR 3 rax
+    , OP MOV $ RR fd rdi
+    , SYSCALL 1  -- close
+    , OP CMP $ IR 0 rax
+    , JUMP JL crash
+    , OP MOV $ RR strStart rax
+    , RET
+    , LABEL crash
+    , LEA (memLabel "msgReadFileFailed") msg
     , UN PUSH $ R msg
     , JUMP CALL "crash"
     ]

@@ -121,6 +121,8 @@ data Shift = SHL | SAL | SHR | SAR
 data Instruction reg = OP BinOp (Args reg)
                      | UN UnOp (Arg reg)
                      | JUMP Jump Label
+                     | MOVBRM reg (Mem reg)
+                     | MOVBMR (Mem reg) reg
                      | MOV64 Int64 reg
                      | SHIFT (Maybe Word8) Shift reg
                      | LEA (Mem reg) reg
@@ -211,11 +213,13 @@ instance Show Shift where
   show SAR = "sar"
 
 instance Show reg => Show (Instruction reg) where
-  show (OP    op    args ) = show op ++ " " ++ show args
-  show (UN    ICALL arg  ) = show ICALL ++ " *" ++ show arg
-  show (UN    op    arg  ) = show op ++ " " ++ show arg
-  show (JUMP  op    label) = show op ++ " " ++ label
-  show (MOV64 imm   dst  ) = "movq $" ++ show imm ++ ", " ++ show dst
+  show (OP     op    args ) = show op ++ " " ++ show args
+  show (UN     ICALL arg  ) = show ICALL ++ " *" ++ show arg
+  show (UN     op    arg  ) = show op ++ " " ++ show arg
+  show (JUMP   op    label) = show op ++ " " ++ label
+  show (MOVBRM src   mem  ) = "movb " ++ show src ++ ", " ++ show mem
+  show (MOVBMR mem   dst  ) = "movb " ++ show mem ++ ", " ++ show dst
+  show (MOV64  imm   dst  ) = "movq $" ++ show imm ++ ", " ++ show dst
   show (SHIFT amt shift dst) =
     show shift
       ++ " "
@@ -270,11 +274,13 @@ getArgRegisters _     (M mem) = (getMemRegisters mem, [])
 
 -- returns (src, dst)
 getRegisters :: RegisterLike reg => Instruction reg -> ([reg], [reg])
-getRegisters (OP    op   args     ) = getArgsRegisters op args
-getRegisters (UN    op   arg      ) = getArgRegisters op arg
-getRegisters (JUMP  CALL _        ) = ([], [fromRegister rax])
-getRegisters (JUMP  _    _        ) = ([], [])
-getRegisters (MOV64 _    dst      ) = ([], [dst])
+getRegisters (OP     op   args    ) = getArgsRegisters op args
+getRegisters (UN     op   arg     ) = getArgRegisters op arg
+getRegisters (JUMP   CALL _       ) = ([], [fromRegister rax])
+getRegisters (JUMP   _    _       ) = ([], [])
+getRegisters (MOVBRM src  mem     ) = (src : getMemRegisters mem, [])
+getRegisters (MOVBMR mem  dst     ) = (getMemRegisters mem, [dst])
+getRegisters (MOV64  _    dst     ) = ([], [dst])
 getRegisters (SHIFT Nothing  _ dst) = ([dst, fromRegister rcx], [dst])
 getRegisters (SHIFT (Just _) _ dst) = ([dst], [dst])
 getRegisters (LEA mem dst         ) = (getMemRegisters mem, [dst])
@@ -319,10 +325,12 @@ mapArg f (R reg) = R (f reg)
 mapArg f (M mem) = M (mapMem f mem)
 
 mapInstr :: (reg1 -> reg2) -> Instruction reg1 -> Instruction reg2
-mapInstr f (OP    op  args     ) = OP op (mapArgs f args)
-mapInstr f (UN    op  arg      ) = UN op (mapArg f arg)
-mapInstr _ (JUMP  op  label    ) = JUMP op label
-mapInstr f (MOV64 imm reg      ) = MOV64 imm (f reg)
+mapInstr f (OP     op  args    ) = OP op (mapArgs f args)
+mapInstr f (UN     op  arg     ) = UN op (mapArg f arg)
+mapInstr _ (JUMP   op  label   ) = JUMP op label
+mapInstr f (MOVBRM reg mem     ) = MOVBRM (f reg) (mapMem f mem)
+mapInstr f (MOVBMR mem reg     ) = MOVBMR (mapMem f mem) (f reg)
+mapInstr f (MOV64  imm reg     ) = MOV64 imm (f reg)
 mapInstr f (SHIFT amt shift reg) = SHIFT amt shift (f reg)
 mapInstr f (LEA mem reg        ) = LEA (mapMem f mem) (f reg)
 mapInstr f (IDIV reg           ) = IDIV (f reg)

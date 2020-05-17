@@ -24,7 +24,7 @@ roundUp f x = x + leftover f x
 groupBy :: Ord k => (v -> k) -> [v] -> Map.Map k [v]
 groupBy k = Map.fromListWith (++) . map (k &&& pure)
 
-listUnique :: (Eq k, Ord k) => [k] -> Bool
+listUnique :: Eq k => [k] -> Bool
 listUnique ks = nub ks == ks
 
 mapUnionsWithKey :: Ord k => (k -> v -> v -> v) -> [Map.Map k v] -> Map.Map k v

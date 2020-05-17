@@ -137,6 +137,7 @@
     ((Cons elt Null) elt)
     ((Cons _ rst) (last rst))))
 
+;; caution: does not preserve order!!
 (public defn nub (Func (Ord a) (List a) (List a))
   (cmp)
   (comp setToList (setFromList cmp)))
@@ -227,3 +228,63 @@
   (case elts
     (Null Null)
     ((Cons _ _) (Cons elt (init elts)))))
+
+(public defn span (Func (Func a Bool) (List a) (Pair (List a) (List a)))
+  (pred elts)
+  (case elts
+    (Null (Pair Null Null))
+    (all@(Cons elt elts)
+     (if (pred elt)
+       (let (((Pair left right)
+              (span pred elts)))
+         (Pair (Cons elt left) right))
+       (Pair Null all)))))
+
+(public defn split (Func (Eq a) a (List a) (List (List a)))
+  (== sep elts)
+  (case elts
+    (Null [Null])
+    ((Cons elt elts)
+     (if (== elt sep)
+       (Cons Null (split == sep elts))
+       (let (((Cons part parts)
+              (split == sep elts)))
+         (Cons (Cons elt part) parts))))))
+
+(public defn maximum (Func (Ord a) (List a) a)
+  (cmp (Cons elt elts))
+  (case elts
+    (Null elt)
+    ((Cons _)
+     (let ((max (maximum elts)))
+       (case (cmp max elt)
+         (GT max)
+         (_ elt))))))
+
+(public defn minimum (Func (Ord a) (List a) a)
+  (cmp (Cons elt elts))
+  (case elts
+    (Null elt)
+    ((Cons _)
+     (let ((min (minimum elts)))
+       (case (cmp min elt)
+         (GT min)
+         (_ elt))))))
+
+(public defn takeWhile (Func (Func a Bool) (List a) (List a))
+  (pred elts)
+  (case elts
+    (Null Null)
+    ((Cons elt elts)
+     (if (pred elt)
+       (Cons elt (takeWhile pred elts))
+       Null))))
+
+(public defn dropWhile (Func (Func a Bool) (List a) (List a))
+  (pred elts)
+  (case elts
+    (Null Null)
+    (all@(Cons elt elts)
+     (if (pred elt)
+       (dropWhile pred elts)
+       all))))

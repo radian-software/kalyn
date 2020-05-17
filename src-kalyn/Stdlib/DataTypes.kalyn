@@ -38,6 +38,7 @@
 
 (public alias (Eq a) (Func a a Bool))
 (public alias (Ord a) (Func a a Ordering))
+(public alias (Read a) (Func String a))
 (public alias (Show a) (Func a String))
 
 ;; We only have one size of integer really, but specifying the
@@ -57,3 +58,4 @@
 ;; Same for strings...
 
 (public alias Bytes String)
+(public alias FilePath String)

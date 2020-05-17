@@ -24,6 +24,21 @@ handleCurried
   -> (String, Stateful [VirtualFunction], Type, Int)
 handleCurried n name fn ty = (name, (:) <$> fn <*> curryify n name, ty, n)
 
+handleM
+  :: String
+  -> Stateful VirtualFunction
+  -> Type
+  -> (String, Stateful [VirtualFunction], Type, Int)
+handleM name fn ty =
+  ( name
+  , do
+    core       <- fn
+    monadified <- monadify 0 name
+    return [core, monadified]
+  , ty
+  , 0
+  )
+
 handleCurriedM
   :: Int
   -> String
@@ -76,11 +91,20 @@ stdlibPublic = Map.fromList
     )
   , ( "writeFile"
     , handleCurriedM 2 "writeFile" monadWriteFile
-      $ funcType' [baseType "String", baseType "String", ioType "Empty"]
+      $ funcType' [baseType "FilePath", baseType "String", ioType "Empty"]
     )
   , ( "setFileMode"
     , handleCurriedM 2 "setFileMode" setFileMode
-      $ funcType' [baseType "String", baseType "Int", ioType "Empty"]
+      $ funcType' [baseType "FilePath", baseType "Int", ioType "Empty"]
+    )
+  , ( "getWorkingDirectory"
+    , handleM "getWorkingDirectory" monadGetWorkingDirectory (ioType "FilePath")
+    )
+  , ( "readFile"
+    , handleCurriedM 1
+                     "readFile"
+                     monadReadFile
+                     (funcType' [baseType "FilePath", ioType "String"])
     )
   , ("error", handleCurried 1 "error" primitiveError $ funcType ["String", "a"])
   , ("==Int", handleCurried 2 "equal" equal $ funcType ["Int", "Int", "Bool"])
@@ -116,7 +140,13 @@ stdlibPublic = Map.fromList
   ]
 
 stdlibPrivate :: [Stateful VirtualFunction]
-stdlibPrivate = [memoryInit, memoryAlloc, memoryPackString, primitiveCrash]
+stdlibPrivate =
+  [ memoryInit
+  , memoryAlloc
+  , memoryPackString
+  , memoryUnpackString
+  , primitiveCrash
+  ]
 
 getCalls :: VirtualFunction -> Set.Set String
 getCalls (Function _ _ instrs) = Set.fromList $ concatMap
@@ -138,4 +168,4 @@ stdlibFns userFns = do
   return $ public ++ private
 
 stdlibData :: [Datum]
-stdlibData = [memoryFirstFree, memoryProgramBreak] ++ msgDatums
+stdlibData = [memoryFirstFree, memoryProgramBreak, syscallBuffer] ++ msgDatums

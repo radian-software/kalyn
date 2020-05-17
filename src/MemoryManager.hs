@@ -110,3 +110,58 @@ memoryPackString = do
     , OP MOV $ RR result rax
     , RET
     ]
+
+memoryUnpackString :: Stateful VirtualFunction
+memoryUnpackString = do
+  str       <- newTemp
+  strptr    <- newTemp
+  allocSize <- newTemp
+  retval    <- newTemp
+  bufPtr    <- newTemp
+  lstPtr    <- newTemp
+  lstEnd    <- newTemp
+  char      <- newTemp
+  next      <- newTemp
+  lenStart  <- newLabel
+  lenDone   <- newLabel
+  copyStart <- newLabel
+  copyDone  <- newLabel
+  return $ function
+    "memoryUnpackString"
+    [ OP MOV $ MR (getArg 2) str
+    , OP MOV $ MR (getArg 1) allocSize
+    , OP CMP $ IR 0 allocSize
+    , JUMP JGE lenDone
+    , OP MOV $ RR str strptr
+    , OP MOV $ IR 0 allocSize
+    , LABEL lenStart
+    , OP CMP $ IM 0 (deref strptr)
+    , JUMP JE lenDone
+    , UN INC $ R allocSize
+    , UN INC $ R strptr
+    , LABEL lenDone
+    , OP IMUL $ IR 24 allocSize
+    , OP ADD $ IR 8 allocSize
+    , UN PUSH (R allocSize)
+    , JUMP CALL "memoryAlloc"
+    , unpush 1
+    , OP MOV $ RR rax retval
+    , OP MOV $ RR str bufPtr
+    , OP MOV $ RR rax lstPtr
+    , LEA (Mem (Right $ -8) lstPtr (Just (Scale1, allocSize))) lstEnd
+    , LABEL copyStart
+    , OP CMP $ RR lstEnd lstPtr
+    , JUMP JGE copyDone
+    , OP MOV $ IM 1 (getField 0 lstPtr)
+    , MOVBMR (deref bufPtr) char
+    , OP MOV $ RM char (getField 1 lstPtr)
+    , LEA (getField 3 lstPtr) next
+    , OP MOV $ RM next (getField 2 lstPtr)
+    , UN INC (R bufPtr)
+    , OP ADD $ IR 24 lstPtr
+    , JUMP JMP copyStart
+    , LABEL copyDone
+    , OP MOV $ IM 0 (deref lstPtr)
+    , OP MOV $ RR retval rax
+    , RET
+    ]

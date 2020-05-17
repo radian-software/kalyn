@@ -1,0 +1,36 @@
+(import "../Stdlib.kalyn")
+
+(public defn takeDirectory (Func FilePath FilePath)
+  "Given an absolute path, strip off the last component. Don't leave a
+   trailing slash."
+  (path)
+  (reverse
+    (tail
+      (dropWhile
+        (comp not (==Char '/'))
+        (reverse path)))))
+
+(public defn expandPath (Func (Maybe FilePath) FilePath (IO FilePath))
+  "Expand a relative or absolute path to be absolute, relative to
+   either the current working directory or a provided working
+   directory (which must be absolute)."
+  (workdir relpath)
+  (case relpath
+    ((Cons '/' _) (return relpath))
+    (_ (do IO
+         (with workdir
+           (case workdir
+             (Nothing getWorkingDirectory)
+             ((Just workdir) (return workdir))))
+         (let workdirParts (reverse (filter notNull (split '/' workdir))))
+         (let relpathParts (filter notNull (split '/' relpath)))
+         (let workdirParts*
+           (foldr
+             (lambda (relpathPart workdirParts)
+               (case relpathPart
+                 ("." workdirParts)
+                 (".." (tail workdirParts))
+                 (_ (Cons relpathPath workdirParts))))
+             workdirParts
+             relpathParts))
+         (return (Cons '/' (intercalate '/' (reverse workdirParts*))))))))

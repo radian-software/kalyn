@@ -292,6 +292,10 @@ compileInstr labels pc instr =
                 SHR -> (0xc1, 5)
                 SAR -> (0xc1, 7)
           in  opInstr8U [op] dst (Left ext) (Just amt)
+        MOVBRM src (Mem disp base msi) ->
+          memInstr [0x88] base msi (fromDisp disp) (Right src) Nothing
+        MOVBMR (Mem disp base msi) dst ->
+          memInstr [0x8a] base msi (fromDisp disp) (Right dst) Nothing
         MOV64 imm dst -> compressedInstr64 0xb8 dst (Just imm)
         LEA (Mem disp base msi) dst ->
           memInstr [0x8d] base msi (fromDisp disp) (Right dst) Nothing

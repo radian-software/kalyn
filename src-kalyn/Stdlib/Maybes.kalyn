@@ -9,3 +9,12 @@
        (Nothing (mapMaybe func rst))
        ((Just fst*)
         (Cons fst* (mapMaybe func rst)))))))
+
+(public defn catMaybes (Func (List (Maybe a)) (List a))
+  (elts)
+  (case elts
+    (Null Null)
+    ((Cons elt elts)
+     (case elt
+       (Nothing (catMaybes elts))
+       ((Just elt) (Cons elt (catMaybes elts)))))))

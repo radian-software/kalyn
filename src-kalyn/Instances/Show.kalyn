@@ -125,6 +125,8 @@
     ((UN ICALL arg) (concat [(showUnOp ICALL) " *" (showArg showReg arg)]))
     ((UN op arg) (concat [(showUnOp op) " " (showArg showReg arg)]))
     ((JUMP op label) (concat [(showJump op) " " label]))
+    ((MOVBRM src mem) (concat ["movb " (showReg src) ", " (showMem showReg mem)]))
+    ((MOVBMR mem dst) (concat ["movb " (showMem showReg mem) ", " (showReg dst)]))
     ((MOV64 imm dst) (concat ["movq $" (showInt imm) ", " (showReg dst)]))
     ((SHIFT amt shift dst) (concat
                              [(showShift shift)

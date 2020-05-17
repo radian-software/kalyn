@@ -1,0 +1,21 @@
+(import "../Stdlib.kalyn")
+
+(public defn fmapIO (Func (Func a b) (IO a) (IO b))
+  (func io)
+  (do IO
+    (with result io)
+    (return (func io))))
+
+(public defn sequenceIO (Func (List (IO a)) (IO (List a)))
+  (ios)
+  (case ios
+    (Null (returnIO Null))
+    ((Cons io ios)
+     (do IO
+       (with fst io)
+       (with rst (sequenceIO ios))
+       (returnIO (Cons fst rst))))))
+
+(public defn mapMIO (Func (Func a (IO b)) (List a) (IO (List b)))
+  (func as)
+  (sequenceIO (map func as)))

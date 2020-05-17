@@ -19,6 +19,20 @@
     ty
     n))
 
+(defn handleM
+  (Func
+    String (Stateful VFunction) Type
+    (Quad String (Stateful (List VFunction)) Type Int))
+  (name fn ty)
+  (Quad
+    name
+    (do State
+      (with core fn)
+      (with monadified (monadify 0 name))
+      (returnState [core monadified]))
+    ty
+    0))
+
 (defn handleCurriedM
   (Func
     Int String (Stateful VFunction) Type
@@ -100,14 +114,22 @@
                      (funcType* [(baseType "String") (ioType "Empty")])))
      (Pair "writeFile" (handleCurriedM
                          2 "writeFile" monadWriteFile
-                         (funcType* [(baseType "String")
+                         (funcType* [(baseType "FilePath")
                                      (baseType "String")
                                      (ioType "Empty")])))
      (Pair "setFileMode" (handleCurriedM
                            2 "setFileMode" monadSetFileMode
-                           (funcType* [(baseType "String")
+                           (funcType* [(baseType "FilePath")
                                        (baseType "Int")
                                        (ioType "Empty")])))
+     (Pair "getWorkingDirectory" (handleM
+                                   "getWorkingDirectory"
+                                   monadGetWorkingDirectory
+                                   (ioType "FilePath")))
+     (Pair "readFile" (handleCurriedM
+                        1 "readFile" monadReadFile
+                        (funcType* [(baseType "FilePath")
+                                    (ioType "String")])))
      (Pair "error" (handleCurried
                      1 "error" primitiveError
                      (funcType ["String" "a"])))
@@ -145,7 +167,11 @@
                      (funcType ["String" "a" "a"])))]))
 
 (def stdlibPrivate (List (Stateful VFunction))
-  [memoryInit memoryAlloc memoryPackString primitiveCrash])
+  [memoryInit
+   memoryAlloc
+   memoryPackString
+   memoryUnpackString
+   primitiveCrash])
 
 (defn getCalls (Func VFunction (Set String))
   ((Function _ _ instrs))
@@ -172,4 +198,4 @@
     (returnState (append usedPublic private))))
 
 (public def stdlibData (List Datum)
-  (append [memoryFirstFree memoryProgramBreak] msgDatums))
+  (append [memoryFirstFree memoryProgramBreak syscallBuffer] msgDatums))

@@ -1,0 +1,85 @@
+(import "Stdlib.kalyn")
+
+(def disallowedChars String
+  ";()[]@")
+
+(defn getStringChar (Func String (Pair Char String))
+  (str)
+  (case str
+    (Null (error "unexpected end of string literal\n"))
+    ((Cons '\\' (Cons 'x' (Cons a (Cons b s))))
+     (Pair (readInt ['0' 'x' a b]) s))
+    ((Cons '\\' (Cons c s))
+     (Pair
+       (case c
+         ('0' '\0')
+         ('a' '\a')
+         ('b' '\b')
+         ('f' '\f')
+         ('n' '\n')
+         ('r' '\r')
+         ('t' '\t')
+         ('v' '\v')
+         ( _    c ))
+       s))))
+
+(defn readString (Func Char String (Pair String String))
+  (delim str)
+  (let (((Pair char rest) (getStringChar str)))
+    (if (==Char char delim)
+      (Pair "" rest)
+      (let (((Pair parsed rest*) (readString delim rest)))
+        (Pair (Cons char parsed) rest*)))))
+
+(defn getSymbolToken (Func String (Pair (Maybe Token) String))
+  (s)
+  (let (((Pair v s*) (span (lambda (c)
+                             (and
+                               (not (isSpace c))
+                               (notElem c disallowedChars)))
+                           s)))
+    (Pair (Just (SYMBOL v)) s*)))
+
+(defn getToken (Func String (Pair (Maybe Token) String))
+  (str)
+  (case str
+    (Null (error "shouldn't be getting a token from an empty string\n"))
+    (full@(Cons c s)
+     (if (isSpace c)
+       (Pair Nothing s)
+       (case c
+         (';' (Pair Nothing (tail (dropWhile (comp not (==Char '\n')) s))))
+         ('(' (Pair (Just LPAREN) s))
+         (')' (Pair (Just RPAREN) s))
+         ('[' (Pair (Just LBRACKET) s))
+         (']' (Pair (Just RBRACKET) s))
+         ('@' (Pair (Just AT) s))
+         ('"' (let (((Pair parsed rest) (readString '"' s)))
+                (Pair (Just (STRING parsed)) rest)))
+         ('\'' (let (((Pair parsed rest) (readString '\'' s)))
+                 (if (==Int (length parsed) 1)
+                   (Pair (Just (CHAR (head parsed))) rest)
+                   (error (concat ["character literal "
+                                   full
+                                   " had more than one character\n"])))))
+         ('-' (case s
+                ((Cons c _)
+                 (if (isDigit c)
+                   (let (((Pair d s*) (span isAlphaNum s)))
+                     (Pair (Just (INTEGER (readInt (Cons '-' d)))) s*))
+                   (getSymbolToken full)))
+                (_ (getSymbolToken full))))
+         (_ (if (isDigit c)
+              (let (((Pair d s*) (span isAlphaNum s)))
+                (Pair (Just (INTEGER (readInt d))) s*))
+              (getSymbolToken full))))))))
+
+(public defn tokenize (Func String (List Token))
+  (str)
+  (let ((getTokens
+         (lambda (str)
+           (case str
+             (Null Null)
+             (s (let (((Pair t s*) (getToken s)))
+                  (Cons t (getTokens s*))))))))
+    (catMaybes (getTokens str))))

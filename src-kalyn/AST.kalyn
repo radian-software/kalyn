@@ -3,6 +3,7 @@
 (public alias ClassName String)
 (public alias TypeName String)
 (public alias VarName String)
+(public alias ModuleAbbr String)
 
 (public data ClassSpec
   (ClassSpec ClassName TypeName))

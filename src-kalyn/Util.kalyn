@@ -49,7 +49,7 @@
       x
       (fixedPoint eq fx f))))
 
-(defn userAllowedChar (Func Char Bool)
+(public defn isAlphaNum (Func Char Bool)
   ((Char c))
   (or
     (and
@@ -62,9 +62,36 @@
       (>=Int c 0x61)
       (<=Int c 0x7a))))
 
+(public defn isLower (Func Char Bool)
+  ((Char c))
+  (and
+    (>=Int c 0x61)
+    (<=Int c 0x7a)))
+
+(public defn isDigit (Func Char Bool)
+  ((Char c))
+  (and
+    (>=Int 0x30)
+    (<=Int 0x39)))
+
+(public defn isSpace (Func Char Bool)
+  (c)
+  (case c
+    (' ' True)
+    ('\t' True)
+    ('\n' True)
+    ('\r' True)
+    ('\v' True)
+    ('\f' True)
+    (_ False)))
+
 ;; important properties: deterministic, stateless, and injective
 (public def sanitize (Func String String)
   (concatMap (lambda (c@(Char i))
-               (if (userAllowedChar c)
+               (if (isAlphaNum c)
                  [c]
                  (append "_u" (showInt i))))))
+
+(public defn listUnique (Func (Ord k) (List k) Bool)
+  (cmp ks)
+  (==Int (length ks) (setSize (setFromList cmp ks))))

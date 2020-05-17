@@ -2,6 +2,11 @@
 (import "Assembly.kalyn")
 (import "Stdlib.kalyn")
 
+(import "Lexer.kalyn")
+(import "Reader.kalyn")
+(import "Parser.kalyn")
+(import "Bundler.kalyn")
+(import "Resolver.kalyn")
 (import "Translator.kalyn")
 (import "Liveness.kalyn")
 (import "RegisterAllocator.kalyn")
@@ -61,8 +66,24 @@
                   []))])
            (mapEmpty compareString)))])))
 
+(def bundlerRead (Func String (IO (List Decl)))
+  (inputFilename)
+  (do IO
+    (with str (readFile inputFilename))
+    (print (concat ["Lexer (" inputFilename ")"]))
+    (let tokens (tokenize str))
+    (print (concat ["Reader (" inputFilename ")"]))
+    (let forms (readModule tokens))
+    (print (concat ["Parser (" inputFilename ")"]))
+    (let decls (parseModule forms))
+    (return decls)))
+
 (public def main (IO Empty)
   (do IO
+    (with bundle
+      (readBundle (print "Bundler\n") bundlerRead "./src-kalyn/Main.kalyn"))
+    (print "Resolver\n")
+    (let resolver (resolveBundle bundle))
     (print "Translator\n")
     (let prog (translateBundle helloWorldResolver helloWorldBundle))
     ;; (writeFile "out-kalyn-rec/MainVirtual.S" (showProgram showVR prog))

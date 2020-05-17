@@ -1,0 +1,286 @@
+(import "AST.kalyn")
+(import "Tokens.kalyn")
+
+(defn withConstraints (Func (Func Form a) Form (Pair (List ClassSpec) a))
+  (parseBody form)
+  (case form
+    ((RoundList [(Symbol "with") (RoundList specs) body])
+     (Pair (map parseClassSpec specs) (parseBody body)))
+    ((RoundList (Cons (Symbol "with") _))
+     (error "failed to parse constraint list\n"))
+    (_ (Pair [] (parseBody form)))))
+
+(defn parseTypeSpec (Func Form TypeSpec)
+  (form)
+  (case form
+    ((RoundList (Cons (Symbol name) args))
+     (TypeSpec
+       name
+       (map
+         (lambda (arg)
+           (case arg
+             ((Symbol argName) argName)
+             (_ (error "failed to parse type spec argument\n"))))
+         args)))
+    ((Symbol name) (TypeSpec name []))
+    (_ (error "failed to parse type spec\n"))))
+
+(defn parseType (Func Form Type)
+  (form)
+  (case form
+    ((RoundList (Cons (Symbol "with") _))
+     (let (((Pair specs (Type moreSpecs name args))
+            (withConstraints parseType form)))
+       (Type (append specs moreSpecs) name args)))
+    ((RoundList (Cons (Symbol "Func") args))
+     (foldr1 (lambda (lhs rhs)
+               (Type [] "Func" [lhs rhs]))
+             (map parseType args)))
+    ((RoundList (Cons (Symbol name) args))
+     (Type [] name (map parseType args)))
+    ((Symbol name)
+     (Type [] name []))
+    (_ (error "failed to parse type\n"))))
+
+(defn parseClassSpec (Func Form Type)
+  (form)
+  (case form
+    ((RoundList [(Symbol name) (Symbol typ)])
+     (ClassSpec name typ))
+    (_ (error "failed to parse class spec\n"))))
+
+(defn parseExpr (Func Form Expr)
+  (form)
+  (case form
+    ((RoundList [])
+     (error "round list can't be empty\n"))
+    ((RoundList (Cons (Symbol "case") (Cons expr branches)))
+     (Case
+       (parseExpr expr)
+       (map
+         (case (br)
+           (case br
+            ((RoundList [pat res])
+             (Pair (parseExpr pat) (parseExpr res)))
+            (_ (error "failed to parse case branch\n"))))
+         branches)))
+    ((RoundList (Cons (Symbol "do") (Cons (Symbol monadName) items)))
+     (case items
+       (Null (error "empty do\n"))
+       (_ (parseExpr
+            (foldr1
+              (lambda (item dbody)
+                (case item
+                  ((RoundList [(Symbol "let") binding value])
+                   (RoundList
+                     [(Symbol (append ">>=" monadName))
+                      (RoundList
+                        [(Symbol (append "return" monadName))
+                         value])
+                      (RoundList
+                        [(Symbol "lambda")
+                         (RoundList [binding])
+                         dbody])]))
+                  ((RoundList [(Symbol "with") binding value])
+                   (RoundList
+                     [(Symbol (append ">>=" monadName))
+                      value
+                      (RoundList
+                        [(Symbol "lambda")
+                         (RoundList [binding])
+                         dbody])]))
+                  (value
+                   (RoundList
+                     [(Symbol (append ">>=" monadName))
+                      value
+                      (RoundList
+                        [(Symbol "lambda")
+                         (RoundList [(Symbol "_")])
+                         dbody])]))))
+              items)))))
+    ((RoundList [(Symbol "if") cond true false])
+     (Case
+       (parseExpr cond)
+       [(Pair (Variable "True") (parseExpr true))
+        (Pair (Variable "False") (parseExpr false))]))
+    ((RoundList [(Symbol "lambda") (RoundList _) _])
+     ;; translate 'em like this to maximize the number of sublambdas we
+     ;; can call through in code generation
+     (let ((uncurryLambdas
+            (lambda (form)
+              (case form
+                ((RoundList [(Symbol "lambda") (RoundList args) body])
+                 (let (((Pair restArgs innerBody) (uncurryLambdas body)))
+                   (Pair (append args restArgs) innerBody)))
+                (body (Pair [] body)))))
+           ((Pair args body) (uncurryLambdas form))
+           (gensyms
+            (map
+              (lambda (idx)
+                (append "gensym" (showInt idx)))
+              (iterate (+ 1) 0 (length args)))))
+       (foldr
+         (lambda ((Pair arg gensym) lbody)
+           (case arg
+             ((Symbol name) (Lambda name lbody))
+             (_ (Lambda gensym lbody))))
+         (foldr
+           (lambda ((Pair arg gensym) lbody)
+             (case arg
+               ((Symbol _) lbody)
+               (_ (Case
+                    (Variable gensym)
+                    [(Pair (parseExpr arg) lbody)]))))
+           (parseExpr body)
+           (zip args gensyms))
+         (zip args gensyms))))
+    ((RoundList [(Symbol "let") (RoundList bindings) body])
+     (foldr
+       (lambda (binding lbody)
+         (case binding
+           ((RoundList [(Symbol name) val])
+            (Let name (parseExpr val) lbody))
+           ((RoundList [pat val])
+            (Let
+              "gensym"
+              (parseExpr val)
+              (Case
+                (Variable "gensym")
+                [(parseExpr pat) lbody])))))
+       (parseExpr body)
+       bindings))
+    ((RoundList (Cons (Symbol "and") (Cons lhs (Cons rhs more@(Cons _ _)))))
+     (parseExpr
+       (RoundList [(Symbol "and") lhs
+                   (RoundList (Cons (Symbol "and" (Cons rhs more))))])))
+    ((RoundList (Cons (Symbol "or") (Cons lhs (Cons rhs more@(Cons _ _)))))
+     (parseExpr
+       (RoundList [(Symbol "or") lhs
+                   (RoundList (Cons (Symbol "or" (Cons rhs more))))])))
+    ((RoundList [(Symbol "and") lhs rhs])
+     (Let
+       "gensym"
+       (parseExpr lhs)
+       (Case
+         (Variable "gensym")
+         [(Pair (Variable "False") (Variable "False"))
+          (Pair (Variable "True") (parseExpr rhs))])))
+    ((RoundList [(Symbol "or") lhs rhs])
+     (Let
+       "gensym"
+       (parseExpr lhs)
+       (Case
+         (Variable "gensym")
+         [(Pair (Variable "True") (Variable "True"))
+          (Pair (Variable "False") (parseExpr rhs))])))
+    ((RoundList elts)
+     (foldl1 Call (map parseExpr elts)))
+    ((SquareList elts)
+     (parseExpr
+       (foldr
+         (lambda (char rest)
+           (RoundList [(Symbol "Cons") char rest]))
+         (Symbol "Null")
+         elts)))
+    ((IntAtom i)
+     (Const i))
+    ((CharAtom (Char c))
+     (parseExpr
+       (RoundList [(Symbol "Char") (IntAtom c)])))
+    ((StrAtom s)
+     (parseExpr
+       (squareList
+         (map
+           (lambda (c)
+             (CharAtom c))
+           s))))
+    ((At name elt)
+     (As name (parseExpr elt)))))
+
+(defn parseDecl* (Func Form Decl)
+  (pub form)
+  (case form
+    ((RoundList [(Symbol "alias") spec typ])
+     (Alias pub (parseTypeSpec spec) (parseType typ)))
+    ((RoundList [(Symbol "alias") spec (StrAtom _) typ])
+     (Alias pub (parseTypeSpec spec) (parseType typ)))
+    ((RoundList (Cons (Symbol "class") (Cons spec members)))
+     (let (((Pair constraints innerSpec)
+            (withConstraints parseClassSpec spec)))
+       (Class
+         pub
+         constraints
+         innerSpec
+         (map
+           (lambda (m)
+             (case m
+               ((RoundList [(Symbol name) typ])
+                (Pair name (parseType typ)))
+               (_ (error "failed to parse class member\n"))))
+           members))))
+    ((RoundList (Cons (Symbol "data") (Cons spec members)))
+     (let ((members* (case members
+                       ((Cons (StrAtom _) rest) rest)
+                       (_ members))))
+       (Data
+         pub
+         (parseTypeSpec spec)
+         (map
+           (lambda (m)
+             (case m
+               ((Symbol name) (Pair name []))
+               ((RoundList (Cons (Symbol name) args))
+                (Pair name (map parseType args)))
+               (_ (error "failed to parse data constructor\n"))))
+           members*))))
+    ((RoundList [(Symbol "def") (Symbol name) typ (StrAtom _) expr])
+     (Def pub name (parseType typ) (parseExpr expr)))
+    ((RoundList [(Symbol "def") (Symbol name) typ expr])
+     (Def pub name (parseType typ) (parseExpr expr)))
+    ((RoundList [(Symbol "defn") name typ (StrAtom _) args body])
+     (parseDecl*
+       pub
+       (RoundList
+         [(Symbol "def")
+          name
+          typ
+          (RoundList
+            [(Symbol "lambda") args body])])))
+    ((RoundList [(Symbol "defn") name typ args body])
+     (parseDecl*
+       pub
+       (RoundList
+         [(Symbol "def")
+          name
+          typ
+          (RoundList
+            [(Symbol "lambda") args body])])))
+    ((RoundList [(Symbol "derive") spec])
+     (Derive pub (parseClassSpec spec)))
+    ((RoundList [(Symbol "import") (StrAtom file)])
+     (Import pub file))
+    ((RoundList (Cons (Symbol "instance") (Cons spec members)))
+     (let (((Pair constraints innerSpec)
+            (withConstraints parseClassSpec spec)))
+       (Instance
+         pub
+         constraints
+         innerSpec
+         (map
+           (lambda (m)
+             (case m
+               ((RoundList [(Symbol name) expr])
+                (Pair name (parseExpr expr)))
+               (_ (error "failed to parse instance member\n"))))
+           members))))
+    (_ (error "failed to parse declaration\n"))))
+
+(defn parseDecl (Func Form Decl)
+  (form)
+  (case form
+    ((RoundList (Cons (Symbol "public") rest))
+     (parseDecl* True (RoundList rest)))
+    (_ (parseDecl* False form))))
+
+(public def parseModule (Map (List Form) (List Decl))
+  (map parseDecl))

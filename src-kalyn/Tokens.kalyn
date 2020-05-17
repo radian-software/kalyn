@@ -1,0 +1,21 @@
+(import "Stdlib.kalyn")
+
+(public data Token
+  LPAREN
+  RPAREN
+  LBRACKET
+  RBRACKET
+  AT
+  (SYMBOL String)
+  (INTEGER Int64)
+  (CHAR Char)
+  (STRING String))
+
+(public data Form
+  (RoundList (List Form))
+  (SquareList (List Form))
+  (At String Form)
+  (Symbol String)
+  (IntAtom Int64)
+  (CharAtom Char)
+  (StrAtom String))

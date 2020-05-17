@@ -1,0 +1,286 @@
+(import "AST.kalyn")
+(import "Bridge.kalyn")
+(import "Stdlib.kalyn")
+(import "Util.kalyn")
+
+(defn mapTypeName (Func (Func TypeName TypeName) TypeName TypeName)
+  (func name)
+  (case name
+    ("IO" "IO")
+    ("Int" "Int")
+    ("Func" "Func")
+    (name@(Cons c _)
+     (if (isLower c)
+       name
+       (func name)))
+    (_ (func name))))
+
+(defn mapTypeSpec (Func (Func TypeName TypeName) TypeSpec TypeSpec)
+  (func (TypeSpec typeName params))
+  (TypeSpec (mapTypeName func typeName) params))
+
+(defn mapType (Func (Func TypeName TypeName) Type Type)
+  (func (Type classSpecs typeName typeArgs))
+  (Type classSpecs (mapTypeName func typeName) (map (mapType func) typeArgs)))
+
+(defn mapSymbol (Func
+                  (Func VarName VarName)
+                  (Func TypeName TypeName)
+                  Symbol
+                  Symbol)
+  (func tfunc sym)
+  (case sym
+    ((SymDef name t num)
+     (SymDef (func name) (mapType tfunc t) num))
+    ((SymData name ctorIdx numFields numCtors boxed typeSpec types)
+     (SymData
+       (func name)
+       ctorIdx
+       numFields
+       numCtors
+       boxed
+       (mapTypeSpec tfunc typeSpec)
+       (map (mapType tfunc) types)))))
+
+(defn uniquify (Func (List String) (List String))
+  (let ((findUnused*
+         (lambda (str seen num)
+           (let ((try (append str (showInt num))))
+             (if (setNotMember try seen)
+               try
+               (findUnused* str seen (+ num 1))))))
+        (findUnused
+         (lambda (str seen)
+           (if (setNotMember str seen)
+             str
+             (findUnused* str seen 1))))
+        (uniquify*
+         (lambda (seen strs)
+           (case strs
+             (Null Null)
+             ((Cons str strs)
+              (let ((str* (findUnused str seen)))
+                (Cons str* (uniquify* (setInsert str* seen) strs))))))))
+    (uniquify* (setEmpty compareString))))
+
+(defn getComponents (Func FilePath (List String))
+  (path)
+  (reverse (filter notNull (split ==String "/" path))))
+
+(defn sanitizeModuleName (Func Int FilePath FilePath)
+  (n path)
+  (sanitize (concat (reverse (take n (getComponents path))))))
+
+(defn sanitizeModuleNames (Func (List FilePath) (Map FilePath ModuleAbbr))
+  (fullNames)
+  (let ((maxComponents
+         (maximum
+           compareInt
+           (map
+             (comp length getComponents)
+             fullNames)))
+        (xforms
+         (append
+           (map
+             (lambda (n names)
+               (map (sanitizeModuleName n) names))
+             (iterate (+ 1) 1 maxComponents))
+           [(comp uniquify (map (sanitizeModuleName maxComponents)))]))
+        (bestXForm
+         (head
+           (filter
+             (lambda (xform)
+               (listUnique
+                 compareString
+                 (xform fullNames)))
+             xforms))))
+    (mapFromList
+      compareString
+      (zip fullNames (bestXForm fullNames)))))
+
+(defn countSublambdas (Func Expr Int)
+  (expr)
+  (case expr
+    ((Lambda _ body) (+ 1 (countSublambdas body)))
+    (_ 0)))
+
+;; for now, doesn't handle Derive or Instance
+(defn getDeclSymbols (Func Bool Decl (List Symbol))
+  (isMain decl)
+  (if (or isMain pub)
+    (case decl
+      ((Data pub typeSpec ctors)
+       (zipWith
+         (lambda ((Pair name types) idx)
+           (SymData
+             name
+             idx
+             (length types)
+             (length ctors)
+             (shouldBox ctors)
+             typeSpec
+             types))
+         ctors
+         (iterate (+ 1) 0 (length ctors))))
+      ((Def pub name t expr)
+       [(SymDef name t (countSublambdas expr))]))
+    []))
+
+(defn getDeclTypes (Func Bool Decl (List TypeName))
+  (isMain decl)
+  (if (or isMain pub)
+    (case decl
+      ((Data pub (TypeSpec name _) _)
+       [name])
+      (_ []))
+    []))
+
+(defn getDeclAliases (Func Bool Decl (List (Pair TypeSpec Type)))
+  (isMain decl)
+  (if (or isMain pub)
+    (case decl
+      ((Alias pub typeSpec t)
+       [(Pair typeSpec t)])
+      (_ []))
+    []))
+
+(defn mangleWith (Func ModuleAbbr String String)
+  (modAbbr name)
+  (concat ["__" modAbbr "__" (sanitize name)]))
+
+(public defn resolveBundle (Func Bundle Resolver)
+  ((Bundle _ mmap))
+  (let ((modNames
+         (sanitizeModuleNames (map fst (mapToList mmap))))
+        (gTypeMap
+         (mapMapWithKey
+           (lambda (mainMod info)
+             (let ((mods (Cons mainMod (snd info))))
+               (mapFromListWithKey
+                 compareString
+                 (lambda (name _)
+                   (error (concat ["more than one definition for type "
+                                   name
+                                   "\n"])))
+                 (concatMap
+                   (lambda (mod)
+                     (let ((modAbbr (map! mod modNames))
+                           (decls (fst (map! mod mmap))))
+                       (map
+                         (lambda (name)
+                           (Pair name (mangleWith modAbbr name)))
+                         (append
+                           (concatMap
+                             (getDeclTypes (==String mod mainMod))
+                             decls)
+                           (map (lambda ((Pair (TypeSpec name _) _))
+                                  name)
+                                (concatMap
+                                  (getDeclAliases (==String mod mainMod))
+                                  decls))))))
+                   mods))))
+           mmap))
+        (gAliasMap
+         (mapFromListWithKey
+           compareString
+           (lambda (name _)
+             (error (concat ["more than one alias for "
+                             name
+                             "\n"])))
+           (concatMap
+             (lambda ((Pair mod info))
+               (let ((modAbbr (map! mod modNames)))
+                 (map
+                   (lambda ((Pair (TypeSpec aliasName params) aliasDefn))
+                     (Pair
+                       (mangleWith modAbbr aliasName)
+                       (mapType
+                         (lambda (name)
+                           (case (mapLookup name (map! mod gTypeMap))
+                             (Nothing
+                              (error (concat ["no such type in alias "
+                                              name
+                                              "\n"])))
+                             ((Just name) name)))
+                         aliasDefn)))
+                   (concatMap
+                     (getDeclAliases True)
+                     (fst info)))))
+             (mapToList mmap)))))
+    (Resolver
+      (mapMapWithKey
+        (lambda (mainMod info)
+          (let ((mods (Cons mainMod (snd info)))
+                (symbolMap
+                 (mapFromListWithKey
+                   compareString
+                   (lambda (name _)
+                     (error (concat ["more than one definition for symbol "
+                                     name
+                                     "\n"])))
+                   (append
+                     (concatMap
+                       (lambda (mod)
+                         (let ((modAbbr (map! mod modNames)))
+                           (map
+                             (lambda (sym)
+                               (Pair
+                                 (symName sym)
+                                 (mapSymbol
+                                   (mangleWith modAbbr)
+                                   (lambda (name)
+                                     (case (mapLookup
+                                            name
+                                            (map! mod gTypeMap))
+                                       (Nothing
+                                        (error (concat ["in module "
+                                                        mod
+                                                        ": no such type "
+                                                        name])))
+                                       ((Just name) name)))
+                                   sym)))
+                             (concatMap
+                               (getDeclSymbols (==String mod mainMod))
+                               (fst (map! mod mmap))))))
+                       mods)
+                     (map
+                       (lambda ((Pair
+                                  publicName
+                                  (Quad
+                                    privateName
+                                    _ ty
+                                    numSublambdas)))
+                         (let ((sym (SymDef privateName ty numSublambdas)))
+                           (Pair
+                             publicName
+                             (mapSymbol
+                               id
+                               (lambda (name)
+                                 (case (mapLookup name (map! mainMod gTypeMap))
+                                   (Nothing
+                                    (error (concat ["in module "
+                                                    mod
+                                                    ": no such type "
+                                                    name])))
+                                   ((Just name) name)))
+                               sym))))
+                       (mapToList stdlibPublic)))))
+                (visibleAliases
+                 (setFromList
+                   compareString
+                   (concatMap
+                     (lambda (mod)
+                       (let ((modAbbr (map! mod modNames)))
+                         (map
+                           (lambda ((Pair (TypeSpec name _) _))
+                             (mangleWith modAbbr name))
+                           (concatMap
+                             (getDeclAliases (==String mod mainMod))
+                             (fst (map! mod mmap))))))
+                     mods))))
+            (Pair
+              symbolMap
+              (mapFilter
+                (flip setMember visibleAliases)
+                gAliasMap))))
+        mmap))))

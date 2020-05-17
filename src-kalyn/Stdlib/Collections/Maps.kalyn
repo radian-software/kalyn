@@ -167,7 +167,8 @@
 
 (public defn mapFromList (Func (Ord k) (List (Pair k v)) (Map k v))
   "Given an unordered list of key-value pairs, create a map with the
-   provided comparison function."
+   provided comparison function. If the same key appears more than
+   once then the later one wins."
   (cmp)
   (foldr (uncurry mapInsert) (mapEmpty cmp)))
 
@@ -211,6 +212,23 @@
     (Leaf Leaf)
     ((Branch k a d l r)
      (Branch k (func k a) d (mapWithKey func l) (mapWithKey func r)))))
+
+(defn mapFromListWithKey
+  (Func (Ord k) (Func k v v v) (List (Pair k v)) (Map k v))
+  "Given an unordered list of key-value pairs, create a map with the
+   provided comparison function. If the same key appears more than
+   once then the given combining function is used."
+  (cmp comb pairs)
+  (foldr
+    (lambda ((Pair k v) m)
+      (mapAlter
+        (lambda (existing)
+          (case existing
+            (Nothing (Just v))
+            ((Just v*) (Just (comb k v* v)))))
+        k m))
+    (mapEmpty cmp)
+    pairs))
 
 (public defn mapMapWithKey (Func (Func k a b) (Map k a) (Map k b))
   "Map a function over the values of a map to produce a new map with

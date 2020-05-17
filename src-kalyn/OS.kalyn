@@ -1,4 +1,8 @@
 (import "Stdlib.kalyn")
 
-(public def pageSize Int
+(public def pageSize Word
+  0x1000)
+
+;; should be large enough to hold filesystem paths
+(public def syscallBufferSize Word
   0x1000)

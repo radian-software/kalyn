@@ -7,3 +7,6 @@ pageSize = 0x1000
 -- at a higher virtual address than its byte index in the file.
 vaOffset :: Int
 vaOffset = 0x10000
+
+syscallBufferSize :: Int
+syscallBufferSize = 0x1000
