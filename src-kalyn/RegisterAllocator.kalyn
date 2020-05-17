@@ -218,7 +218,8 @@
                                  ["in function "
                                   name
                                   ", liveness analysis found dead register "
-                                  (showVR reg)])))
+                                  (showVR reg)
+                                  "\n"])))
                ((Just reg) reg))))
          instrs)))
     ((Left spilled)
