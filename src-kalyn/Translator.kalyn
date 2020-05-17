@@ -311,23 +311,23 @@
                (with (Pair directArgsCode directArgsFns)
                  (fmapState
                    unzip
-                   zipWithMState
-                   (lambda (arg temp)
-                     (do State
-                       (with (Pair evalCode evalFns)
-                         (translateExpr ctx temp arg))
-                       (returnState
-                         (Pair
-                           (append evalCode [(UN PUSH (R temp))])
-                           evalFns))))
-                   directArgs
-                   directArgsTemps))
+                   (zipWithMState
+                     (lambda (arg temp)
+                       (do State
+                         (with (Pair evalCode evalFns)
+                           (translateExpr ctx temp arg))
+                         (returnState
+                           (Pair
+                             (append evalCode [(UN PUSH (R temp))])
+                             evalFns))))
+                     directArgs
+                     directArgsTemps)))
                (with directCallTemp newTemp)
                (let directCallCode
                  (concat
-                   [[JUMP CALL directName]
+                   [[(JUMP CALL directName)]
                     (if (notNull directArgs)
-                      (unpush (length directArgs))
+                      [(unpush (length directArgs))]
                       [])
                     [(OP MOV (RR rax directCallTemp))]]))
                (let indirectCallExpr
@@ -539,7 +539,7 @@
                (function
                  mainName
                  (if (not (sdBoxed sd))
-                   (if sdHasHeader sd
+                   (if (sdHasHeader sd)
                      [(OP MOV (IR ctorIdx rax))
                       RET]
                      (if (null types)
