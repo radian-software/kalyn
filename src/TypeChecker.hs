@@ -142,7 +142,13 @@ analyzePattern fnName ctx var expr@(Call _ _) =
                   )
                   fieldCtxs
                 )
-        _ -> error $ show ctorName ++ " is not a data constructor"
+        _ ->
+          error
+            $  "in function "
+            ++ show fnName
+            ++ ": "
+            ++ show ctorName
+            ++ " is not a data constructor"
       _ -> error "malformed data list in case pattern"
  where
   uncurryExpr (Call lhs rhs) = rhs : uncurryExpr lhs

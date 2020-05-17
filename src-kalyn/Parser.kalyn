@@ -1,4 +1,5 @@
 (import "AST.kalyn")
+(import "Stdlib.kalyn")
 (import "Tokens.kalyn")
 
 (defn withConstraints (Func (Func Form a) Form (Pair (List ClassSpec) a))
@@ -42,12 +43,20 @@
      (Type [] name []))
     (_ (error "failed to parse type\n"))))
 
-(defn parseClassSpec (Func Form Type)
+(defn parseClassSpec (Func Form ClassSpec)
   (form)
   (case form
     ((RoundList [(Symbol name) (Symbol typ)])
      (ClassSpec name typ))
     (_ (error "failed to parse class spec\n"))))
+
+(defn scrubGensym (Func String String)
+  (name)
+  (case name
+    ;; hey it works don't judge
+    ((Cons 'g' (Cons 'e' (Cons 'n' (Cons 's' (Cons 'y' (Cons 'm' _))))))
+     (append name "_"))
+    (_ name)))
 
 (defn parseExpr (Func Form Expr)
   (form)
@@ -58,11 +67,11 @@
      (Case
        (parseExpr expr)
        (map
-         (case (br)
+         (lambda (br)
            (case br
-            ((RoundList [pat res])
-             (Pair (parseExpr pat) (parseExpr res)))
-            (_ (error "failed to parse case branch\n"))))
+             ((RoundList [pat res])
+              (Pair (parseExpr pat) (parseExpr res)))
+             (_ (error "failed to parse case branch\n"))))
          branches)))
     ((RoundList (Cons (Symbol "do") (Cons (Symbol monadName) items)))
      (case items
@@ -122,7 +131,7 @@
        (foldr
          (lambda ((Pair arg gensym) lbody)
            (case arg
-             ((Symbol name) (Lambda name lbody))
+             ((Symbol name) (Lambda (scrubGensym name) lbody))
              (_ (Lambda gensym lbody))))
          (foldr
            (lambda ((Pair arg gensym) lbody)
@@ -139,7 +148,7 @@
        (lambda (binding lbody)
          (case binding
            ((RoundList [(Symbol name) val])
-            (Let name (parseExpr val) lbody))
+            (Let (scrubGensym name) (parseExpr val) lbody))
            ((RoundList [pat val])
             (Let
               "gensym"
@@ -182,6 +191,8 @@
            (RoundList [(Symbol "Cons") char rest]))
          (Symbol "Null")
          elts)))
+    ((Symbol name)
+     (Variable (scrubGensym name)))
     ((IntAtom i)
      (Const i))
     ((CharAtom (Char c))
@@ -189,13 +200,13 @@
        (RoundList [(Symbol "Char") (IntAtom c)])))
     ((StrAtom s)
      (parseExpr
-       (squareList
+       (SquareList
          (map
            (lambda (c)
              (CharAtom c))
            s))))
     ((At name elt)
-     (As name (parseExpr elt)))))
+     (As (scrubGensym name) (parseExpr elt)))))
 
 (defn parseDecl* (Func Form Decl)
   (pub form)

@@ -41,6 +41,9 @@ parseClassSpec :: Form -> ClassSpec
 parseClassSpec (RoundList [Symbol name, Symbol typ]) = ClassSpec name typ
 parseClassSpec form = error $ "failed to parse class spec: " ++ pretty form
 
+scrubGensym :: String -> String
+scrubGensym name = if "gensym" `isPrefixOf` name then name ++ "_" else name
+
 parseExpr :: Form -> Expr
 parseExpr (RoundList []) = error "round list can't be empty"
 parseExpr (RoundList (Symbol "case" : expr : branches)) = Case
@@ -84,7 +87,7 @@ parseExpr form@(RoundList [Symbol "lambda", RoundList _, _]) =
             $ (0 :: Int)
   in  foldr
         (\(arg, gensym) lbody -> case arg of
-          Symbol name -> Lambda name lbody
+          Symbol name -> Lambda (scrubGensym name) lbody
           _           -> Lambda gensym lbody
         )
         (foldr
@@ -103,8 +106,9 @@ parseExpr form@(RoundList [Symbol "lambda", RoundList _, _]) =
   uncurryLambdas body = ([], body)
 parseExpr (RoundList [Symbol "let", RoundList bindings, body]) = foldr
   (\binding lbody -> case binding of
-    RoundList [Symbol name, val] -> Let name (parseExpr val) lbody
-    RoundList [pat        , val] -> Let
+    RoundList [Symbol name, val] ->
+      Let (scrubGensym name) (parseExpr val) lbody
+    RoundList [pat, val] -> Let
       "gensym"
       (parseExpr val)
       (Case (Variable "gensym") [(parseExpr pat, lbody)])
@@ -135,15 +139,14 @@ parseExpr (SquareList elts) = parseExpr $ foldr
   (\char rest -> RoundList [Symbol "Cons", char, rest])
   (Symbol "Null")
   elts
-parseExpr (Symbol name) =
-  Variable $ if "gensym" `isPrefixOf` name then name ++ "_" else name
-parseExpr (IntAtom  i) = Const i
-parseExpr (CharAtom c) = case encodeChar c of
+parseExpr (Symbol   name) = Variable $ scrubGensym name
+parseExpr (IntAtom  i   ) = Const i
+parseExpr (CharAtom c   ) = case encodeChar c of
   [b] -> parseExpr $ RoundList [Symbol "Char", IntAtom (fromIntegral b)]
   _   -> error "multibyte character literals are not supported"
 parseExpr (StrAtom s) = parseExpr $ SquareList
   (map (\c -> RoundList [Symbol "Char", IntAtom (fromIntegral c)]) $ encode s)
-parseExpr (At name elt) = As name (parseExpr elt)
+parseExpr (At name elt) = As (scrubGensym name) (parseExpr elt)
 
 parseDecl :: Form -> Decl
 parseDecl form = case form of

@@ -196,15 +196,17 @@
                    (lambda ((Pair (TypeSpec aliasName params) aliasDefn))
                      (Pair
                        (mangleWith modAbbr aliasName)
-                       (mapType
-                         (lambda (name)
-                           (case (mapLookup name (map! mod gTypeMap))
-                             (Nothing
-                              (error (concat ["no such type in alias "
-                                              name
-                                              "\n"])))
-                             ((Just name) name)))
-                         aliasDefn)))
+                       (Pair
+                         params
+                         (mapType
+                           (lambda (name)
+                             (case (mapLookup name (map! mod gTypeMap))
+                               (Nothing
+                                (error (concat ["no such type in alias "
+                                                name
+                                                "\n"])))
+                               ((Just name) name)))
+                           aliasDefn))))
                    (concatMap
                      (getDeclAliases True)
                      (fst info)))))
