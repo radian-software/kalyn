@@ -4,16 +4,16 @@ import           Control.Exception
 import qualified Data.ByteString.Lazy          as B
 import           Data.List
 import           Data.String.Utils
-import qualified Data.Text.Lazy                as T
+-- import qualified Data.Text.Lazy                as T
 import           System.Directory
 import           System.FilePath
 import           System.IO.Error
 import           System.Posix.Files
-import           Text.Pretty.Simple             ( pShowNoColor )
+-- import           Text.Pretty.Simple             ( pShowNoColor )
 
 import           AST
-import           OS
-import           Util
+-- import           OS
+-- import           Util
 
 -- import in stack order
 import           Lexer
@@ -57,58 +57,58 @@ getPrefix inputFilename = if "/src-kalyn/" `isInfixOf` inputFilename
 
 readIncrementally :: String -> IO [Decl]
 readIncrementally inputFilename = do
-  let prefix = getPrefix inputFilename
+  let _prefix = getPrefix inputFilename
   str <- readFile inputFilename
   putStrLn $ "Lexer (" ++ takeFileName inputFilename ++ ")"
   let tokens = tokenize str
-  overwriteFile (prefix ++ "Tokens") $ concatMap (\t -> show t ++ "\n") tokens
+  -- overwriteFile (prefix ++ "Tokens") $ concatMap (\t -> show t ++ "\n") tokens
   putStrLn $ "Reader (" ++ takeFileName inputFilename ++ ")"
   let forms = readModule tokens
-  overwriteFile (prefix ++ "Forms")
-    $ concatMap (\f -> (T.unpack . pShowNoColor $ f) ++ "\n") forms
-  overwriteFile (prefix ++ "Forms.kalyn")
-    $ concatMap (\f -> pretty f ++ "\n") forms
+  -- overwriteFile (prefix ++ "Forms")
+  --   $ concatMap (\f -> (T.unpack . pShowNoColor $ f) ++ "\n") forms
+  -- overwriteFile (prefix ++ "Forms.kalyn")
+  --   $ concatMap (\f -> pretty f ++ "\n") forms
   putStrLn $ "Parser (" ++ takeFileName inputFilename ++ ")"
   let decls = parseModule forms
-  overwriteFile (prefix ++ "AST")
-    $ concatMap (\d -> (T.unpack . pShowNoColor $ d) ++ "\n") decls
-  overwriteFile (prefix ++ "AST.kalyn")
-    $ concatMap (\d -> pretty d ++ "\n") decls
+  -- overwriteFile (prefix ++ "AST")
+  --   $ concatMap (\d -> (T.unpack . pShowNoColor $ d) ++ "\n") decls
+  -- overwriteFile (prefix ++ "AST.kalyn")
+  --   $ concatMap (\d -> pretty d ++ "\n") decls
   return decls
 
 compileIncrementally :: String -> IO ()
 compileIncrementally inputFilename = do
   let prefix = getPrefix inputFilename
   bundle <- readBundle (putStrLn "Bundler") readIncrementally inputFilename
-  overwriteFile (prefix ++ "Bundle") $ T.unpack . pShowNoColor $ bundle
-  overwriteFile (prefix ++ "Bundle.kalyn") $ pretty bundle
+  -- overwriteFile (prefix ++ "Bundle") $ T.unpack . pShowNoColor $ bundle
+  -- overwriteFile (prefix ++ "Bundle.kalyn") $ pretty bundle
   putStrLn "Resolver"
   let resolver = resolveBundle bundle
-  overwriteFile (prefix ++ "Resolver") $ pretty resolver
+  -- overwriteFile (prefix ++ "Resolver") $ pretty resolver
   putStrLn "TypeChecker"
   typeCheckBundle resolver bundle `seq` putStrLn "Translator"
   let virtualProgram = translateBundle resolver bundle
-  overwriteFile (prefix ++ "Virtual.S") $ show virtualProgram
+  -- overwriteFile (prefix ++ "Virtual.S") $ show virtualProgram
   putStrLn "Liveness"
   let liveness = computeProgramLiveness virtualProgram
-  overwriteFile (prefix ++ "Liveness.S") $ showLiveness liveness
+  -- overwriteFile (prefix ++ "Liveness.S") $ showLiveness liveness
   putStrLn "RegisterAllocator"
-  let (physicalProgram, allocation, spilled) =
+  let (physicalProgram, _allocation, _spilled) =
         allocateProgramRegs virtualProgram (assertNoFreeVariablesP liveness)
-  overwriteFile (prefix ++ "Raw.S") $ show physicalProgram
-  overwriteFile (prefix ++ "Allocation") $ showAllocation allocation spilled
+  -- overwriteFile (prefix ++ "Raw.S") $ show physicalProgram
+  -- overwriteFile (prefix ++ "Allocation") $ showAllocation allocation spilled
   putStrLn "Boilerplate"
   let physicalProgram' = addProgramBoilerplate physicalProgram
-  overwriteFile (prefix ++ ".S") $ show physicalProgram'
+  -- overwriteFile (prefix ++ ".S") $ show physicalProgram'
   putStrLn "Assembler"
-  let assembled@(codeB, dataB, _, _) = assemble physicalProgram'
-  overwriteBinary
-    (prefix ++ ".o")
-    (  codeB
-    <> B.pack
-         (replicate (leftover pageSize (fromIntegral $ B.length codeB)) 0)
-    <> dataB
-    )
+  let assembled@(_codeB, _dataB, _, _) = assemble physicalProgram'
+  -- overwriteBinary
+  --   (prefix ++ ".o")
+  --   (  codeB
+  --   <> B.pack
+  --        (replicate (leftover pageSize (fromIntegral $ B.length codeB)) 0)
+  --   <> dataB
+  --   )
   putStrLn "Linker"
   let binary = link assembled
   overwriteBinary prefix binary
