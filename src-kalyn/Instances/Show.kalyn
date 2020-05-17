@@ -142,3 +142,36 @@
     (RET "retq")
     ((SYSCALL _) "syscall")
     ((LABEL name) (append name ":"))))
+
+(public defn showFunction (Func (Show reg) (Show (Function reg)))
+  (showReg fn)
+  (concatMap
+    (lambda (instr)
+      (append
+        (case instr
+          ((LABEL lname) (append lname ":"))
+          (_ (append "\t" (showInstruction showReg instr))))
+        "\n"))
+    (fnInstrs fn)))
+
+(public defn showProgram (Func (Show reg) (Show (Program reg)))
+  (showReg (Program mainFn fns datums))
+  (concat
+    [".text\n.globl main\n"
+     (showFunction showReg mainFn)
+     (concatMap (showFunction showReg) fns)
+     ".data\n"
+     (concat
+       (map
+         (lambda ((Pair label datum))
+           (concat
+             [label
+              ":\n"
+              (concatMap
+                (lambda ((Char c))
+                  (concat
+                    ["\t.byte "
+                     (showInt c)
+                     "\n"]))
+                datum)]))
+         datums))]))

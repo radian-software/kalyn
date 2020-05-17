@@ -21,6 +21,7 @@
          (if (/=Int stackSpace 0)
            [(OP SUB (IR stackSpace RSP))]
            [])
+         (map (comp (UN PUSH) R) clobberedRegs)
          (concatMap
            (lambda (instr)
              (case instr

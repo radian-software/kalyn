@@ -244,6 +244,10 @@
 (public alias VFunction (Function VR))
 (public alias PFunction (Function Register))
 
+(public defn fnInstrs (Func (Function reg) (List (Instruction reg)))
+  ((Function _ name instrs))
+  (Cons (LABEL name) instrs))
+
 (public alias Datum (Pair Label Bytes))
 
 (public data (Program reg)

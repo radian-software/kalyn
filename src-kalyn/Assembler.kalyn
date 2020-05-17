@@ -348,10 +348,6 @@
       ((SYSCALL _) (plainInstr [0x0f 0x05]))
       ((LABEL _) Null))))
 
-(defn fnInstrs (Func (Function reg) (List (Instruction reg)))
-  ((Function _ name instrs))
-  (Cons (LABEL name) instrs))
-
 (public defn assemble (Func PProgram Bytes)
   ((Program main fns datums))
   (let ((allInstrs (append (fnInstrs main) (concatMap fnInstrs fns)))
