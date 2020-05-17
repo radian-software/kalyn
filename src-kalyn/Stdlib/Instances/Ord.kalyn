@@ -44,3 +44,11 @@
   (case (cmpA a1 a2)
     (EQ (cmpB b1 b2))
     (res res)))
+
+(public defn compareTriplet (Func (Ord a) (Ord b) (Ord c) (Ord (Triplet a b c)))
+  (cmpA cmpB cmpC (Triplet a1 b1 c1) (Triplet a2 b2 c2))
+  (case (cmpA a1 a2)
+    (EQ (case (cmpB b1 b2)
+          (EQ (cmpC c1 c2))
+          (res res)))
+    (res res)))

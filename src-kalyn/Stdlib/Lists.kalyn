@@ -149,6 +149,7 @@
   (func (Cons init elts))
   (foldl func init elts))
 
+;; caution: deletes duplicates!!
 (public defn sort (Func (Ord a) (List a) (List a))
   (cmp elts)
   (setToList (setFromList cmp elts)))

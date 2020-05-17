@@ -91,9 +91,11 @@
            (sortOn
              (lambda (reg)
                (let (((Pair start end) (map! reg intervalMap)))
-                 (Pair (setNotMember reg spillBlacklist)
-                       (- end start))))
-             (comparePair compareBool compareInt)
+                 ;; use triplet because sortOn deletes duplicates
+                 (Triplet (setNotMember reg spillBlacklist)
+                          (- end start)
+                          reg)))
+             (compareTriplet compareBool compareInt compareVR)
              (mapKeys intervalMap)))))
     (case spilled
       (Null (Right allocation))
