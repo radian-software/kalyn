@@ -14,7 +14,7 @@
     name
     (do State
       (with mainFn fn)
-      (with curried (currify n name))
+      (with curried (curryify n name))
       (returnState (Cons mainFn curried)))
     ty
     n))
@@ -29,7 +29,7 @@
     (do State
       (with core fn)
       (with monadified (monadify n (append name "__uncurried")))
-      (with curried (currify n name))
+      (with curried (curryify n name))
       (returnState (append [core monadified] curried)))
     ty
     n))
@@ -45,7 +45,7 @@
     ([ty] ty)
     ((Cons ty tys) (Type [] "Func" [ty (funcType* tys)]))))
 
-(def funcType (Func (List TypeName Type))
+(def funcType (Func (List TypeName) Type)
   (comp funcType* (map baseType)))
 
 (defn ioType (Func TypeName Type)
@@ -161,7 +161,7 @@
 (public defn stdlibFns (Func (List VFunction) (Stateful (List VFunction)))
   (userFns)
   (do State
-    (let calls (setUnions (map getCalls userFns)))
+    (let calls (setUnions compareString (map getCalls userFns)))
     (with allPublic (mapMState (lambda ((Quad _ fns _ _))
                                  fns)
                                (mapElems stdlibPublic)))

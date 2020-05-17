@@ -45,7 +45,7 @@
   (divOp "divide" []))
 
 (public def modulo (Stateful VFunction)
-  (divOp "modulo" [OP MOV (RR rdx rax)]))
+  (divOp "modulo" [(OP MOV (RR rdx rax))]))
 
 (public def bitAnd (Stateful VFunction)
   (basicOp "and" AND))
@@ -192,7 +192,7 @@
          (JUMP JL crash)
          RET
          (LABEL crash)
-         (LEA (memLabel "msgWriteFileFailed") msg)
+         (LEA (memLabelV "msgWriteFileFailed") msg)
          (UN PUSH (R msg))
          (JUMP CALL "crash")]))))
 
@@ -218,7 +218,7 @@
          (JUMP JL crash)
          RET
          (LABEL crash)
-         (LEA (memLabel "msgSetFileModeFailed") msg)
+         (LEA (memLabelV "msgSetFileModeFailed") msg)
          (UN PUSH (R msg))
          (JUMP CALL "crash")]))))
 
@@ -285,12 +285,12 @@
     (returnState
       (function
         "bind__uncurried__unmonadified"
-        (concat [[OP MOV (MR (getArg 2) firstMonad)]
+        (concat [[(OP MOV (MR (getArg 2) firstMonad))]
                  firstCallCode
                  [(OP MOV (RR rax arg))
                   (OP MOV (MR (getArg 1) fn))]
                  secondCallCode
-                 [OP MOV (RR rax secondMonad)]
+                 [(OP MOV (RR rax secondMonad))]
                  thirdCallCode
                  [RET]])))))
 
@@ -322,7 +322,7 @@
           [[(PUSHI (* 8 (+ 2 numArgs)))
             (JUMP CALL "memoryAlloc")
             (unpush 1)
-            (LEA (memLabel (append fnName "__unmonadified")) fnPtr)
+            (LEA (memLabelV (append fnName "__unmonadified")) fnPtr)
             (OP MOV (RM fnPtr (getField 0 rax)))
             (OP MOV (IM numArgs (getField 1 rax)))]
            (concatMap

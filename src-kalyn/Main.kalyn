@@ -68,7 +68,7 @@
     (print "Liveness\n")
     (let liveness (computeProgramLiveness prog))
     (print "RegisterAllocator\n")
-    (let physical (allocateProgramRegs helloWorld liveness))
+    (let physical (allocateProgramRegs prog liveness))
     (print "Boilerplate\n")
     (let physical* (addProgramBoilerplate physical))
     (print "Assembler\n")

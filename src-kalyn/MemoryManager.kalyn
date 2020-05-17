@@ -17,12 +17,12 @@
       [(OP MOV (IR 12 rax))
        (OP MOV (IR 0 rdi))
        (SYSCALL 1)  ; brk
-       (OP MOV (RM rax (memLabel $ fst memoryProgramBreak)))
-       (OP MOV (RM rax (memLabel $ fst memoryFirstFree)))
+       (OP MOV (RM rax (memLabelV (fst memoryProgramBreak))))
+       (OP MOV (RM rax (memLabelV (fst memoryFirstFree))))
        RET])))
 
 (public def memoryAlloc (Stateful VFunction)
-  (do
+  (do State
     (with firstFree newTemp)
     (with ptr       newTemp)
     (with brk       newLabel)
@@ -32,7 +32,7 @@
     (returnState
       (function
         "memoryAlloc"
-        [(OP MOV (MR (memLabel "mmFirstFree") firstFree))
+        [(OP MOV (MR (memLabelV "mmFirstFree") firstFree))
          ;; round up to nearest multiple of eight (see)
          ;; <https://stackoverflow.com/a/9194117/3538165>
          (OP ADD (IR 7 firstFree))
@@ -40,30 +40,30 @@
          ;; now to proceed
          (OP MOV (RR firstFree ptr))
          (OP ADD (MR (getArg 1) firstFree))
-         (OP MOV (RM firstFree (memLabel "mmFirstFree")))
-         (OP CMP (MR (memLabel "mmProgramBreak") firstFree))
+         (OP MOV (RM firstFree (memLabelV "mmFirstFree")))
+         (OP CMP (MR (memLabelV "mmProgramBreak") firstFree))
          (JUMP JG brk)
          (LABEL done)
          (OP MOV (RR ptr rax))
          RET
          (LABEL brk)
          ;; round up to next page boundary
-         (OP ADD (IR (fromIntegral $ pageSize - 1) firstFree))
-         (OP AND (IR (fromIntegral $ -pageSize) firstFree))
+         (OP ADD (IR (- pageSize 1) firstFree))
+         (OP AND (IR (- 0 pageSize) firstFree))
          (OP MOV (IR 12 rax))
          (OP MOV (RR firstFree rdi))
          (SYSCALL 1)  ; brk
          (OP CMP (RR firstFree rax))
          (JUMP JL crash)
-         (OP MOV (RM rax (memLabel "mmProgramBreak")))
+         (OP MOV (RM rax (memLabelV "mmProgramBreak")))
          (JUMP JMP done)
          (LABEL crash)
-         (LEA (memLabel "msgMemoryAllocFailed") msg)
+         (LEA (memLabelV "msgMemoryAllocFailed") msg)
          (UN PUSH (R msg))
          (JUMP CALL "crash")]))))
 
 (public def memoryPackString (Stateful VFunction)
-  (do
+  (do State
     (with arg         newTemp)
     (with ptr         newTemp)
     (with strLength   newTemp)
