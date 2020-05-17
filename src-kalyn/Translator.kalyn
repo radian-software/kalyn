@@ -530,9 +530,9 @@
              (let sd
                (SymData baseName
                         ctorIdx
-                        length types
-                        length ctors
-                        shouldBox ctors
+                        (length types)
+                        (length ctors)
+                        (shouldBox ctors)
                         typeSpec
                         types))
              (let mainFn
@@ -616,25 +616,26 @@
                         (translateDecl (fst (map! mod resolver)))
                         decls)))
                   (mapToList mmap))))
-    (with mainFn (do State
-                   (with fnPtr newTemp)
-                   (let setupCode
-                     [(JUMP CALL "memoryInit")
-                      (JUMP CALL mainName)
-                      (OP MOV (RR rax fnPtr))])
-                   (with callCode (translateCall fnPtr Nothing))
-                   (let teardownCode
-                     [(OP MOV (IR 60 rax))
-                      (OP MOV (IR 0 rdi))
-                      (SYSCALL 1)])  ; exit
-                   (returnState
-                     (function
-                       "main"
-                       (concat
-                         [setupCode
-                          callCode
-                          teardownCode])))
-                   (with stdlib (stdlibFns fns))))
+    (with mainFn
+      (do State
+        (with fnPtr newTemp)
+        (let setupCode
+          [(JUMP CALL "memoryInit")
+           (JUMP CALL mainName)
+           (OP MOV (RR rax fnPtr))])
+        (with callCode (translateCall fnPtr Nothing))
+        (let teardownCode
+          [(OP MOV (IR 60 rax))
+           (OP MOV (IR 0 rdi))
+           (SYSCALL 1)])  ; exit
+        (returnState
+          (function
+            "main"
+            (concat
+              [setupCode
+               callCode
+               teardownCode])))))
+    (with stdlib (stdlibFns fns))
     (returnState (Program mainFn (append fns stdlib) stdlibData))))
 
 (public defn translateBundle (Func Resolver Bundle (Program VR))

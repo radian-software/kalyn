@@ -218,7 +218,7 @@
   (func as bs cs)
   (case (Triplet as bs cs)
     ((Triplet (Cons a as) (Cons b bs) (Cons c cs))
-     (Cons (func a b c) (zipWith func as bs cs)))
+     (Cons (func a b c) (zipWith3 func as bs cs)))
     (_ Null)))
 
 (public defn init (Func (List a) (List a))
