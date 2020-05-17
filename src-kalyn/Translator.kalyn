@@ -551,7 +551,7 @@
                              (JUMP CALL "memoryAlloc")
                              (unpush 1)]
                             (if (sdHasHeader sd)
-                              (OP MOV (IM ctorIdx (getField 0 rax)))
+                              [(OP MOV (IM ctorIdx (getField 0 rax)))]
                               [])
                             (concatMap
                               (lambda (argIdx)
