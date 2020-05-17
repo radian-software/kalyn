@@ -421,26 +421,26 @@
            (map fst vars)
            (reverse (Cons name (sublambdaArgs ctx)))))
        (with lambdaName
-         ((if (>=Int (length (sublambdaArgs ctx))
-                     (sublambdaCount ctx))
-            (fmapState
-              (lambda (prefix)
-                (concat
-                  [prefix
-                   "__"
-                   (intercalate "_" (map sanitize argNames))]))
-              (newLambda (fnName ctx)))
-            (if (==Int (length (sublambdaArgs ctx))
-                       (- (sublambdaCount ctx) 1))
-              (returnState
-                (append
-                  (fnName ctx)
-                  "__uncurried"))
-              (returnState
-                (concat
-                  [(fnName ctx)
-                   "__curried"
-                   (showInt (length (sublambdaArgs ctx)))]))))))
+         (if (>=Int (length (sublambdaArgs ctx))
+                    (sublambdaCount ctx))
+           (fmapState
+             (lambda (prefix)
+               (concat
+                 [prefix
+                  "__"
+                  (intercalate "_" (map sanitize argNames))]))
+             (newLambda (fnName ctx)))
+           (if (==Int (length (sublambdaArgs ctx))
+                      (- (sublambdaCount ctx) 1))
+             (returnState
+               (append
+                 (fnName ctx)
+                 "__uncurried"))
+             (returnState
+               (concat
+                 [(fnName ctx)
+                  "__curried"
+                  (showInt (length (sublambdaArgs ctx)))])))))
        (with argTemps (replicateMState (length argNames) newTemp))
        (let bodyCtx (foldr
                       (uncurry withBinding)
@@ -567,9 +567,10 @@
                                              rax)))])
                               (iterate (+ 1) 0 (length types)))
                             [RET]]))))
-             (with extraFns ((if (null types)
-                               (returnState [])
-                               (curryify (length types) baseName))))
+             (with extraFns
+               (if (null types)
+                 (returnState [])
+                 (curryify (length types) baseName)))
              (returnState (Cons mainFn extraFns))))
          ctors
          (iterate (+ 1) 0 (length ctors)))))
