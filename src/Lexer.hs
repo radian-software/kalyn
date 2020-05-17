@@ -11,9 +11,9 @@ import           Tokens
 disallowedChars :: String
 disallowedChars = ";()[]@"
 
-getStringChar :: String -> (Char, String)
+getStringChar :: String -> (Char, String, Bool)
 getStringChar [] = error "unexpected end of string literal"
-getStringChar ('\\' : 'x' : a : b : s) = (read $ "0x" ++ [a, b], s)
+getStringChar ('\\' : 'x' : a : b : s) = (read $ "0x" ++ [a, b], s, True)
 getStringChar ('\\' : c : s) =
   ( case c of
     '0' -> '\0'
@@ -26,13 +26,14 @@ getStringChar ('\\' : c : s) =
     'v' -> '\v'
     _   -> c
   , s
+  , True
   )
-getStringChar (c : s) = (c, s)
+getStringChar (c : s) = (c, s, False)
 
 readString :: Char -> String -> (String, String)
 readString delim str =
-  let (char, rest) = getStringChar str
-  in  if char == delim
+  let (char, rest, escaped) = getStringChar str
+  in  if char == delim && not escaped
         then ("", rest)
         else
           let (parsed, rest') = readString delim rest in (char : parsed, rest')

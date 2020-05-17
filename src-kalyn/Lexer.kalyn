@@ -3,14 +3,14 @@
 (def disallowedChars String
   ";()[]@")
 
-(defn getStringChar (Func String (Pair Char String))
+(defn getStringChar (Func String (Triplet Char String Bool))
   (str)
   (case str
     (Null (error "unexpected end of string literal\n"))
     ((Cons '\\' (Cons 'x' (Cons a (Cons b s))))
-     (Pair (readInt ['0' 'x' a b]) s))
+     (Triplet (readInt ['0' 'x' a b]) s True))
     ((Cons '\\' (Cons c s))
-     (Pair
+     (Triplet
        (case c
          ('0' '\0')
          ('a' '\a')
@@ -21,12 +21,15 @@
          ('t' '\t')
          ('v' '\v')
          ( _    c ))
-       s))))
+       s
+       True))
+    ((Cons c s)
+     (Triplet c s False))))
 
 (defn readString (Func Char String (Pair String String))
   (delim str)
-  (let (((Pair char rest) (getStringChar str)))
-    (if (==Char char delim)
+  (let (((Triplet char rest escaped) (getStringChar str)))
+    (if (and (==Char char delim) (not escaped))
       (Pair "" rest)
       (let (((Pair parsed rest*) (readString delim rest)))
         (Pair (Cons char parsed) rest*)))))
