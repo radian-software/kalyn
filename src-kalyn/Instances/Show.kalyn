@@ -32,3 +32,113 @@
   (case reg
     ((Physical phys) (showRegister phys))
     ((Virtual temp) (showTemporary temp))))
+
+(public defn showScale (Show Scale)
+  (scale)
+  (case scale
+    (Scale1 "1")
+    (Scale2 "2")
+    (Scale4 "4")
+    (Scale8 "8")))
+
+(public defn showMem (Func (Show reg) (Show (Mem reg)))
+  (showReg (Mem disp base msi))
+  (concat
+    [(case disp
+       ((Left label) label)
+       ((Right 0) "")
+       ((Right imm) (showInt imm)))
+     "("
+     (showReg base)
+     (case msi
+       (Nothing "")
+       ((Just (Pair Scale1 index)) (append ", " (showReg index)))
+       ((Just (Pair scale index)) (concat [", " (showReg index) ", " (showScale scale)])))
+     ")"]))
+
+(public defn showArgs (Func (Show reg) (Show (Args reg)))
+  (showReg args)
+  (case args
+    ((IR imm reg) (concat ["$" (showInt imm) ", " (showReg reg)]))
+    ((IM imm mem) (concat ["$" (showInt imm) ", " (showMem showReg mem)]))
+    ((RR src dst) (concat [(showReg src) ", " (showReg dst)]))
+    ((MR mem reg) (concat [(showMem showReg mem) ", " (showReg reg)]))
+    ((RM reg mem) (concat [(showReg reg) ", " (showMem showReg mem)]))))
+
+(public defn showArg (Func (Show reg) (Show (Arg reg)))
+  (showReg arg)
+  (case arg
+    ((R reg) (showReg reg))
+    ((M mem) (showMem showReg mem))))
+
+(public defn showBinOp (Show BinOp)
+  (op)
+  (case op
+    (MOV  "movq")
+    (ADD  "addq")
+    (SUB  "subq")
+    (IMUL "imulq")
+    (AND  "andq")
+    (OR   "orq")
+    (XOR  "xorq")
+    (CMP  "cmpq")))
+
+(public defn showUnOp (Show UnOp)
+  (op)
+  (case op
+    (NOT   "not")
+    (NEG   "neg")
+    (INC   "inc")
+    (DEC   "dec")
+    (PUSH  "pushq")
+    (POP   "popq")
+    (ICALL "callq")))
+
+(public defn showJump (Show Jump)
+  (op)
+  (case op
+    (JMP  "jmp")
+    (JE   "je")
+    (JNE  "jne")
+    (JL   "jl")
+    (JLE  "jle")
+    (JG   "jg")
+    (JGE  "jge")
+    (JB   "jb")
+    (JBE  "jbe")
+    (JA   "ja")
+    (JAE  "jae")
+    (CALL "callq")))
+
+(public defn showShift (Show Shift)
+  (op)
+  (case op
+    (SHL "shl")
+    (SAL "sal")
+    (SHR "shr")
+    (SAR "sar")))
+
+(public defn showInstruction (Func (Show reg) (Show (Instruction reg)))
+  (showReg instr)
+  (case instr
+    ((OP op args) (concat [(showBinOp op) " " (showArgs showReg args)]))
+    ((UN ICALL arg) (concat [(showUnOp ICALL) " *" (showArg showReg arg)]))
+    ((UN op arg) (concat [(showUnOp op) " " (showArg showReg arg)]))
+    ((JUMP op label) (concat [(showJump op) " " label]))
+    ((MOV64 imm dst) (concat ["movq $" (showInt imm) ", " (showReg dst)]))
+    ((SHIFT amt shift dst) (concat
+                             [(showShift shift)
+                              " "
+                              (case amt
+                                (Nothing "%cx")
+                                ((Just val)
+                                 (append "$" (showInt val))))
+                              ", "
+                              (showReg dst)]))
+    ((LEA src dst) (concat ["leaq " (showMem showReg src) ", " (showReg dst)]))
+    ((IDIV src) (append "idivq " (showReg src)))
+    (CQTO "cqto")
+    ((PUSHI imm) (append "pushq $" (showInt imm)))
+    (RET "retq")
+    ((SYSCALL _) "syscall")
+    ((LABEL name) (append name ":"))))
