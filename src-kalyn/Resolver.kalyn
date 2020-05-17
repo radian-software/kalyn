@@ -42,7 +42,7 @@
        (mapTypeSpec tfunc typeSpec)
        (map (mapType tfunc) types)))))
 
-(defn uniquify (Func (List String) (List String))
+(def uniquify (Func (List String) (List String))
   (let ((findUnused*
          (lambda (str seen num)
            (let ((try (append str (showInt num))))
@@ -65,7 +65,7 @@
 
 (defn getComponents (Func FilePath (List String))
   (path)
-  (reverse (filter notNull (split ==String "/" path))))
+  (reverse (filter notNull (split ==Char '/' path))))
 
 (defn sanitizeModuleName (Func Int FilePath FilePath)
   (n path)
@@ -107,9 +107,9 @@
 ;; for now, doesn't handle Derive or Instance
 (defn getDeclSymbols (Func Bool Decl (List Symbol))
   (isMain decl)
-  (if (or isMain pub)
-    (case decl
-      ((Data pub typeSpec ctors)
+  (case decl
+    ((Data pub typeSpec ctors)
+     (if (or isMain pub)
        (zipWith
          (lambda ((Pair name types) idx)
            (SymData
@@ -121,28 +121,30 @@
              typeSpec
              types))
          ctors
-         (iterate (+ 1) 0 (length ctors))))
-      ((Def pub name t expr)
-       [(SymDef name t (countSublambdas expr))]))
-    []))
+         (iterate (+ 1) 0 (length ctors)))
+       []))
+    ((Def pub name t expr)
+     (if (or isMain pub)
+       [(SymDef name t (countSublambdas expr))]
+       []))))
 
 (defn getDeclTypes (Func Bool Decl (List TypeName))
   (isMain decl)
-  (if (or isMain pub)
-    (case decl
-      ((Data pub (TypeSpec name _) _)
-       [name])
-      (_ []))
-    []))
+  (case decl
+    ((Data pub (TypeSpec name _) _)
+     (if (or isMain pub)
+       [name]
+       []))
+    (_ [])))
 
 (defn getDeclAliases (Func Bool Decl (List (Pair TypeSpec Type)))
   (isMain decl)
-  (if (or isMain pub)
-    (case decl
-      ((Alias pub typeSpec t)
-       [(Pair typeSpec t)])
-      (_ []))
-    []))
+  (case decl
+    ((Alias pub typeSpec t)
+     (if (or isMain pub)
+       [(Pair typeSpec t)]
+       []))
+    (_ [])))
 
 (defn mangleWith (Func ModuleAbbr String String)
   (modAbbr name)
@@ -259,7 +261,7 @@
                                  (case (mapLookup name (map! mainMod gTypeMap))
                                    (Nothing
                                     (error (concat ["in module "
-                                                    mod
+                                                    mainMod
                                                     ": no such type "
                                                     name])))
                                    ((Just name) name)))

@@ -4,7 +4,7 @@
   (func io)
   (do IO
     (with result io)
-    (return (func io))))
+    (returnIO (func result))))
 
 (public defn sequenceIO (Func (List (IO a)) (IO (List a)))
   (ios)

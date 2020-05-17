@@ -1,4 +1,5 @@
 (import "Assembly.kalyn")
+(import "OS.kalyn")
 (import "Stdlib.kalyn")
 (import "Util.kalyn")
 
@@ -36,7 +37,7 @@
 
 (public defn getSum (Func reg reg (Mem reg))
   (reg1 reg2)
-  (Mem (Right 0) reg1 (Pair Scale1 reg2)))
+  (Mem (Right 0) reg1 (Just (Pair Scale1 reg2))))
 
 (public defn unpush (Func Int VInstruction)
   (n)

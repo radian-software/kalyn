@@ -255,8 +255,8 @@
   (cmp (Cons elt elts))
   (case elts
     (Null elt)
-    ((Cons _)
-     (let ((max (maximum elts)))
+    ((Cons _ _)
+     (let ((max (maximum cmp elts)))
        (case (cmp max elt)
          (GT max)
          (_ elt))))))
@@ -265,8 +265,8 @@
   (cmp (Cons elt elts))
   (case elts
     (Null elt)
-    ((Cons _)
-     (let ((min (minimum elts)))
+    ((Cons _ _)
+     (let ((min (minimum cmp elts)))
        (case (cmp min elt)
          (GT min)
          (_ elt))))))

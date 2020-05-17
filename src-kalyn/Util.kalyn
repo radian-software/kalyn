@@ -71,8 +71,8 @@
 (public defn isDigit (Func Char Bool)
   ((Char c))
   (and
-    (>=Int 0x30)
-    (<=Int 0x39)))
+    (>=Int c 0x30)
+    (<=Int c 0x39)))
 
 (public defn isSpace (Func Char Bool)
   (c)

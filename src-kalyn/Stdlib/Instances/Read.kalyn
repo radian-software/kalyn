@@ -2,39 +2,35 @@
 
 (defn readDecimal (Read Int)
   ((Cons (Char c) rest))
-  (let ((first (- c 0x30)))
-    (+ first
-       (case rest
-         (Null 0)
-         ((Cons _ _)
-          (* 10 (readDecimal rest)))))))
+  (+ (- c 0x30)
+     (case rest
+       (Null 0)
+       ((Cons _ _)
+        (* 10 (readDecimal rest))))))
 
 (defn readHex (Read Int)
   ((Cons (Char c) rest))
-  (let ((first
-         (if (>= c 0x61)
-           (- c 0x57)
-           (- c 0x30))))
-    (+ (if (>= first 0x61))
-       (case rest
-         (Null 0)
-         ((Cons _ _)
-          (* 16 (readHex rest)))))))
+  (+ (if (>=Int c 0x61)
+       (- c 0x57)
+       (- c 0x30))
+     (case rest
+       (Null 0)
+       ((Cons _ _)
+        (* 16 (readHex rest))))))
 
 (defn readOctal (Read Int)
   ((Cons (Char c) rest))
-  (let ((first (- c 0x30)))
-    (+ first
-       (case rest
-         (Null 0)
-         ((Cons _ _)
-          (* 8 (readOctal rest)))))))
+  (+ (- c 0x30)
+     (case rest
+       (Null 0)
+       ((Cons _ _)
+        (* 8 (readOctal rest))))))
 
 (public defn readInt (Read Int)
   (str)
   (case str
     ((Cons '-' str)
-     (- (readInt str)))
+     (- 0 (readInt str)))
     ((Cons '0' (Cons 'x' rest))
      (readHex (reverse rest)))
     ((Cons '0' (Cons 'o' rest))

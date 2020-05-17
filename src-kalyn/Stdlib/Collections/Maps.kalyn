@@ -213,7 +213,7 @@
     ((Branch k a d l r)
      (Branch k (func k a) d (mapWithKey func l) (mapWithKey func r)))))
 
-(defn mapFromListWithKey
+(public defn mapFromListWithKey
   (Func (Ord k) (Func k v v v) (List (Pair k v)) (Map k v))
   "Given an unordered list of key-value pairs, create a map with the
    provided comparison function. If the same key appears more than

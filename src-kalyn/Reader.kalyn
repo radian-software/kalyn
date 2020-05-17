@@ -33,8 +33,8 @@
   (tokens)
   (case tokens
     (Null (Pair [] []))
-    ((Cons RPAREN rest) (Pair [] (Cons token rest)))
-    ((Cons RBRACKET rest) (Pair [] (Cons token rest)))
+    ((Cons RPAREN rest) (Pair [] (Cons RPAREN rest)))
+    ((Cons RBRACKET rest) (Pair [] (Cons RBRACKET rest)))
     (tokens
      (let (((Pair form rest) (parseForm tokens))
            ((Pair forms rest*) (parseForms rest)))
