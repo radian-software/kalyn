@@ -214,9 +214,16 @@
 
 (public defn mapMapWithKey (Func (Func k a b) (Map k a) (Map k b))
   "Map a function over the values of a map to produce a new map with
-   the same keys."
+   the same keys. The mapping function also gets the keys but can't
+   change them."
   (func (Map cmp t))
   (Map cmp (mapWithKey func t)))
+
+(public defn mapMap (Func (Func a b) (Map k a) (Map k b))
+  "Map a function over the values of a map to produce a new map with
+   the same keys."
+  (func m)
+  (mapMapWithKey (const func) m))
 
 (public defn mapUnionWithKey
   (Func (Func k v v v) (Map k v) (Map k v) (Map k v))
@@ -286,3 +293,8 @@
   "Check if the given key is NOT in the map."
   (k)
   (comp not (mapMember k)))
+
+(public defn mapSingleton (Func (Ord k) k v (Map k v))
+  "Make a map with just one key-value mapping."
+  (cmp k v)
+  (mapInsert k v (mapEmpty cmp)))

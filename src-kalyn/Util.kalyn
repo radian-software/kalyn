@@ -48,3 +48,23 @@
     (if (eq x fx)
       x
       (fixedPoint eq fx f))))
+
+(defn userAllowedChar (Func Char Bool)
+  ((Char c))
+  (or
+    (and
+      (>= c 0x30)
+      (<= c 0x39))
+    (and
+      (>= c 0x41)
+      (<= c 0x5a))
+    (and
+      (>= c 0x61)
+      (<= c 0x7a))))
+
+;; important properties: deterministic, stateless, and injective
+(public def sanitize (Func String String)
+  (concatMap (lambda (c@(Char i))
+               (if (userAllowedChar c)
+                 [c]
+                 (append "_u" (showInt i))))))

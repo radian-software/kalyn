@@ -1,7 +1,7 @@
 (import "../../Stdlib.kalyn")
 
 (public defn showInt (Show Int)
-  (i)
+  (i j k)
   (case (compareInt i 0)
     (LT (Cons '-' (showInt (- 0 i))))
     (EQ "0")

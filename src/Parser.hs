@@ -58,12 +58,16 @@ parseExpr (RoundList (Symbol "do" : Symbol monadName : items)) = if null items
         , RoundList [Symbol $ "return" ++ monadName, value]
         , RoundList [Symbol "lambda", RoundList [binding], dbody]
         ]
-      RoundList [binding, value] -> RoundList
+      RoundList [Symbol "with", binding, value] -> RoundList
         [ Symbol $ ">>=" ++ monadName
         , value
         , RoundList [Symbol "lambda", RoundList [binding], dbody]
         ]
-      _ -> error $ "failed to parse do item: " ++ pretty item
+      value -> RoundList
+        [ Symbol $ ">>=" ++ monadName
+        , value
+        , RoundList [Symbol "lambda", RoundList [Symbol "_"], dbody]
+        ]
     )
     items
 parseExpr (RoundList [Symbol "if", cond, true, false]) = Case

@@ -157,3 +157,48 @@
   (key cmp)
   (sort (lambda (e1 e2)
           (cmp (key e1) (key e2)))))
+
+(public defn null (Func (List a) Bool)
+  (elts)
+  (case elts
+    (Null True)
+    (_ False)))
+
+(public def notNull (Func (List a) Bool)
+  (comp not null))
+
+(public defn elem (Func (Eq a) a (List a) Bool)
+  (== elt elts)
+  (notNull (findIndices (== elt) elts)))
+
+(public defn notElem (Func (Eq a) a (List a) Bool)
+  (== elt elts)
+  (null (findIndices (== elt) elts)))
+
+(public defn unzip (Func (List (Pair a b)) (Pair (List a) (List b)))
+  (pairs)
+  (case pairs
+    (Null (Pair Null Null))
+    ((Cons (Pair left right) pairs)
+     (let (((Pair lefts rights)
+            (unzip pairs)))
+       (Pair (Cons left lefts)
+             (Cons right rights))))))
+
+(public defn any (Func (Func a Bool) (List a) Bool)
+  (func elts)
+  (case elts
+    (Null False)
+    ((Cons elt elts)
+     (if (func elt)
+       True
+       (any func elts)))))
+
+(public defn all (Func (Func a Bool) (List a) Bool)
+  (func elts)
+  (case elts
+    (Null True)
+    ((Cons elt elts)
+     (if (func elt)
+       (all func elts)
+       False))))

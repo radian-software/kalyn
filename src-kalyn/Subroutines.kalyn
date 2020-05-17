@@ -1,0 +1,142 @@
+(import "Assembly.kalyn")
+(import "Stdlib.kalyn")
+(import "Util.kalyn")
+
+(public alias Stateful (State Int))
+
+(public def newTemp (Stateful VR)
+  (do State
+    (with count get)
+    (put (+ count 1))
+    (return (Virtual (Temporary count)))))
+
+(public def newLabel (Stateful Label)
+  (do State
+    (with count get)
+    (put (+ count 1))
+    (return (Cons 'l' (showInt count)))))
+
+(public defn newLambda (Func String (Stateful Label))
+  (fnName)
+  (do State
+    (with count get)
+    (put (+ count 1))
+    (return (concat [fnName "__lambda" (showInt count)]))))
+
+(public defn getField (Func Int VR (Mem VR))
+  (n reg)
+  (Mem (Right (* 8 n)) reg Nothing))
+
+(public def deref (Func VR (Mem VR))
+  (getField 0))
+
+(public defn unpush (Func Int VInstruction)
+  (n)
+  (OP ADD (IR (* 8 n) rsp)))
+
+(public defn getArg (Func Int (Mem VR))
+  (n)
+  (getField (+ n 1) rbp))
+
+(public defn translateCall (Func VR (Maybe VR) (Stateful (List VInstruction)))
+  (lhsTemp rhsTemp)
+  (do State
+    (with argPtr     newTemp )
+    (with argsLeft   newTemp )
+    (with popAmt     newTemp )
+    (with pushStart  newLabel)
+    (with pushDone   newLabel)
+    (return
+      (concat
+        [[(OP MOV $ MR (getField 1 lhsTemp) argsLeft)
+          (LEA (getField 2 lhsTemp) argPtr)
+          (LABEL pushStart)
+          (OP CMP (IR 0 argsLeft))
+          (JUMP JLE pushDone)
+          (UN PUSH (M (deref argPtr)))
+          (OP ADD (IR 8 argPtr))
+          (UN DEC (R argsLeft))
+          (JUMP JMP pushStart)
+          (LABEL pushDone)]
+         (case rhsTemp
+           (Nothing [])
+           ((Just temp) [UN PUSH (R temp)]))
+         [(UN ICALL (M (getField 0 lhsTemp)))
+          (OP MOV (MR (getField 1 lhsTemp) popAmt))]
+         (case rhsTemp
+           (Nothing [])
+           ((Just _) [UN INC $ R popAmt]))
+         [(OP IMUL (IR 8 popAmt))
+          (OP ADD (RR popAmt rsp))]]))))
+
+(public defn curryify (Func Int String (Stateful (List VFunction)))
+  (numArgs fnName)
+  (do State
+    (if (>=Int numArgs 1)
+      (return Empty)
+      (error "can't curry a function with no arguments"))
+    (with topFn
+      (do State
+        (with fnPtr     newTemp)
+        (with nextFnPtr newTemp)
+        (return
+          (function
+            fnName
+            [(PUSHI 16)
+             (JUMP CALL "memoryAlloc")
+             (unpush 1)
+             (OP MOV (RR rax fnPtr))
+             (LEA
+               (memLabel
+                 (append fnName
+                         (if (>= numArgs 2)
+                           "__curried0"
+                           "__uncurried")))
+               nextFnPtr)
+             (OP MOV (RM nextFnPtr (getField 0 fnPtr)))
+             (OP MOV (IM 0 (getField 1 fnPtr)))
+             (OP MOV (RR fnPtr rax))
+             RET]))))
+    (with subFns
+      (mapMState
+        (lambda (numCurried)
+          (do State
+            (with fnPtr     (newTemp))
+            (with nextFnPtr (newTemp))
+            (with arg       (newTemp))
+            (let curFnName (concat
+                             [fnName
+                              "__curried"
+                              (showInt numCurried)]))
+            (let nextFnName (if (==Int numCurried (- numArgs 2))
+                              (append fnName "__uncurried")
+                              (concat [fnName
+                                       "__curried"
+                                       (showInt (+ numCurried 1))])))
+            (return (function
+                      curFnName
+                      (concat [[(PUSHI (* 8 (+ 3 numCurried)))
+                                (JUMP CALL "memoryAlloc")
+                                (unpush 1)
+                                (OP MOV (RR rax fnPtr))
+                                (LEA (memLabel nextFnName) nextFnPtr)
+                                (OP MOV (RM nextFnPtr (getField 0 fnPtr)))
+                                (OP MOV (IM (+ 1 numCurried) (getField 1 fnPtr)))]
+                               (concatMap
+                                 (lambda (i)
+                                   [(OP MOV (MR (getArg (- (+ numCurried 2) i)) arg))
+                                    (OP MOV (RM arg (getField (+ i 1) fnPtr)))])
+                                 (iterate (+ 1) 1 (+ numCurried 1)))
+                               [(OP MOV (RR fnPtr rax)) RET]]))))))
+      (iterate (+ 1) 0 (- numArgs 1))))
+  (return (reverse (Cons topFn subFns))))
+
+(defn packMsg (Func String Bytes)
+  (str)
+  (append (word64 (length str)) str))
+
+(public defn msgDatums (List Datum)
+  [(Pair "msgPatternMatchFailed" (packMsg "pattern match failed\n"))
+   (Pair "msgMemoryAllocFailed"  (packMsg "memoryAlloc failed\n"))
+   (Pair "msgWriteFileFailed"    (packMsg "writeFile failed\n"))
+   (Pair "msgSetFileModeFailed"  (packMsg "setFileMode failed\n"))])

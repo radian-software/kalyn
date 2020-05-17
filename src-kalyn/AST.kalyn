@@ -1,0 +1,99 @@
+(import "Stdlib.kalyn")
+
+(public alias ClassName String)
+(public alias TypeName String)
+(public alias VarName String)
+
+(public data ClassSpec
+  (ClassSpec ClassName TypeName))
+
+(public data TypeSpec
+  (TypeSpec TypeName (List TypeName)))
+
+(public data Type
+  (Type (List ClassSpec) TypeName (List Type)))
+
+(public data Expr
+  (Variable VarName)
+  (Const Int64)
+  (Call Expr Expr)
+  (Case Expr (List (Pair Expr Expr)))
+  (Lambda VarName Expr)
+  (Let VarName Expr Expr)
+  (As VarName Expr))
+
+(public data Decl
+  (Alias Bool TypeSpec Type)
+  (Class Bool (List ClassSpec) ClassSpec (List (Pair VarName Type)))
+  (Data Bool TypeSpec (List (Pair VarName (List Type))))
+  (Def Bool VarName Type Expr)
+  (Derive Bool ClassSpec)
+  (Import Bool String)
+  (Instance Bool (List ClassSpec) ClassSpec (List (Pair VarName Expr))))
+
+(public data Symbol
+  (SymDef String Type Int)
+  (SymData String Int Int Int Bool TypeSpec (List Type)))
+
+(public defn sdName (Func Symbol String)
+  ((SymData sdName _ _ _ _ _ _))
+  sdName)
+
+(public defn sdCtorIdx (Func Symbol Int)
+  ((SymData _ sdCtorIdx _ _ _ _ _))
+  sdCtorIdx)
+
+(public defn sdNumFields (Func Symbol Int)
+  ((SymData _ _ sdNumFields _ _ _ _))
+  sdNumFields)
+
+(public defn sdNumCtors (Func Symbol Int)
+  ((SymData _ _ _ sdNumCtors _ _ _))
+  sdNumCtors)
+
+(public defn sdBoxed (Func Symbol Bool)
+  ((SymData _ _ _ _ sdBoxed _ _))
+  sdBoxed)
+
+(public defn sdTypeSpec (Func Symbol TypeSpec)
+  ((SymData _ _ _ _ _ sdTypeSpec _))
+  sdTypeSpec)
+
+(public defn sdTypes (Func Symbol (List Type))
+  ((SymData _ _ _ _ _ _ sdTypes))
+   sdTypes)
+
+(public defn shouldBox (Func (List (Pair VarName (List Type))) Bool)
+  (ctors)
+  (let ((multipleCtors (>Int (length ctors) 1))
+        (multipleFields (any (lambda ((Pair _ fields))
+                               (>Int (length fields) 1))
+                             ctors))
+        (anyFields (any (lambda ((Pair _ fields))
+                          (notNull fields))
+                        ctors)))
+    (or
+      multipleFields
+      (and
+        multipleCtors
+        anyFields))))
+
+(public defn sdHasHeader (Func Symbol Bool)
+  (sd)
+  (>Int (sdNumCtors sd) 1))
+
+(public defn symName (Func Symbol String)
+  (sym)
+  (case sym
+    ((SymDef name _ _) name)
+    ((SymData name _ _ _ _ _ _) name)))
+
+(public data Bundle
+  (Bundle String (Map String (Pair (List Decl) (List String)))))
+
+(public alias ModAliasResolver (Map TypeName (Pair (List TypeName) Type)))
+(public alias ModSymResolver (Map String Symbol))
+(public alias ModResolver (Pair ModSymResolver ModAliasResolver))
+
+(public data Resolver
+  (Resolver (Map String ModResolver)))

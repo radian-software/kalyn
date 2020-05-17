@@ -1,0 +1,110 @@
+(import "Assembly.kalyn")
+(import "OS.kalyn")
+(import "Stdlib.kalyn")
+(import "Subroutines.kalyn")
+(import "Util.kalyn")
+
+(public defn memoryFirstFree Datum
+  (Pair "mmFirstFree" (word64 0)))
+
+(public defn memoryProgramBreak Datum
+  (Pair "mmProgramBreak" (word64 0)))
+
+(public def memoryInit (Stateful VirtualFunction)
+  (return
+    (function
+      "memoryInit"
+      [(OP MOV (IR 12 rax))
+       (OP MOV (IR 0 rdi))
+       (SYSCALL 1)  ; brk
+       (OP MOV (RM rax (memLabel $ fst memoryProgramBreak)))
+       (OP MOV (RM rax (memLabel $ fst memoryFirstFree)))
+       RET])))
+
+(public def memoryAlloc (Stateful VirtualFunction)
+  (do
+    (with firstFree newTemp)
+    (with ptr       newTemp)
+    (with brk       newLabel)
+    (with done      newLabel)
+    (with crash     newLabel)
+    (with msg       newTemp)
+    (return
+      (function
+        "memoryAlloc"
+        [(OP MOV (MR (memLabel "mmFirstFree") firstFree))
+         ;; round up to nearest multiple of eight (see)
+         ;; <https://stackoverflow.com/a/9194117/3538165>
+         (OP ADD (IR 7 firstFree))
+         (OP AND (IR (-8) firstFree))
+         ;; now to proceed
+         (OP MOV (RR firstFree ptr))
+         (OP ADD (MR (getArg 1) firstFree))
+         (OP MOV (RM firstFree (memLabel "mmFirstFree")))
+         (OP CMP (MR (memLabel "mmProgramBreak") firstFree))
+         (JUMP JG brk)
+         (LABEL done)
+         (OP MOV (RR ptr rax))
+         RET
+         (LABEL brk)
+         ;; round up to next page boundary
+         (OP ADD (IR (fromIntegral $ pageSize - 1) firstFree))
+         (OP AND (IR (fromIntegral $ -pageSize) firstFree))
+         (OP MOV (IR 12 rax))
+         (OP MOV (RR firstFree rdi))
+         (SYSCALL 1)  ; brk
+         (OP CMP (RR firstFree rax))
+         (JUMP JL crash)
+         (OP MOV (RM rax (memLabel "mmProgramBreak")))
+         (JUMP JMP done)
+         (LABEL crash)
+         (LEA (memLabel "msgMemoryAllocFailed") msg)
+         (UN PUSH (R msg))
+         (JUMP CALL "crash")]))))
+
+(public def memoryPackString (Stateful VirtualFunction)
+  (do
+    (with arg         newTemp)
+    (with ptr         newTemp)
+    (with strLength   newTemp)
+    (with allocLength newTemp)
+    (with result      newTemp)
+    (with mptr        newTemp)
+    (with temp        newTemp)
+    (with lengthStart newLabel)
+    (with lengthDone  newLabel)
+    (with copyStart   newLabel)
+    (with copyDone    newLabel)
+    (return
+      (function
+        "memoryPackString"
+        [(OP MOV (MR (getArg 1) arg))
+         (OP MOV (IR 0 strLength))
+         (OP MOV (RR arg ptr))
+         (LABEL lengthStart)
+         (OP CMP (IM 0 (getField 0 ptr)))
+         (JUMP JE lengthDone)
+         (UN INC (R strLength))
+         (OP MOV (MR (getField 2 ptr) ptr))
+         (JUMP JMP lengthStart)
+         (LABEL lengthDone)
+         (LEA (Mem (Right 9) strLength Nothing) allocLength)
+         (UN PUSH (R allocLength))
+         (JUMP CALL "memoryAlloc")
+         (unpush 1)
+         (OP MOV (RR rax result))
+         (OP MOV (RM strLength (deref rax)))
+         (LEA (getField 1 rax) mptr)
+         (OP MOV (RR arg ptr))
+         (LABEL copyStart)
+         (OP CMP (IM 0 (getField 0 ptr)))
+         (JUMP JE copyDone)
+         (OP MOV (MR (getField 1 ptr) temp))
+         (OP MOV (RM temp (deref mptr)))
+         (OP MOV (MR (getField 2 ptr) ptr))
+         (UN INC (R mptr))
+         (JUMP JMP copyStart)
+         (LABEL copyDone)
+         (OP MOV (IM 0 (deref mptr)))
+         (OP MOV (RR result rax))
+         RET]))))

@@ -1,0 +1,635 @@
+(import "AST.kalyn")
+(import "Assembly.kalyn")
+(import "Bridge.kalyn")
+(import "Stdlib.kalyn")
+(import "Subroutines.kalyn")
+
+(alias Bindings (Map String (Either Symbol VR)))
+(alias TopLevelBindings (Map String Symbol))
+
+(data Context
+  (Context
+    Bindings
+    String
+    Int
+    (List String)))
+
+(defn bindings (Func Context Bindings)
+  ((Context bindings _ _ _))
+  bindings)
+
+(defn fnName (Func Context String)
+  ((Context _ fnName _ _))
+  fnName)
+
+(defn sublambdaCount (Func Context Int)
+  ((Context _ _ sublambdaCount _))
+  sublambdaCount)
+
+(defn sublambdaArgs (Func Context (List String))
+  ((Context _ _ _ sublambdaArgs))
+  sublambdaArgs)
+
+(defn withBinding (Func String VR Context Context)
+  (name temp (Context bindings fnName sublambdaCount sublambdaArgs))
+  (Context
+    (mapInsert name (Right temp) bindings)
+    fnName
+    sublambdaCount
+    sublambdaArgs))
+
+(defn withSublambdaArg (Func String Context Context)
+  (arg (Context bindings fnName sublambdaCount sublambdaArgs))
+  (Context
+    bindings
+    fnName
+    sublambdaCount
+    (Cons arg sublambdaArgs)))
+
+(defn withoutSublambdas (Func Context Context)
+  ((Context bindings fnName sublambdaCount sublambdaArgs))
+  (Context
+    bindings
+    fnName
+    0 []))
+
+(defn freeVariables (Func Expr (Set String))
+  (expr)
+  (case expr
+    ((Variable name)
+     (setSingleton compareString name))
+    ((Const _)
+     (setEmpty compareString))
+    ((Call lhs rhs)
+     (setUnion
+       (freeVariables lhs)
+       (freeVariables rhs)))
+    ((Case arg branches)
+     (setUnions
+       (Cons
+         (freeVariables arg)
+         (map
+           (lambda ((Pair pat expr))
+             (set\\
+               (freeVariables expr)
+               (freeVariables pat)))
+           branches))))
+    ((Lambda arg body)
+     (setDelete arg (freeVariables body)))
+    ((Let name val body)
+     (setUnion
+       (freeVariables val)
+       (setDelete name (freeVariables body))))
+    ((As name expr)
+     (setDelete name (freeVariables expr)))))
+
+(defn translateVar (Func Context VR String (List VInstruction))
+  (ctx dst name)
+  (case (mapLookup name (bindings ctx))
+    ((Just (Left  sym))
+     [(JUMP CALL (symName sym))
+      (OP MOV (RR rax dst))])
+    ((Just (Right reg))
+     [OP MOV (RR reg dst)])
+    (Nothing
+     (error
+       (concat
+         ["in function "
+          (fnName ctx)
+          ": reference to free variable "
+          name])))))
+
+(defn translatePattern (Func Context Label VR Expr (Stateful (Pair (List VInstruction) Map String VR)))
+  (ctx nextBranch temp expr)
+  (case expr
+    ((Variable name)
+     (case (mapLookup name (bindings ctx))
+       ((Just (Left sd@(SymData _ _ _ _ _ _ _)))
+        (case (sdNumFields sd)
+          (0 (case (sdNumCtors sd)
+               (0 (error
+                    "somehow a nonexistent data constructor has appeared"))
+               (1 (return (Pair [] (mapEmpty compareString))))
+               (_ (return
+                    (Pair [(OP
+                             CMP
+                             ((if (sdBoxed sd)
+                                (flip IM (deref temp))
+                                (flip IR temp))
+                              (sdCtorIdx sd)))
+                           (JUMP JNE nextBranch)]
+                          (mapEmpty compareString))))))
+          (_
+           (error
+             (concat
+               ["data constructor "
+                name
+                " used with no fields in case pattern (needs "
+                (showInt (sdNumFields sd))
+                ")"])))))
+       (_ (return
+            (Pair
+              []
+              (mapFromList
+                compareString
+                [(Pair name temp)]))))))
+    ((Const val)
+     (do
+       (with imm newTemp)
+       (return
+         (Pair
+           [(MOV64 val imm)
+            (OP CMP (RR imm temp))
+            (JUMP JNE nextBranch)]
+           (mapEmpty compareString)))))
+    ((Call _ _)
+     (let ((uncurryExpr
+            (lambda (expr)
+              (case expr
+                ((Call lhs rhs)
+                 (Cons rhs (uncurryExpr lhs)))
+                (f [f]))))
+           ((Cons ctor args)
+            (reverse (uncurryExpr expr))))
+       (case ctor
+         ((Variable name)
+          (case (mapLookup name (bindings ctx))
+            ((Just (Left sd@(SymData _ _ _ _ _ _ _)))
+             (if (/=Int (sdNumFields sd) (length args))
+               (error
+                 (concat
+                   ["data constructor "
+                    name
+                    " used with "
+                    (showInt (length args))
+                    " field"
+                    (if (==Int (length args) 1) "" "s")
+                    " but needs "
+                    (showInt (sdNumFields sd))]))
+               (do
+                 (with fieldTemps
+                   (replicateM (sdNumFields sd) newTemp))
+                 (let extractCode
+                   (if (sdBoxed sd)
+                     (concat
+                       (zipWith
+                         (lambda (temp idx)
+                           [OP MOV
+                            (MR (getField
+                                  (+ idx (if sdHasHeader sd 1 0))
+                                  obj)
+                                temp)])
+                         fieldTemps
+                         (iterate (+ 1) 0 (length fieldTemps))))
+                     ;; only one fieldTemp in this case
+                     [(OP MOV (RR obj (head fieldTemps)))]))
+                 (let mainCheck
+                   (if (sdHasHeader sd)
+                     [(OP CMP (IM (sdCtorIdx sd) (getField 0 obj)))
+                      (JUMP JNE nextBranch)]
+                     []))
+                 (with fieldChecks
+                   (zipWithM
+                     (translatePattern ctx nextBranch)
+                     fieldTemps
+                     args))
+                 (return
+                   (Pair (concat
+                           [extractCode
+                            mainCheck
+                            (concatMap fst fieldChecks)])
+                         (foldr
+                           (comp (mapUnionWithKey
+                                   (lambda (var k1 _)
+                                     (if (==String var "_")
+                                       k1
+                                       (error
+                                         (concat
+                                           ["two bindings for "
+                                            var
+                                            " in same case pattern"])))))
+                                 snd)
+                           (mapEmpty compareString)
+                           fieldChecks))))))
+            (_ (error (append name " is not a data constructor")))))
+         (_ (error "malformed data list in case pattern")))))
+    ((Case _ _) (error "can't use case in case pattern"))
+    ((Lambda _ _) (error "can't use lambda in case pattern"))
+    ((Let _ _ _) (error "can't use let in case pattern"))
+    ((As name pat) (do
+                     (with (Pair instrs binds)
+                       (translatePattern ctx nextBranch temp pat))
+                     (return
+                       (Pair instrs
+                             (mapUnionWithKey
+                               (lambda (var _ _)
+                                 (error
+                                   (concat
+                                     ["two bindings for "
+                                      var
+                                      " in same case pattern"])))
+                               binds
+                               (mapFromList
+                                 compareString
+                                 [(Pair name temp)]))))))))
+
+(defn translateIndirectCall (Func
+                                     Context VR Expr Expr
+                                     (Stateful (Pair
+                                                 (List VInstruction)
+                                                 (List VFunction))))
+  (ctx dst lhs rhs)
+  (do
+    (with lhsTemp newTemp)
+    (with rhsTemp newTemp)
+    (with (Pair lhsCode lhsFns)
+      (translateExpr ctx lhsTemp lhs))
+    (with (Pair rhsCode rhsFns)
+      (translateExpr ctx rhsTemp rhs))
+    (with callCode
+      (translateCall lhsTemp (Just rhsTemp)))
+    (return
+      (Pair
+        (concat
+          [lhsCode
+           rhsCode
+           callCode
+           [OP MOV (RR rax dst)]])
+        (append lhsFns rhsFns)))))
+
+(defn translateExpr (Func
+                             Context VR Expr
+                             (Stateful (Pair
+                                         (List VInstruction)
+                                         (List VFunction))))
+  (ctx dst expr)
+  (case expr
+    ((Variable name)
+     (return (Pair (translateVar ctx dst name) [])))
+    ((Const    val )
+     (return (Pair [(MOV64 val dst)] [])))
+    ((Call lhs rhs)
+     (let (((Pair lhs* args)
+            (second reverse (uncurryArgs expr)))
+           (uncurryArgs
+            (lambda (expr)
+              (case expr
+                ((Call lhs* rhs*)
+                 (let ((Pair lhs** args) (uncurryArgs lhs*))
+                   (Pair lhs** (Cons rhs* args))))
+                (lhs* (Pair lhs* []))))))
+       (case lhs*
+         ((Variable name)
+          (case (mapLookup name (bindings ctx))
+            ((Just (Left sym))
+             (do
+               (let mangledName (symName sym))
+               (let numSublambdas
+                 (case sym
+                   ((SymDef _ _ num)
+                    num)
+                   ((SymData _ _ _ _ _ _ _)
+                    (sdNumFields sym))))
+               (let (Pair directArgs indirectArgs)
+                 (splitAt numSublambdas args))
+               (let directName
+                 (if (null directArgs)
+                   mangledName
+                   (if (==Int (length directArgs) numSublambdas)
+                     (append mangledName "__uncurried")
+                     (concat
+                       [mangledName
+                        "__curried"
+                        (showInt (- (length directArgs) 1))]))))
+               (with directArgsTemps
+                 (replicateM (length directArgs) newTemp))
+               (with (Pair directArgsCode directArgsFns)
+                 (fmapState
+                   unzip
+                   zipWithMState
+                   (lambda (arg temp)
+                     (do
+                       (with (Pair evalCode evalFns)
+                         (translateExpr ctx temp arg))
+                       (return
+                         (Pair
+                           (append evalCode [UN PUSH (R temp)])
+                           evalFns))))
+                   directArgs
+                   directArgsTemps))
+               (with directCallTemp newTemp)
+               (let directCallCode
+                 (concat
+                   [[JUMP CALL directName]
+                    (if (notNull directArgs)
+                      (unpush (length directArgs))
+                      [])
+                    [OP MOV (RR rax directCallTemp)]]))
+               (let indirectCallExpr
+                 (foldl
+                   Call
+                   (Variable "gensym")
+                   indirectArgs))
+               (with (Pair indirectCallCode indirectCallFns)
+                 (translateExpr
+                   (withBinding "gensym" directCallTemp ctx)
+                   dst
+                   indirectCallExpr))
+               (return
+                 (Pair
+                   (concat
+                     [(concat directArgsCode)
+                      directCallCode
+                      indirectCallCode])
+                   (append
+                     (concat directArgsFns)
+                     indirectCallFns)))))
+            (_ (translateIndirectCall ctx dst lhs rhs))))
+         (_ (translateIndirectCall ctx dst lhs rhs)))))
+    ((Case arg branches)
+     (do
+       (with argTemp newTemp)
+       (with (Pair argCode argFns)
+         (translateExpr ctx argTemp arg))
+       (with endLabel newLabel)
+       (with nextBranches
+         (replicateM
+           (length branches)
+           newLabel))
+       (with branchCodes
+         (zipWithM (lambda (label)
+                     (translatePattern ctx label argTemp))
+                   nextBranches
+                   (map fst branches)))
+       (with exprCodes (zipWithM
+                         (lambda (branch ctx*)
+                           (translateExpr ctx* dst branch))
+                         (map snd branches)
+                         (map (lambda (code)
+                                (foldr
+                                  (uncurry withBinding)
+                                  ctx
+                                  (mapToList (snd code))))
+                              branchCodes)
+                         (with msg newTemp)))
+       (return
+         (Pair (concat
+                 [argCode
+                  (concat
+                    (zipWith3
+                      (lambda ((Pair branchCode _)
+                               (Pair exprCode _)
+                               nextBranch)
+                        (concat
+                          [branchCode
+                           exprCode
+                           [(JUMP JMP endLabel)
+                            (LABEL nextBranch)]]))
+                      branchCodes
+                      exprCodes
+                      nextBranches))
+                  [(LEA (memLabel "msgPatternMatchFailed") msg)
+                   (UN PUSH (R msg))
+                   (JUMP CALL "crash")
+                   (LABEL endLabel)]])
+               (append
+                 argFns
+                 (concatMap snd exprCodes))))))
+    (form@(Lambda name body)
+     (do
+       (with temp newTemp)
+       (let possibleVars
+         (setToList (freeVariables form)))
+       (let vars
+         (mapMaybe
+           (lambda (var)
+             (case (Pair var (mapLookup var (bindings ctx)))
+               ((Pair _ (Just (Right reg)))
+                (if (notElem var (Cons name (sublambdaArgs ctx)))
+                  (Just (Pair var reg))
+                  Nothing))
+               (_ Nothing)))
+           possibleVars))
+       (let argNames
+         (append
+           (map fst vars)
+           (reverse (Cons name (sublambdaArgs ctx)))))
+       (with lambdaName
+         ((if (>= (length (sublambdaArgs ctx))
+                  (sublambdaCount ctx))
+            (fmapState
+              (lambda (prefix)
+                (concat
+                  [prefix
+                   "__"
+                   (intercalate "_" (map sanitize argNames))]))
+              (newLambda (fnName ctx)))
+            (if (==Int (length (sublambdaArgs ctx))
+                       (- (sublambdaCount ctx) 1))
+              (return
+                (append
+                  (fnName ctx)
+                  "__uncurried"))
+              (return
+                (concat
+                  [(fnName ctx)
+                   "__curried"
+                   (showInt (length (sublambdaArgs ctx)))]))))))
+       (with argTemps (replicateM (length argNames) newTemp))
+       (let bodyCtx (foldr
+                      (uncurry withBinding)
+                      (if (< (+ (length (sublambdaArgs ctx)) 1)
+                             (sublambdaCount ctx))
+                        (withSublambdaArg name ctx)
+                        (withoutSublambdas ctx))
+                      (zip argNames argTemps)))
+       (let argsCode (zipWith
+                       (lambda (argTemp argIdx)
+                         (OP MOV (MR (getArg argIdx) argTemp)))
+                       argTemps
+                       (iterate
+                         (- 1)
+                         (length argNames)
+                         (length argTemps))))
+       (with bodyDst newTemp)
+       (with (Pair bodyCode bodyFns)
+         (translateExpr bodyCtx bodyDst body))
+       ;; work directly on dst because we want to allow for recursive
+       ;; lambda let-bindings
+       (return
+         (Pair
+           (append
+             [(PUSHI (* 8 (+ 1 (length argNames))))
+              (JUMP CALL "memoryAlloc")
+              (unpush 1)
+              (OP MOV (RR rax dst))
+              (LEA (memLabel lambdaName) temp)
+              (OP MOV (RM temp (getField 0 dst)))
+              (OP MOV (IM (- (length argNames) 1)
+                          (getField 1 dst)))]
+             (zipWith
+               (lambda (varTemp idx)
+                 (OP MOV (RM varTemp (getField (+ idx 2) dst))))
+               (map
+                 (lambda (arg)
+                   (case (mapLookup arg (bindings ctx))
+                     ((Just (Right reg)) reg)
+                     (_ (error "sublambda arg not bound somehow"))))
+                 (init argNames))
+               (iterate (+ 1) 0 (- (length argNames) 1))))
+           (Cons
+             (function
+               lambdaName
+               (concat
+                 [argsCode
+                  bodyCode
+                  [(OP MOV (RR bodyDst rax))
+                   RET]]))
+             bodyFns)))))
+    ((Let name val body)
+     (do
+       (with temp newTemp)
+       (let ctx* (withBinding name temp ctx))
+       (with (Pair letCode letFns)
+         (translateExpr ctx* temp val))
+       (with (Pair bodyCode bodyFns)
+         (translateExpr ctx* dst body))
+       (return
+         (Pair (append letCode bodyCode)
+               (append letFns bodyFns)))))
+    ((As _ expr)
+     (translateExpr ctx dst expr))))
+
+;; don't handle Derive or Instance for now
+(defn translateDecl (Func
+                             TopLevelBindings Decl
+                             (Stateful (List VFunction)))
+  (binds decl)
+  (case decl
+    ((Alias _ _ _)
+     (return []))
+    ((Class _ _ _ _)
+     (return []))
+    ((Data _ typeSpec ctors)
+     (fmapState
+       concat
+       (zipWithM
+         (lambda ((Pair ctor types) ctorIdx)
+           (do
+             (with arg newTemp)
+             (let baseName (symName (map! ctor binds)))
+             (let mainName (if (null types)
+                             baseName
+                             (append baseName "__uncurried")))
+             (let sd
+               (SymData baseName
+                        ctorIdx
+                        length types
+                        length ctors
+                        shouldBox ctors
+                        typeSpec
+                        types))
+             (let mainFn
+               (function
+                 mainName
+                 (if (not (sdBoxed sd))
+                   (if sdHasHeader sd
+                     [(OP MOV (IR ctorIdx rax))
+                      RET]
+                     (if (null types)
+                       [(OP MOV (IR 0 rax))
+                        RET]
+                       [(OP MOV (MR (getArg 1) rax))
+                        RET]))
+                   (concat [[(PUSHI (* 8 (+ 1 (length types))))
+                             (JUMP CALL "memoryAlloc")
+                             (unpush 1)]
+                            (if (sdHasHeader sd)
+                              (OP MOV (IM ctorIdx (getField 0 rax)))
+                              [])
+                            (concatMap
+                              (lambda (argIdx)
+                                [(OP MOV (MR (getArg
+                                               (- (length types)
+                                                  argIdx))
+                                             arg))
+                                 (OP MOV (RM
+                                           arg
+                                           (getField
+                                             (+ argIdx
+                                                (if (sdHasHeader sd) 1 0))
+                                             rax)))])
+                              (iterate (+ 1) 0 (length types)))
+                            [RET]]))))
+             (with extraFns ((if (null types)
+                               (return [])
+                               (curryify (length types) baseName))))
+             (return (Cons mainFn extraFns))))
+         ctors
+         (iterate (+ 1) 0 (length ctors)))))
+    ((Def _ name _ value)
+     (do
+       (let (SymDef mangledName _ numSublambdas)
+         (map! name binds))
+       (with dst newTemp)
+       (with (Pair instrs fns)
+         (translateExpr
+           (Context
+             (mapMap Left binds)
+             mangledName numSublambdas [])
+           dst
+           value))
+       (return
+         (Cons
+           (function
+             mangledName
+             (append
+               instrs
+               [(OP MOV (RR dst rax))
+                RET]))
+           fns))))
+    ((Derive _ _)
+     (return []))
+    ((Import _ _)
+     (error "translator shouldn't be handling imports"))
+    ((Instance _ _ _ _)
+     (return []))))
+
+(defn translateBundle* (Func Resolver Bundle (Stateful (Program VR)))
+  ((Resolver resolver) (Bundle mmod mmap))
+  (do
+    (let mainName (symName (map! "main" (fst (map! mmod resolver)))))
+    (with fns (fmapState
+                concat
+                (mapMState
+                  (lambda ((Pair mod (Pair decls _)))
+                    (fmapState
+                      concat
+                      (mapMState
+                        (translateDecl (fst (map! mod resolver)))
+                        decls)))
+                  (mapToList mmap))))
+    (with mainFn (do
+                   (with fnPtr newTemp)
+                   (let setupCode
+                     [(JUMP CALL "memoryInit")
+                      (JUMP CALL mainName)
+                      (OP MOV (RR rax fnPtr))])
+                   (with callCode (translateCall fnPtr Nothing))
+                   (let teardownCode
+                     [(OP MOV (IR 60 rax))
+                      (OP MOV (IR 0 rdi))
+                      (SYSCALL 1)])  ; exit
+                   (return
+                     (function
+                       "main"
+                       (concat
+                         [setupCode
+                          callCode
+                          teardownCode])))
+                   (with stdlib (stdlibFns fns))))
+    (return (Program mainFn (append fns stdlib) stdlibData))))
+
+(public defn translateBundle (Func Resolver Bundle (Program VR))
+  (resolver bundle)
+  (evalState (translateBundle* resolver bundle) 0))

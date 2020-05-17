@@ -1,0 +1,337 @@
+(import "Assembly.kalyn")
+(import "Stdlib.kalyn")
+(import "Subroutines.kalyn")
+
+;; https://filippo.io/linux-syscall-table/
+;; see also section 2 of the Linux man pages
+
+(public defn basicOp (Func String BinOp (Stateful VFunction))
+  (name op)
+  (do State
+    (with temp newTemp)
+    (return (function
+              (append name "__uncurried")
+              [(OP MOV (MR (getArg 2) temp))
+               (OP op (MR (getArg 1) temp))
+               (OP MOV (RR temp rax))
+               RET]))))
+
+(public def plus (Stateful VFunction)
+  (basicOp "plus" ADD))
+
+(public def minus (Stateful VFunction)
+  (basicOp "minus" SUB))
+
+(public def times (Stateful VFunction)
+  (basicOp "times" IMUL))
+
+(public defn divOp (Func String (List VInstruction) (Stateful VFunction))
+  (name post)
+  (do State
+    (with temp newTemp)
+    (return
+      (function
+        (append name  "__uncurried")
+        (concat
+          [[(OP MOV (MR (getArg 2) rax))
+            CQTO
+            (OP MOV (MR (getArg 1) temp))
+            (IDIV temp)]
+           post
+           [RET]])))))
+
+(public def divide (Stateful VFunction)
+  (divOp "divide" []))
+
+(public def modulo (Stateful VFunction)
+  (divOp "modulo" [OP MOV (RR rdx rax)]))
+
+(public def bitAnd (Stateful VFunction)
+  (basicOp "and" AND))
+
+(public def bitOr (Stateful VFunction)
+  (basicOp "or" OR))
+
+(public def xor (Stateful VFunction)
+  (basicOp "xor" XOR))
+
+(public defn bitNot (Stateful VFunction)
+  (do State
+    (with temp newTemp)
+    (return
+      (function
+        "not"
+        [(OP MOV (MR (getArg 1) temp))
+         (UN NOT (R temp))
+         (OP MOV (RR temp rax))]))))
+
+(public defn shiftOp (Func String Shift (Stateful VFunction))
+  (name op)
+  (do State
+    (with arg       newTemp)
+    (with fixup     newLabel)
+    (with fixupDone newLabel)
+    (let needsZeroing (case op
+                        (SHL True)
+                        (SAL True)
+                        (SHR True)
+                        (SAR False)))
+    (return (function
+              (append name "__uncurried")
+              [(OP MOV (MR (getArg 2) arg))
+               (OP MOV (MR (getArg 1) rcx))
+               (OP CMP (IR 64 rcx))
+               (JUMP JGE fixup)
+               (SHIFT Nothing op arg)
+               (LABEL fixupDone)
+               (OP MOV (RR arg rax))
+               RET
+               (LABEL fixup)
+               (if needsZeroing
+                 (OP MOV (IR 0 arg))
+                 (SHIFT (Just 63) op arg))
+               (OP MOV (RR arg rax))
+               RET]))))
+
+(public def shl (Stateful VFunction)
+  (shiftOp "shl" SHL))
+
+(public def shr (Stateful VFunction)
+  (shiftOp "shr" SHR))
+
+(public def sal (Stateful VFunction)
+  (shiftOp "sal" SAL))
+
+(public def sar (Stateful VFunction)
+  (shiftOp "sar" SAR))
+
+(public defn monadPrint (Stateful VFunction)
+  (do State
+    (with temp newTemp)
+    (with str  newTemp)
+    (return
+      (function
+        "print__uncurried__unmonadified"
+        [(OP MOV (MR (getArg 1) temp))
+         (UN PUSH (R temp))
+         (JUMP CALL "memoryPackString")
+         (OP MOV (RR rax str))
+         (unpush 1)
+         (OP MOV (IR 1 rax))
+         (OP MOV (IR 1 rdi))
+         (LEA (Mem (Right 8) str Nothing) rsi)
+         (OP MOV (MR (deref str) rdx))
+         (SYSCALL 3)  ; write
+         RET]))))
+
+(public defn monadWriteFile (Stateful VFunction)
+  (do State
+    (with temp       newTemp)
+    (with filename   newTemp)
+    (with contents   newTemp)
+    (with fd         newTemp)
+    (with ptr        newTemp)
+    (with bytesLeft  newTemp)
+    (with notExists  newLabel)
+    (with writeStart newLabel)
+    (with writeDone  newLabel)
+    (with crash      newLabel)
+    (with msg        newTemp)
+    (return (function
+              "writeFile__uncurried__unmonadified"
+              [(OP MOV (MR (getArg 2) temp))
+               (UN PUSH (R temp))
+               (JUMP CALL "memoryPackString")
+               (unpush 1)
+               (OP MOV (RR rax filename))
+               (OP MOV (MR (getArg 1) temp))
+               (UN PUSH (R temp))
+               (JUMP CALL "memoryPackString")
+               (unpush 1)
+               (OP MOV (RR rax contents))
+               (OP MOV (IR 87 rax))
+               (LEA (getField 1 filename) rdi)
+               (SYSCALL 1)  ; unlink
+               (OP CMP (IR (-2) rax))
+               (JUMP JE notExists)
+               (OP CMP (IR 0 rax))
+               (JUMP JL crash)
+               (LABEL notExists)
+               (OP MOV (IR 2 rax))
+               (LEA (getField 1 filename) rdi)
+               (OP MOV (IR 0x41 rsi))
+               (OP MOV (IR 0o666 rdx))
+               (SYSCALL 2)  ; open
+               (OP CMP (IR 0 rax))
+               (JUMP JL crash)
+               (OP MOV (RR rax fd))
+               (LEA (getField 1 contents) ptr)
+               (OP MOV (MR (getField 0 contents) bytesLeft))
+               (LABEL writeStart)
+               (OP CMP (IR 0 bytesLeft))
+               (JUMP JLE writeDone)
+               (OP MOV (IR 1 rax))
+               (OP MOV (RR fd rdi))
+               (OP MOV (RR ptr rsi))
+               (OP MOV (RR bytesLeft rdx))
+               (SYSCALL 3)  ; write
+               (OP CMP (IR 0 rax))
+               (JUMP JL crash)
+               (OP ADD (RR rax ptr))
+               (OP SUB (RR rax bytesLeft))
+               (JUMP JMP writeStart)
+               (LABEL writeDone)
+               (OP MOV (IR 3 rax))
+               (OP MOV (RR fd rdi))
+               (SYSCALL 1)  ; close
+               (OP CMP (IR 0 rax))
+               (JUMP JL crash)
+               RET
+               (LABEL crash)
+               (LEA (memLabel "msgWriteFileFailed") msg)
+               (UN PUSH (R msg))
+               (JUMP CALL "crash")]))))
+
+(public defn setFileMode (Stateful VFunction)
+  (do State
+    (with temp     newTemp)
+    (with filename newTemp)
+    (with crash    newLabel)
+    (with msg      newTemp)
+    (return
+      (function
+        "setFileMode__uncurried__unmonadified"
+        [(OP MOV (MR (getArg 2) temp))
+         (UN PUSH (R temp))
+         (JUMP CALL "memoryPackString")
+         (unpush 1)
+         (OP MOV (RR rax filename))
+         (OP MOV (IR 90 rax))
+         (LEA (getField 1 filename) rdi)
+         (OP MOV (MR (getArg 1) rsi))
+         (SYSCALL 2)  ; chmod
+         (OP CMP (IR 0 rax))
+         (JUMP JL crash)
+         RET
+         (LABEL crash)
+         (LEA (memLabel "msgSetFileModeFailed") msg)
+         (UN PUSH (R msg))
+         (JUMP CALL "crash")]))))
+
+(public defn primitiveError (Stateful VFunction)
+  (return
+    (function
+      "error__uncurried"
+      [(UN PUSH (M (getArg 1)))
+       (JUMP CALL "memoryPackString")
+       (unpush 1)
+       (UN PUSH (R rax))
+       (JUMP CALL "crash")])))
+
+(public defn compareOp (Func String Jump (Stateful VFunction))
+  (name op)
+  (do State
+    (with temp newTemp)
+    (with yes  newLabel)
+    (return
+      (function
+        name
+        [(OP MOV (MR (getArg 2) temp))
+         (OP CMP (MR (getArg 1) temp))
+         (JUMP op yes)
+         (OP MOV (IR 0 rax))
+         RET
+         (LABEL yes)
+         (OP MOV (IR 1 rax))
+         RET]))))
+
+(public def equal (Stateful VFunction)
+  (compareOp "equal__uncurried" JE))
+
+(public def notEqual (Stateful VFunction)
+  (compareOp "notEqual__uncurried" JNE))
+
+(public def lessThan (Stateful VFunction)
+  (compareOp "lessThan__uncurried" JL))
+
+(public def lessThanEqual (Stateful VFunction)
+  (compareOp "lessThanEqual__uncurried" JLE))
+
+(public def greaterThan (Stateful VFunction)
+  (compareOp "greaterThan__uncurried" JG))
+
+(public def greaterThanEqual (Stateful VFunction)
+  (compareOp "greaterThanEqual__uncurried" JGE))
+
+(public def monadReturn (Stateful VFunction)
+  (return (function
+            "return__uncurried__unmonadified"
+            [(OP MOV (MR (getArg 1) rax)) RET])))
+
+(public defn monadBind (Stateful VFunction)
+  (do State
+    (with firstMonad     newTemp)
+    (with secondMonad    newTemp)
+    (with arg            newTemp)
+    (with fn             newTemp)
+    (with firstCallCode  (translateCall firstMonad Nothing))
+    (with secondCallCode (translateCall fn (Just arg)))
+    (with thirdCallCode  (translateCall secondMonad Nothing))
+    (return
+      (function
+        "bind__uncurried__unmonadified"
+        (concat [[OP MOV (MR (getArg 2) firstMonad)]
+                 firstCallCode
+                 [(OP MOV (RR rax arg))
+                  (OP MOV (MR (getArg 1) fn))]
+                 secondCallCode
+                 [OP MOV (RR rax secondMonad)]
+                 thirdCallCode
+                 [RET]])))))
+
+(public defn primitiveCrash (Stateful VFunction)
+  (do State
+    (with msg newTemp)
+    (return (function
+              "crash"
+              [(OP MOV (MR (getArg 1) msg))
+               (OP MOV (IR 1 rax))
+               (OP MOV (IR 2 rdi))
+               (LEA (Mem (Right 8) msg Nothing) rsi)
+               (OP MOV (MR (deref msg) rdx))
+               (SYSCALL 3)  ; write
+               (OP MOV (IR 60 rax))
+               (OP MOV (IR 1 rdi))
+               (SYSCALL 1)]))))  ; exit
+
+(public defn monadify (Func Int String (Stateful VFunction))
+  (numArgs fnName)
+  (do State
+    (with fnPtr newTemp)
+    (with arg   newTemp)
+    (return
+      (function
+        fnName
+        (concat
+          [[(PUSHI (* 8 (+ 2 numArgs)))
+            (JUMP CALL "memoryAlloc")
+            (unpush 1)
+            (LEA (memLabel (append fnName "__unmonadified")) fnPtr)
+            (OP MOV (RM fnPtr (getField 0 rax)))
+            (OP MOV (IM numArgs (getField 1 rax)))]
+           (concatMap
+             (lambda (i)
+               [(OP MOV (MR (getArg (- (+ numArgs 1) i)) arg))
+                (OP MOV (RM arg (getField (+ i 1) rax)))])
+             (iterate (+ 1) 1 numArgs))
+           [RET]])))))
+
+(public defn primitiveTrace (Stateful VFunction)
+  (return
+    (function
+      "trace__uncurried"
+      [(UN PUSH (M (getArg 2)))
+       (JUMP CALL "print__uncurried__unmonadified")
+       (unpush 1)
+       (OP MOV (MR (getArg 1) rax))
+       RET])))

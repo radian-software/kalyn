@@ -1,0 +1,51 @@
+(import "../Stdlib.kalyn")
+
+(public defn fmapState (Func (Func a b) (State s a) (State s b))
+  (f (State go))
+  (State (lambda (s)
+           (let (((Pair s* a) (go s)))
+             (Pair s* (f a))))))
+
+(public defn returnState (State s a)
+  (a)
+  (State (lambda (s) (Pair s a))))
+
+(public defn >>=State (Func (State s a) (Func a (State s b)) (State s b))
+  ((State go) f)
+  (State (lambda (s)
+           (let (((Pair s* a) (go s))
+                 ((State go) (f a)))
+             (go s*)))))
+
+(public def get (State s s)
+  (State (lambda (s) (Pair s s))))
+
+(public defn put (Func s (State s Empty))
+  (s)
+  (State (const (Pair s Empty))))
+
+(public defn evalState (Func (State s a) s a)
+  ((State go) s)
+  (snd (go s)))
+
+(public defn sequenceState (Func (List (State s a)) (State s (List a)))
+  (states)
+  (case states
+    (Null (returnState Null))
+    ((Cons state states)
+     (do >>=State
+       (with fst state)
+       (with rst (sequenceState states))
+       (return (Cons fst rst))))))
+
+(public defn mapMState (Func (Func a (State s b)) (List a) (State s (List b)))
+  (func as)
+  (sequenceState (map func as)))
+
+(public defn zipWithMState (Func
+                             (Func a b (State s c))
+                             (List a)
+                             (List b)
+                             (State s (List c)))
+  (func as bs)
+  (sequenceState (zipWith func as bs)))

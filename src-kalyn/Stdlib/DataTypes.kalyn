@@ -33,6 +33,9 @@
 (public data Ordering
   LT EQ GT)
 
+(public data (State s a)
+  (State (Func s (Pair s a))))
+
 (public alias (Eq a) (Func a a Bool))
 (public alias (Ord a) (Func a a Ordering))
 (public alias (Show a) (Func a String))

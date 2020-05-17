@@ -7,6 +7,58 @@
 (import "Assembler.kalyn")
 (import "Linker.kalyn")
 
+(def helloWorld Decl
+  (Def
+    True "main" (Type [] "IO" [(Type [] "Empty" [])])
+    (Call
+      (Variable "returnIO")
+      (Variable "Empty"))))
+
+(def empty Decl
+  (Data
+    False (TypeSpec "Empty" []) []))
+
+(def helloWorldBundle Bundle
+  (Bundle
+    "Main.kalyn"
+    (mapFromList
+      compareString
+      [(Pair
+         "Main.kalyn"
+         (Pair
+           [helloWorld empty] []))])))
+
+(def helloWorldResolver Resolver
+  (Resolver
+    (mapFromList
+      compareString
+      [(Pair
+         "Main.kalyn"
+         (Pair
+           (mapFromList
+             compareString
+             [(Pair
+                "main"
+                (SymDef
+                  "main"
+                  (Type [] "IO" [(Type [] "Empty" [])])
+                  0))
+              (Pair
+                "returnIO"
+                (SymDef
+                  "returnIO"
+                  (Type [] "Func" [(Type [] "a" [])
+                                   (Type [] "IO" [(Type [] "a" [])])])
+                  1))
+              (Pair
+                "Empty"
+                (SymData
+                  "Empty"
+                  0 0 1 False
+                  (TypeSpec "Empty" [])
+                  []))])
+           (mapEmpty compareString)))])))
+
 (def helloWorld VProgram
   (Program
     (function
@@ -25,15 +77,17 @@
 
 (public def main (IO Empty)
   (do IO
-    (_ (print "Liveness\n"))
-    (let liveness (computeProgramLiveness helloWorld))
-    (_ (print "RegisterAllocator\n"))
+    (print "Translator\n")
+    (let prog (translateBundle helloWorldResolver helloWorldBundle))
+    (print "Liveness\n")
+    (let liveness (computeProgramLiveness prog))
+    (print "RegisterAllocator\n")
     (let physical (allocateProgramRegs helloWorld liveness))
-    (_ (print "Boilerplate\n"))
+    (print "Boilerplate\n")
     (let physical* (addProgramBoilerplate physical))
-    (_ (print "Assembler\n"))
+    (print "Assembler\n")
     (let assembled (assemble physical))
-    (_ (print "Linker\n"))
+    (print "Linker\n")
     (let bin (link assembled))
-    (_ (writeFile "out-kalyn-rec/Main" bin))
+    (writeFile "out-kalyn-rec/Main" bin)
     (setFileMode "out-kalyn-rec/Main" 0o755)))

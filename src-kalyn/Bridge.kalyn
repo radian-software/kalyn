@@ -1,0 +1,174 @@
+(import "AST.kalyn")
+(import "Assembly.kalyn")
+(import "MemoryManager.kalyn")
+(import "Primitives.kalyn")
+(import "Stdlib.kalyn")
+
+(defn handleCurried
+  (Func
+    Int String (Stateful VFunction) Type
+    (Quad String (Stateful (List VFunction)) Type Int))
+  (n name fn ty)
+  (Quad
+    name
+    (do State
+      (with mainFn fn)
+      (with curried (currify n name))
+      (return (Cons mainFn curried)))
+    ty
+    n))
+
+(defn handleCurriedM
+  (Func
+    Int String (Stateful VFunction) Type
+    (Quad String (Stateful (List VFunction)) Type Int))
+  (n name fn ty)
+  (Quad
+    name
+    (do State
+      (with core fn)
+      (with monadified (monadify n (append name "__uncurried")))
+      (with curried (currify n name))
+      (return (append [core monadified] curried)))
+    ty
+    n))
+
+(defn baseType (Func TypeName Type)
+  (name)
+  (Type [] name []))
+
+(defn funcType* (Func (List Type) Type)
+  (tys)
+  (case tys
+    ([] (error "can't construct empty function type\n"))
+    ([ty] ty)
+    ((Cons ty tys) (Type [] "Func" [ty (funcType* tys)]))))
+
+(def funcType (Func (List TypeName Type))
+  (comp funcType* (map baseType)))
+
+(defn ioType (Func TypeName Type)
+  (name)
+  (Type [] "IO" [(Type [] name [])]))
+
+(public defn stdlibPublic
+  (Map String (Quad String (Stateful (List VFunction)) Type Int))
+  (mapFromList
+    compareString
+    [(Pair "+" (handleCurried
+                 2 "plus" plus
+                 (funcType ["Int" "Int" "Int"])))
+     (Pair "-" (handleCurried
+                 2 "minus" minus
+                 (funcType ["Int" "Int" "Int"])))
+     (Pair "*" (handleCurried
+                 2 "times" times
+                 (funcType ["Int" "Int" "Int"])))
+     (Pair "/" (handleCurried
+                 2 "divide" divide
+                 (funcType ["Int" "Int" "Int"])))
+     (Pair "%" (handleCurried
+                 2 "modulo" modulo
+                 (funcType ["Int" "Int" "Int"])))
+     (Pair "&" (handleCurried
+                 2 "and" bitAnd
+                 (funcType ["Int" "Int" "Int"])))
+     (Pair "|" (handleCurried
+                 2 "or" bitOr
+                 (funcType ["Int" "Int" "Int"])))
+     (Pair "^" (handleCurried
+                 2 "xor" xor
+                 (funcType ["Int" "Int" "Int"])))
+     (Pair "~" (handleCurried
+                 1 "not" bitNot
+                 (funcType ["Int" "Int"])))
+     (Pair "shl" (handleCurried
+                   2 "shl" shl
+                   (funcType ["Int" "Int" "Int"])))
+     (Pair "shr" (handleCurried
+                   2 "shr" shr
+                   (funcType ["Int" "Int" "Int"])))
+     (Pair "sal" (handleCurried
+                   2 "sal" sal
+                   (funcType ["Int" "Int" "Int"])))
+     (Pair "sar" (handleCurried
+                   2 "sar" sar
+                   (funcType ["Int" "Int" "Int"])))
+     (Pair "print" (handleCurriedM
+                     1 "print" monadPrint
+                     (funcType* [(baseType "String") (ioType "Empty")])))
+     (Pair "writeFile" (handleCurriedM
+                         2 "writeFile" monadWriteFile
+                         (funcType* [(baseType "String")
+                                     (baseType "String")
+                                     (ioType "Empty")])))
+     (Pair "setFileMode" (handleCurriedM
+                           2 "setFileMode" setFileMode
+                           (funcType* [(baseType "String")
+                                       (baseType "Int")
+                                       (ioType "Empty")])))
+     (Pair "error" (handleCurried
+                     1 "error" primitiveError
+                     (funcType ["String" "a"])))
+     (Pair "==Int" (handleCurried
+                     2 "equal" equal
+                     (funcType ["Int" "Int" "Bool"])))
+     (Pair "/=Int" (handleCurried
+                     2 "notEqual" notEqual
+                     (funcType ["Int" "Int" "Bool"])))
+     (Pair "<Int" (handleCurried
+                    2 "lessThan" lessThan
+                    (funcType ["Int" "Int" "Bool"])))
+     (Pair "<=Int" (handleCurried
+                     2 "lessThanEqual" lessThanEqual
+                     (funcType ["Int" "Int" "Bool"])))
+     (Pair ">Int" (handleCurried
+                    2 "greaterThan" greaterThan
+                    (funcType ["Int" "Int" "Bool"])))
+     (Pair ">=Int" (handleCurried
+                     2 "greaterThanEqual" greaterThanEqual
+                     (funcType ["Int" "Int" "Bool"])))
+     (Pair "returnIO" (handleCurriedM
+                        1 "return" monadReturn
+                        (funcType* [(baseType "a")
+                                    (ioType "a")])))
+     (Pair ">>=IO" (handleCurriedM
+                     2 "bind" monadBind
+                     (funcType* [(ioType "a")
+                                 (funcType*
+                                   [(baseType "a")
+                                    (ioType "b")])
+                                 (ioType "b")])))
+     (Pair "trace" (handleCurried
+                     2 "trace" primitiveTrace
+                     (funcType ["String" "a" "a"])))]))
+
+(def stdlibPrivate (List (Stateful VFunction))
+  [memoryInit memoryAlloc memoryPackString primitiveCrash])
+
+(defn getCalls (Func VFunction (Set String))
+  ((Function _ _ instrs))
+  (setFromList
+    compareString
+    (concatMap
+      (lambda (instr)
+        (case instr
+          ((JUMP CALL label) [label])
+          (_ [])))
+      instrs)))
+
+(public defn stdlibFns (Func (List VFunction) (Stateful (List VFunction)))
+  (userFns)
+  (do State
+    (let calls (setUnions (map getCalls userFns)))
+    (with allPublic (mapMState (lambda ((Quad _ fns _ _))
+                                 fns)
+                               (mapElems stdlibPublic)))
+    (let usedPublic (concat (filter (any (lambda ((Function _ fnName _))
+                                           (setMember fnName calls)))
+                                    allPublic)))
+    (with private (sequenceState stdlibPrivate))
+    (return (append usedPublic private))))
+
+(public def stdlibData (List Datum)
+  (append [memoryFirstFree memoryProgramBreak] msgDatums))
