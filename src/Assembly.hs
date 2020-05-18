@@ -9,7 +9,6 @@ import           Data.Int
 import qualified Data.Set                      as Set
 import           Data.Word
 import           GHC.Generics
-import           Numeric
 
 {-# ANN module "HLint: ignore Use lambda-case" #-}
 {-# ANN module "HLint: ignore Use tuple-section" #-}
@@ -387,10 +386,13 @@ data Program reg = Program (Function reg) [Function reg] [Datum]
 instance Show reg => Show (Program reg) where
   show (Program mainFn fns datums) =
     ".text\n" ++ show mainFn ++ concatMap show fns ++ ".data\n" ++ concat
-      (flip map datums $ \(label, datum) -> label ++ ":\n" ++ concat
-        ( flip map (B.unpack datum)
-        $ \byte -> "\t.byte 0x" ++ showHex byte "" ++ "\n"
-        )
+      (flip map datums $ \(label, datum) ->
+        label
+          ++ ":\n"
+          ++ concat
+               ( flip map (B.unpack datum)
+               $ \byte -> "\t.byte " ++ show byte ++ "\n"
+               )
       )
 
 type Stateful = State Int
