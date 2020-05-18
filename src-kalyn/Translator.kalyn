@@ -454,7 +454,7 @@
                          (OP MOV (MR (getArg argIdx) argTemp)))
                        argTemps
                        (iterate
-                         (- 1)
+                         (flip - 1)
                          (length argNames)
                          (length argTemps))))
        (with bodyDst newTemp)
