@@ -178,12 +178,12 @@
                    (if (sdBoxed sd)
                      (concat
                        (zipWith
-                         (lambda (temp idx)
+                         (lambda (temp* idx)
                            [(OP MOV
                                 (MR (getField
                                       (+ idx (if (sdHasHeader sd) 1 0))
                                       temp)
-                                    temp))])
+                                    temp*))])
                          fieldTemps
                          (iterate (+ 1) 0 (length fieldTemps))))
                      ;; only one fieldTemp in this case
