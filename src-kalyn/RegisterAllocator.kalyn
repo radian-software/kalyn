@@ -32,6 +32,8 @@
   ((Pair a b) (Pair c d))
   (not (or (<=Int b c) (<=Int d a))))
 
+;; arguably should use Temporary internally instead of
+;; VirtualRegister. fix later!
 (defn tryAllocateFunctionRegs (Func
                                 FnLiveness
                                 (Set VR)
