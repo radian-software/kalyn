@@ -277,6 +277,7 @@
          (SYSCALL 2)  ; open
          (OP MOV (RR rax fd))
          (OP MOV (IR 0 strStart))
+         (OP MOV (IR 0 strEnd))
          (LABEL readStart)
          (OP MOV (IR 0 rax))
          (OP MOV (RR fd rdi))
