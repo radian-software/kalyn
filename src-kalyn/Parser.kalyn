@@ -161,11 +161,11 @@
     ((RoundList (Cons (Symbol "and") (Cons lhs (Cons rhs more@(Cons _ _)))))
      (parseExpr
        (RoundList [(Symbol "and") lhs
-                   (RoundList (Cons (Symbol "and" (Cons rhs more))))])))
+                   (RoundList (Cons (Symbol "and") (Cons rhs more)))])))
     ((RoundList (Cons (Symbol "or") (Cons lhs (Cons rhs more@(Cons _ _)))))
      (parseExpr
        (RoundList [(Symbol "or") lhs
-                   (RoundList (Cons (Symbol "or" (Cons rhs more))))])))
+                   (RoundList (Cons (Symbol "or") (Cons rhs more)))])))
     ((RoundList [(Symbol "and") lhs rhs])
      (Let
        "gensym"
