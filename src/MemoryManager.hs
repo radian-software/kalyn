@@ -73,6 +73,7 @@ memoryPackString = do
   result      <- newTemp
   mptr        <- newTemp
   temp        <- newTemp
+  zero        <- newTemp
   lengthStart <- newLabel
   lengthDone  <- newLabel
   copyStart   <- newLabel
@@ -101,12 +102,13 @@ memoryPackString = do
     , OP CMP $ IM 0 (getField 0 ptr)
     , JUMP JE copyDone
     , OP MOV $ MR (getField 1 ptr) temp
-    , OP MOV $ RM temp (deref mptr)
+    , MOVBRM temp (deref mptr)
     , OP MOV $ MR (getField 2 ptr) ptr
     , UN INC $ R mptr
     , JUMP JMP copyStart
     , LABEL copyDone
-    , OP MOV $ IM 0 (deref mptr)
+    , OP MOV $ IR 0 zero
+    , MOVBRM zero (deref mptr)
     , OP MOV $ RR result rax
     , RET
     ]

@@ -71,6 +71,7 @@
     (with result      newTemp)
     (with mptr        newTemp)
     (with temp        newTemp)
+    (with zero        newTemp)
     (with lengthStart newLabel)
     (with lengthDone  newLabel)
     (with copyStart   newLabel)
@@ -105,7 +106,8 @@
          (UN INC (R mptr))
          (JUMP JMP copyStart)
          (LABEL copyDone)
-         (OP MOV (IM 0 (deref mptr)))
+         (OP MOV (IR 0 zero))
+         (MOVBRM zero (deref mptr))
          (OP MOV (RR result rax))
          RET]))))
 
