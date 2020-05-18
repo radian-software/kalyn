@@ -234,7 +234,7 @@
       (function
         "getWorkingDirectory__unmonadified"
         [(OP MOV (IR 79 rax))
-         (LEA (memLabelV "memoryPathBuffer") rdi)
+         (LEA (memLabelV "syscallBuffer") rdi)
          (OP MOV (IR syscallBufferSize rsi))
          (SYSCALL 2)  ; getcwd
          (UN PUSH (R rax))
@@ -265,7 +265,7 @@
     (with crash newLabel)
     (returnState
       (function
-        "readFile__unmonadified"
+        "readFile__uncurried__unmonadified"
         [(LEA (memLabelV "syscallBuffer") buffer)
          (UN PUSH (M (getArg 1)))
          (JUMP CALL "memoryPackString")

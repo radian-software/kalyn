@@ -220,7 +220,7 @@ monadGetWorkingDirectory = do
   return $ function
     "getWorkingDirectory__unmonadified"
     [ OP MOV $ IR 79 rax
-    , LEA (memLabel "memoryPathBuffer") rdi
+    , LEA (memLabel "syscallBuffer") rdi
     , OP MOV $ IR (fromIntegral syscallBufferSize) rsi
     , SYSCALL 2  -- getcwd
     , UN PUSH $ R rax
@@ -251,7 +251,7 @@ monadReadFile = do
   skipEndUpdate   <- newLabel
   crash           <- newLabel
   return $ function
-    "readFile__unmonadified"
+    "readFile__uncurried__unmonadified"
     [ LEA (memLabel "syscallBuffer") buffer
     , UN PUSH $ M (getArg 1)
     , JUMP CALL "memoryPackString"
