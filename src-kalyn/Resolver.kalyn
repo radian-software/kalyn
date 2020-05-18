@@ -126,7 +126,8 @@
     ((Def pub name t expr)
      (if (or isMain pub)
        [(SymDef name t (countSublambdas expr))]
-       []))))
+       []))
+    (_ [])))
 
 (defn getDeclTypes (Func Bool Decl (List TypeName))
   (isMain decl)
