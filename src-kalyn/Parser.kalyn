@@ -155,7 +155,7 @@
               (parseExpr val)
               (Case
                 (Variable "gensym")
-                [(parseExpr pat) lbody])))))
+                [(Pair (parseExpr pat) lbody)])))))
        (parseExpr body)
        bindings))
     ((RoundList (Cons (Symbol "and") (Cons lhs (Cons rhs more@(Cons _ _)))))
