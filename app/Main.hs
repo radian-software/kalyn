@@ -1,5 +1,6 @@
 module Main where
 
+import           Control.DeepSeq
 import           Control.Exception
 import           Control.Monad
 import qualified Data.ByteString.Lazy          as B
@@ -67,21 +68,21 @@ readIncrementally verbose inputFilename = do
   when verbose $ overwriteFile (prefix ++ "Tokens") $ concatMap
     (\t -> show t ++ "\n")
     tokens
-  putStrLn $ "Reader (" ++ takeFileName inputFilename ++ ")"
+  tokens `deepseq` putStrLn $ "Reader (" ++ takeFileName inputFilename ++ ")"
   let forms = readModule tokens
   when verbose $ do
     overwriteFile (prefix ++ "Forms")
       $ concatMap (\f -> (T.unpack . pShowNoColor $ f) ++ "\n") forms
     overwriteFile (prefix ++ "Forms.kalyn")
       $ concatMap (\f -> pretty f ++ "\n") forms
-  putStrLn $ "Parser (" ++ takeFileName inputFilename ++ ")"
+  forms `deepseq` putStrLn $ "Parser (" ++ takeFileName inputFilename ++ ")"
   let decls = parseModule forms
   when verbose $ do
     overwriteFile (prefix ++ "AST")
       $ concatMap (\d -> (T.unpack . pShowNoColor $ d) ++ "\n") decls
     overwriteFile (prefix ++ "AST.kalyn")
       $ concatMap (\d -> pretty d ++ "\n") decls
-  return decls
+  decls `deepseq` return decls
 
 compileIncrementally :: Bool -> String -> IO ()
 compileIncrementally verbose inputFilename = do
@@ -92,26 +93,27 @@ compileIncrementally verbose inputFilename = do
   when verbose $ do
     overwriteFile (prefix ++ "Bundle") $ T.unpack . pShowNoColor $ bundle
     overwriteFile (prefix ++ "Bundle.kalyn") $ pretty bundle
-  putStrLn "Resolver"
+  bundle `deepseq` putStrLn "Resolver"
   let resolver = resolveBundle bundle
   when verbose $ overwriteFile (prefix ++ "Resolver") $ pretty resolver
-  putStrLn "TypeChecker"
-  typeCheckBundle resolver bundle `seq` putStrLn "Translator"
+  resolver `deepseq` putStrLn "TypeChecker"
+  let typeChecked = typeCheckBundle resolver bundle
+  typeChecked `deepseq` putStrLn "Translator"
   let virtualProgram = translateBundle resolver bundle
   when verbose $ overwriteFile (prefix ++ "Virtual.S") $ show virtualProgram
-  putStrLn "Liveness"
+  virtualProgram `deepseq` putStrLn "Liveness"
   let liveness = computeProgramLiveness virtualProgram
   when verbose $ overwriteFile (prefix ++ "Liveness.S") $ showLiveness liveness
-  putStrLn "RegisterAllocator"
-  let (physicalProgram, allocation, spilled) =
+  liveness `deepseq` putStrLn "RegisterAllocator"
+  let info@(physicalProgram, allocation, spilled) =
         allocateProgramRegs virtualProgram (assertNoFreeVariablesP liveness)
   when verbose $ do
     overwriteFile (prefix ++ "Raw.S") $ show physicalProgram
     overwriteFile (prefix ++ "Allocation") $ showAllocation allocation spilled
-  putStrLn "Boilerplate"
+  info `deepseq` putStrLn "Boilerplate"
   let physicalProgram' = addProgramBoilerplate physicalProgram
   when verbose $ overwriteFile (prefix ++ ".S") $ show physicalProgram'
-  putStrLn "Assembler"
+  physicalProgram' `deepseq` putStrLn "Assembler"
   let assembled@(codeB, dataB, _, _) = assemble physicalProgram'
   when verbose $ overwriteBinary
     (prefix ++ ".o")
@@ -120,7 +122,7 @@ compileIncrementally verbose inputFilename = do
          (replicate (leftover pageSize (fromIntegral $ B.length codeB)) 0)
     <> dataB
     )
-  putStrLn "Linker"
+  assembled `deepseq` putStrLn "Linker"
   let binary = link assembled
   overwriteBinary prefix binary
   setFileMode prefix 0o755

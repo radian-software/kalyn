@@ -1,6 +1,10 @@
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
+
 module Tokens where
 
+import           Control.DeepSeq
 import           Data.Int
+import           GHC.Generics
 
 import           Util
 
@@ -13,7 +17,7 @@ data Token = LPAREN
            | INTEGER Int64
            | CHAR Char
            | STRING String
-  deriving (Eq, Show)
+  deriving (Eq, Generic, NFData, Show)
 
 data Form = RoundList [Form]
           | SquareList [Form]
@@ -22,7 +26,7 @@ data Form = RoundList [Form]
           | IntAtom Int64
           | CharAtom Char
           | StrAtom String
-  deriving (Show)
+  deriving (Generic, NFData, Show)
 
 instance Pretty Form where
   pretty (RoundList  forms) = "(" ++ unwords (map pretty forms) ++ ")"

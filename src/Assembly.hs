@@ -1,9 +1,13 @@
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
+
 module Assembly where
 
+import           Control.DeepSeq
 import qualified Data.ByteString.Lazy          as B
 import           Data.Int
 import qualified Data.Set                      as Set
 import           Data.Word
+import           GHC.Generics
 import           Numeric
 
 {-# ANN module "HLint: ignore Use lambda-case" #-}
@@ -17,7 +21,7 @@ data Register = RAX | RCX | RDX | RBX
               | R8  | R9  | R10 | R11
               | R12 | R13 | R14 | R15
               | RIP
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic, NFData)
 
 instance Show Register where
   show RAX = "%rax"
@@ -39,13 +43,13 @@ instance Show Register where
   show RIP = "%rip"
 
 newtype Temporary = Temporary Int
-  deriving (Eq, Ord)
+  deriving (Eq, Generic, NFData, Ord)
 
 instance Show Temporary where
   show (Temporary num) = "%t" ++ show num
 
 data VirtualRegister = Physical Register | Virtual Temporary
-  deriving (Eq, Ord)
+  deriving (Eq, Generic, NFData, Ord)
 
 rax :: RegisterLike reg => reg
 rcx :: RegisterLike reg => reg
@@ -96,26 +100,32 @@ instance RegisterLike VirtualRegister where
 type Label = String
 
 data Scale = Scale1 | Scale2 | Scale4 | Scale8
+  deriving (Generic, NFData)
 
 data Mem reg = Mem (Either Label Int32) reg (Maybe (Scale, reg))
+  deriving (Generic, NFData)
 
 data Args reg = IR Int32 reg
               | IM Int32 (Mem reg)
               | RR reg reg
               | MR (Mem reg) reg
               | RM reg (Mem reg)
+  deriving (Generic, NFData)
 
 data Arg reg = R reg | M (Mem reg)
+  deriving (Generic, NFData)
 
 data BinOp = MOV | ADD | SUB | IMUL | AND | OR | XOR | CMP
-  deriving (Eq)
+  deriving (Eq, Generic, NFData)
 
 data UnOp = NOT | NEG | INC | DEC | PUSH | POP | ICALL
-  deriving (Eq)
+  deriving (Eq, Generic, NFData)
 
 data Jump = JMP | JE | JNE | JL | JLE | JG | JGE | JB | JBE | JA | JAE | CALL
+  deriving (Generic, NFData)
 
 data Shift = SHL | SAL | SHR | SAR
+  deriving (Generic, NFData)
 
 -- reg is either Register or VisualRegister. We use AT&T syntax.
 data Instruction reg = OP BinOp (Args reg)
@@ -133,6 +143,7 @@ data Instruction reg = OP BinOp (Args reg)
                      | SYSCALL Int
                      | LABEL Label
                      | SYMBOL Label
+  deriving (Generic, NFData)
 
 type VirtualInstruction = Instruction VirtualRegister
 type PhysicalInstruction = Instruction Register
@@ -301,6 +312,7 @@ getRegisters (LABEL  _) = ([], [])
 getRegisters (SYMBOL _) = ([], [])
 
 data JumpType = Straightline | Jump Label | Branch Label | Return
+  deriving (Generic, NFData)
 
 getJumpType :: Instruction reg -> JumpType
 getJumpType (JUMP JMP  label  ) = Jump label
@@ -342,6 +354,7 @@ mapInstr _ (LABEL   name)        = LABEL name
 mapInstr _ (SYMBOL  name)        = SYMBOL name
 
 data Function reg = Function Int Label [Instruction reg]
+  deriving (Generic, NFData)
 
 function :: Label -> [Instruction reg] -> Function reg
 function = Function 0
@@ -367,6 +380,7 @@ instance Show reg => Show (Function reg) where
 type Datum = (Label, B.ByteString)
 
 data Program reg = Program (Function reg) [Function reg] [Datum]
+  deriving (Generic, NFData)
 
 instance Show reg => Show (Program reg) where
   show (Program mainFn fns datums) =

@@ -1,9 +1,13 @@
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
+
 module AST where
 
 import           Codec.Binary.UTF8.String
+import           Control.DeepSeq
 import           Data.Int
 import           Data.List
 import qualified Data.Map                      as Map
+import           GHC.Generics
 import           Prelude                 hiding ( mod )
 
 import           Util
@@ -16,13 +20,13 @@ type TypeName = String
 type VarName = String
 
 data ClassSpec = ClassSpec ClassName TypeName
-  deriving (Show)
+  deriving (Generic, NFData, Show)
 
 data TypeSpec = TypeSpec TypeName [TypeName]
-  deriving (Show)
+  deriving (Generic, NFData, Show)
 
 data Type = Type [ClassSpec] TypeName [Type]
-  deriving (Show)
+  deriving (Generic, NFData, Show)
 
 data Expr = Variable VarName
           | Const Int64
@@ -31,7 +35,7 @@ data Expr = Variable VarName
           | Lambda VarName Expr
           | Let VarName Expr Expr
           | As VarName Expr
-  deriving (Show)
+  deriving (Generic, NFData, Show)
 
 data Decl = Alias Bool TypeSpec Type
           | Class Bool [ClassSpec] ClassSpec [(VarName, Type)]
@@ -40,7 +44,7 @@ data Decl = Alias Bool TypeSpec Type
           | Derive Bool ClassSpec
           | Import Bool String
           | Instance Bool [ClassSpec] ClassSpec [(VarName, Expr)]
-  deriving (Show)
+  deriving (Generic, NFData, Show)
 
 data Symbol = SymDef String Type Int
             | SymData { sdName :: String
@@ -51,7 +55,7 @@ data Symbol = SymDef String Type Int
                       , sdTypeSpec :: TypeSpec
                       , sdTypes :: [Type]
                       }
-  deriving (Show)
+  deriving (Generic, NFData, Show)
 
 shouldBox :: [(VarName, [Type])] -> Bool
 shouldBox ctors =
@@ -69,12 +73,13 @@ symName (SymDef name _ _         ) = name
 symName (SymData name _ _ _ _ _ _) = name
 
 data Bundle = Bundle String (Map.Map String ([Decl], [String]))
-  deriving (Show)
+  deriving (Generic, NFData, Show)
 
 type ModAliasResolver = Map.Map TypeName ([TypeName], Type)
 type ModSymResolver = Map.Map String Symbol
 type ModResolver = (ModSymResolver, ModAliasResolver)
 newtype Resolver = Resolver (Map.Map String ModResolver)
+  deriving (Generic, NFData)
 
 instance Pretty ClassSpec where
   pretty (ClassSpec cls typ) = "(" ++ cls ++ " " ++ show typ ++ ")"

@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
+
 module Liveness
   ( InstrLiveness
   , Liveness
@@ -14,9 +16,11 @@ module Liveness
   )
 where
 
+import           Control.DeepSeq
 import           Data.List
 import qualified Data.Map.Strict               as Map
 import qualified Data.Set                      as Set
+import           GHC.Generics
 
 import           Assembly
 import           Util
@@ -29,7 +33,7 @@ data InstrLiveness reg = InstrLiveness
   , instrUsed :: Set.Set reg
   , instrDefined :: Set.Set reg
   }
-  deriving (Eq)
+  deriving (Eq, Generic, NFData)
 
 type Liveness reg = [InstrLiveness reg]
 type ProgramLiveness reg = [(Function reg, Liveness reg)]
