@@ -36,7 +36,7 @@
                             (List (Pair FilePath Bool))))))
   (readDecls alreadyRead toRead declsSoFar)
   (case toRead
-    (Null (return declsSoFar))
+    (Null (returnIO declsSoFar))
     ((Cons curToRead restToRead)
      (if (elem ==String curToRead alreadyRead)
        (readBundle* readDecls alreadyRead restToRead declsSoFar)
@@ -50,7 +50,7 @@
                  (with curAbsPath (expandPath Nothing curToRead))
                  (let workdir (takeDirectory curAbsPath))
                  (with absPath (expandPath (Just workdir) path))
-                 (return (Pair absPath pub))))
+                 (returnIO (Pair absPath pub))))
              newToRead))
          (readBundle*
            readDecls
@@ -95,7 +95,7 @@
                     readDecls [] [absFilename]
                     (mapEmpty compareString)))
     onReadFinished
-    (return
+    (returnIO
       (Bundle
         absFilename
         (mapMapWithKey

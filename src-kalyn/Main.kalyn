@@ -76,7 +76,7 @@
     (let forms (readModule tokens))
     (print (concat ["Parser (" inputFilename ")"]))
     (let decls (parseModule forms))
-    (return decls)))
+    (returnIO decls)))
 
 (public def main (IO Empty)
   (do IO

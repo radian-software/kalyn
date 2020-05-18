@@ -208,7 +208,7 @@
     ((At name elt)
      (As (scrubGensym name) (parseExpr elt)))))
 
-(defn parseDecl* (Func Form Decl)
+(defn parseDecl* (Func Bool Form Decl)
   (pub form)
   (case form
     ((RoundList [(Symbol "alias") spec typ])
@@ -293,5 +293,5 @@
      (parseDecl* True (RoundList rest)))
     (_ (parseDecl* False form))))
 
-(public def parseModule (Map (List Form) (List Decl))
+(public def parseModule (Func (List Form) (List Decl))
   (map parseDecl))

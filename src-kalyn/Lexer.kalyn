@@ -1,4 +1,6 @@
 (import "Stdlib.kalyn")
+(import "Tokens.kalyn")
+(import "Util.kalyn")
 
 (def disallowedChars String
   ";()[]@")
@@ -8,7 +10,7 @@
   (case str
     (Null (error "unexpected end of string literal\n"))
     ((Cons '\\' (Cons 'x' (Cons a (Cons b s))))
-     (Triplet (readInt ['0' 'x' a b]) s True))
+     (Triplet (Char (readInt ['0' 'x' a b])) s True))
     ((Cons '\\' (Cons c s))
      (Triplet
        (case c
@@ -39,7 +41,7 @@
   (let (((Pair v s*) (span (lambda (c)
                              (and
                                (not (isSpace c))
-                               (notElem c disallowedChars)))
+                               (notElem ==Char c disallowedChars)))
                            s)))
     (Pair (Just (SYMBOL v)) s*)))
 
