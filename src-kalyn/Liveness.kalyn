@@ -15,7 +15,9 @@
     (error (concat
              ["in function "
               name
-              ", liveness analysis found free variables"]))))
+              ", liveness analysis found free variables: "
+              (showSet showVR freeVariables)
+              "\n"]))))
 
 (public def assertNoFreeVariablesP (Func ProgLiveness ProgLiveness)
   (map (lambda ((Pair fn@(Function _ name _) analysis))
