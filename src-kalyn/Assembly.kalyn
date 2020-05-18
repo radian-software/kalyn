@@ -94,7 +94,8 @@
   (PUSHI Int32)
   RET
   (SYSCALL Word)
-  (LABEL Label))
+  (LABEL Label)
+  (GLOBAL Label))
 
 (public alias VInstruction (Instruction VR))
 (public alias PInstruction (Instruction Register))
@@ -182,7 +183,8 @@
        (error "too many arguments for system call\n")
        (Pair (map from (take (+ n 1) syscallRegisters))
              (map from callerSavedRegisters))))
-    ((LABEL _) (Pair [] []))))
+    ((LABEL _) (Pair [] []))
+    ((GLOBAL _) (Pair [] []))))
 
 (public data JumpType
   Straightline
@@ -241,7 +243,8 @@
     ((PUSHI imm) (PUSHI imm))
     (RET RET)
     ((SYSCALL n) (SYSCALL n))
-    ((LABEL name) (LABEL name))))
+    ((LABEL name) (LABEL name))
+    ((GLOBAL name) (GLOBAL name))))
 
 (public data (Function reg)
   (Function Int Label (List (Instruction reg))))
@@ -254,7 +257,7 @@
 
 (public defn fnInstrs (Func (Function reg) (List (Instruction reg)))
   ((Function _ name instrs))
-  (Cons (LABEL name) instrs))
+  (Cons (GLOBAL name) instrs))
 
 (public alias Datum (Pair Label Bytes))
 

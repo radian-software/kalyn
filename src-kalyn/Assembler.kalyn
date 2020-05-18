@@ -350,7 +350,8 @@
       ((PUSHI imm) (immInstr [0x68] imm))
       (RET (plainInstr [0xc3]))
       ((SYSCALL _) (plainInstr [0x0f 0x05]))
-      ((LABEL _) Null))))
+      ((LABEL _) Null)
+      ((GLOBAL _) Null))))
 
 (public defn assemble (Func PProgram Bytes)
   ((Program main fns datums))
@@ -372,6 +373,8 @@
                         (lambda ((Pair instr offset) labels)
                           (case instr
                             ((LABEL name)
+                             (mapInsert name offset labels))
+                            ((GLOBAL name)
                              (mapInsert name offset labels))
                             (_ labels)))
                         (mapEmpty compareString)

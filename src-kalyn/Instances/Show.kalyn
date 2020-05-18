@@ -144,7 +144,8 @@
     ((PUSHI imm) (append "pushq $" (showInt imm)))
     (RET "retq")
     ((SYSCALL _) "syscall")
-    ((LABEL name) (append name ":"))))
+    ((LABEL name) (append name ":"))
+    ((GLOBAL name) (append name ":"))))
 
 (public defn showFunction (Func (Show reg) (Show (Function reg)))
   (showReg fn)
@@ -153,6 +154,13 @@
       (append
         (case instr
           ((LABEL lname) (append lname ":"))
+          ((GLOBAL sname)
+           (concat
+             [".globl "
+              sname
+              "\n"
+              sname
+              ":"]))
           (_ (append "\t" (showInstruction showReg instr))))
         "\n"))
     (fnInstrs fn)))
@@ -160,7 +168,7 @@
 (public defn showProgram (Func (Show reg) (Show (Program reg)))
   (showReg (Program mainFn fns datums))
   (concat
-    [".text\n.globl main\n"
+    [".text\n"
      (showFunction showReg mainFn)
      (concatMap (showFunction showReg) fns)
      ".data\n"
