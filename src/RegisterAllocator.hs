@@ -41,11 +41,10 @@ intervalsIntersect (a, b) (c, d) = not (b <= c || d <= a)
 -- arguably should use Temporary internally instead of
 -- VirtualRegister. fix later!
 tryAllocateFunctionRegs
-  :: String
-  -> Liveness VirtualRegister
+  :: Liveness VirtualRegister
   -> Set.Set VirtualRegister
   -> Either [Temporary] Allocation
-tryAllocateFunctionRegs fnName liveness spillBlacklist =
+tryAllocateFunctionRegs liveness spillBlacklist =
   let intervalMap = computeLivenessIntervals liveness
       disallowed  = Map.mapWithKey
         (\reg _ -> Set.filter
@@ -61,9 +60,14 @@ tryAllocateFunctionRegs fnName liveness spillBlacklist =
         []
         (Map.fromList (map (\reg -> (fromRegister reg, reg)) specialRegisters))
         -- allocate to smaller live intervals first, hopefully meaning
-        -- we spill less.
+        -- we spill less. also allocate to already-spilled registers
+        -- first, so we don't spill the same register repeatedly and
+        -- fall into an infinite loop.
         (sortOn
-          (\reg -> let (start, end) = intervalMap Map.! reg in end - start)
+          (\reg ->
+            let (start, end) = intervalMap Map.! reg
+            in  (reg `Set.notMember` spillBlacklist, end - start)
+          )
           (Map.keys intervalMap)
         )
          where
@@ -90,13 +94,7 @@ tryAllocateFunctionRegs fnName liveness spillBlacklist =
                       conflictingTemps
                 in  Set.lookupMin (dataRegisters Set.\\ curDisallowed)
               of
-                Nothing -> if Virtual temp `Set.member` spillBlacklist
-                  then
-                    error
-                    $  "in function "
-                    ++ show fnName
-                    ++ ": spilled every register"
-                  else allocate (temp : spills) allocs rst
+                Nothing   -> allocate (temp : spills) allocs rst
                 Just free -> allocate spills (Map.insert cur free allocs) rst
   in  case spilled of
         [] -> Right allocation
@@ -164,7 +162,7 @@ allocateFunctionRegs
   -> VirtualFunction
   -> (PhysicalFunction, Allocation, Set.Set Temporary)
 allocateFunctionRegs allSpilled liveness fn@(Function stackSpace name instrs) =
-  case tryAllocateFunctionRegs name liveness (Set.map Virtual allSpilled) of
+  case tryAllocateFunctionRegs liveness (Set.map Virtual allSpilled) of
     Right allocation ->
       ( Function
         (stackSpace + length allSpilled * 8)

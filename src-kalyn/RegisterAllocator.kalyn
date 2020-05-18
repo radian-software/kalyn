@@ -35,11 +35,10 @@
 ;; arguably should use Temporary internally instead of
 ;; VirtualRegister. fix later!
 (defn tryAllocateFunctionRegs (Func
-                                String
                                 FnLiveness
                                 (Set VR)
                                 (Either (List Temporary) Allocation))
-  (fnName liveness spillBlacklist)
+  (liveness spillBlacklist)
   (let ((intervalMap (computeLivenessIntervals liveness))
         (disallowed (mapMapWithKey
                       (lambda (reg _)
@@ -80,12 +79,7 @@
                              (map! cur disallowed)
                              conflictingTemps)))
                      (setHead (set\\ dataRegisters curDisallowed)))
-                (Nothing
-                 (if (setMember (Virtual temp) spillBlacklist)
-                   (error (concat ["in function "
-                                   fnName
-                                   ": spilled every register"]))
-                   (allocate (Cons temp spills) allocs rst)))
+                (Nothing (allocate (Cons temp spills) allocs rst))
                 ((Just free)
                  (allocate spills (mapInsert cur free allocs) rst)))))))
         ((Pair spilled allocation)
@@ -96,14 +90,14 @@
              (map (lambda (reg)
                     (Pair (Physical reg) reg))
                   specialRegisters))
-           ;; allocate to smaller live intervals first, hopefully
-           ;; meaning we spill less
            (sortOn
              (lambda (reg)
                (let (((Pair start end) (map! reg intervalMap)))
-                 ;; use pair because sortOn deletes duplicates
-                 (Pair (- end start) reg)))
-             (comparePair compareInt compareVR)
+                 ;; use triplet because sortOn deletes duplicates
+                 (Triplet (setNotMember reg spillBlacklist)
+                          (- end start)
+                          reg)))
+             (compareTriplet compareBool compareInt compareVR)
              (mapKeys intervalMap)))))
     (case spilled
       (Null (Right allocation))
@@ -215,8 +209,7 @@
                              VFunction
                              PFunction)
   (allSpilled liveness fn@(Function stackSpace name instrs))
-  (case (tryAllocateFunctionRegs
-         name liveness (setMap compareVR Virtual allSpilled))
+  (case (tryAllocateFunctionRegs liveness (setMap compareVR Virtual allSpilled))
     ((Right allocation)
      (Function
        (+ stackSpace (* 8 (setSize allSpilled)))
