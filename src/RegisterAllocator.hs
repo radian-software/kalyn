@@ -5,6 +5,7 @@ module RegisterAllocator
   )
 where
 
+import           Control.Monad
 import           Data.List
 import qualified Data.Map                      as Map
 import           Data.Maybe
@@ -41,10 +42,8 @@ intervalsIntersect (a, b) (c, d) = not (b <= c || d <= a)
 -- arguably should use Temporary internally instead of
 -- VirtualRegister. fix later!
 tryAllocateFunctionRegs
-  :: Liveness VirtualRegister
-  -> Set.Set VirtualRegister
-  -> Either [Temporary] Allocation
-tryAllocateFunctionRegs liveness spillBlacklist =
+  :: Liveness VirtualRegister -> Either [Temporary] Allocation
+tryAllocateFunctionRegs liveness =
   let intervalMap = computeLivenessIntervals liveness
       disallowed  = Map.mapWithKey
         (\reg _ -> Set.filter
@@ -64,10 +63,7 @@ tryAllocateFunctionRegs liveness spillBlacklist =
         -- first, so we don't spill the same register repeatedly and
         -- fall into an infinite loop.
         (sortOn
-          (\reg ->
-            let (start, end) = intervalMap Map.! reg
-            in  (reg `Set.notMember` spillBlacklist, end - start)
-          )
+          (\reg -> let (start, end) = intervalMap Map.! reg in end - start)
           (Map.keys intervalMap)
         )
          where
@@ -100,8 +96,8 @@ tryAllocateFunctionRegs liveness spillBlacklist =
         [] -> Right allocation
         _  -> Left spilled
 
-spillMem :: Eq reg => reg -> Mem reg -> Bool
-spillMem reg (Mem _ base msi) =
+shouldSpillMem :: Eq reg => reg -> Mem reg -> Bool
+shouldSpillMem reg (Mem _ base msi) =
   base
     == reg
     || (case msi of
@@ -109,45 +105,107 @@ spillMem reg (Mem _ base msi) =
          Just (_, idx) -> idx == reg
        )
 
-spillInstr :: Eq reg => reg -> Mem reg -> Instruction reg -> [Instruction reg]
-spillInstr dir ind (OP op (IR imm reg)) | reg == dir = [OP op (IM imm ind)]
-spillInstr dir ind (OP op (IM imm mem)) | spillMem dir mem =
-  [OP MOV $ MR ind dir, OP op (IM imm mem)]
-spillInstr dir ind (OP op (RR src dst))
-  | src == dir && dst == dir = [OP MOV $ MR ind dir, OP op $ RM dir ind]
-  | src == dir               = [OP MOV $ MR ind dst]
-  | dst == dir               = [OP MOV $ RM src ind]
-spillInstr dir ind (OP op (MR mem dst))
-  | spillMem dir mem && dst == dir
-  = [OP MOV $ MR ind dir, OP op $ MR mem dir, OP MOV $ RM dir ind]
-  | spillMem dir mem
-  = [OP MOV $ MR ind dir, OP op $ MR mem dst]
-  | dst == dir
-  = [OP MOV $ MR mem dir, OP op $ RM dir ind]
-spillInstr dir ind (OP op (RM src mem))
-  | spillMem dir mem = [OP MOV $ MR ind dir, OP op $ RM src mem]
-  | src == dir       = [OP MOV $ MR ind dir, OP op $ RM dir mem]
-spillInstr dir ind (UN op (R dst)) | dst == dir = [UN op (M ind)]
-spillInstr dir ind (UN op (M mem)) | spillMem dir mem =
-  [OP MOV $ MR ind dir, UN op (M mem)]
-spillInstr dir ind (MOV64 imm dst) | dst == dir =
-  [MOV64 imm dir, OP MOV $ RM dir ind]
-spillInstr dir ind (SHIFT amt op dst) | dst == dir =
-  [OP MOV $ MR ind dir, SHIFT amt op dir, OP MOV $ RM dir ind]
-spillInstr dir ind (LEA mem dst) | spillMem dir mem && dst == dir =
-  [OP MOV $ MR ind dir, LEA mem dst, OP MOV $ RM dir ind]
-spillInstr dir ind (LEA mem dst) | spillMem dir mem =
-  [OP MOV $ MR ind dir, LEA mem dst]
-spillInstr dir ind (LEA mem dst) | dst == dir =
-  [LEA mem dir, OP MOV $ RM dir ind]
-spillInstr dir ind (IDIV src) | src == dir = [OP MOV $ MR ind dir, IDIV dir]
-spillInstr _ _ instr                       = [instr]
+spillMem :: Eq reg => reg -> reg -> Mem reg -> Mem reg
+spillMem old new (Mem disp base msi) = Mem
+  disp
+  (if base == old then new else base)
+  (((\index -> if index == old then new else index) <$>) <$> msi)
 
-spillFunction :: Eq reg => reg -> Mem reg -> Function reg -> Function reg
+-- FIXME: spillMem needs to be able to substitute
+
+spillInstr
+  :: VirtualRegister
+  -> Mem VirtualRegister
+  -> VirtualInstruction
+  -> Stateful [VirtualInstruction]
+spillInstr orig ind (OP op (IR imm reg)) | reg == orig =
+  return [OP op (IM imm ind)]
+spillInstr orig ind (OP op (IM imm mem)) | shouldSpillMem orig mem = do
+  dir <- newTemp
+  return [OP MOV $ MR ind dir, OP op (IM imm (spillMem orig dir mem))]
+spillInstr orig ind (OP op (RR src dst))
+  | src == orig && dst == orig = do
+    dir <- newTemp
+    return [OP MOV $ MR ind dir, OP op $ RM dir ind]
+  | src == orig = return [OP MOV $ MR ind dst]
+  | dst == orig = return [OP MOV $ RM src ind]
+spillInstr orig ind (OP op (MR mem dst))
+  | shouldSpillMem orig mem && dst == orig = do
+    dir <- newTemp
+    return
+      [ OP MOV $ MR ind dir
+      , OP op $ MR (spillMem orig dir mem) dir
+      , OP MOV $ RM dir ind
+      ]
+  | shouldSpillMem orig mem = do
+    dir <- newTemp
+    return [OP MOV $ MR ind dir, OP op $ MR (spillMem orig dir mem) dst]
+  | dst == orig = do
+    dir <- newTemp
+    return [OP MOV $ MR (spillMem orig dir mem) dir, OP op $ RM dir ind]
+spillInstr orig ind (OP op (RM src mem))
+  | shouldSpillMem orig mem = do
+    dir <- newTemp
+    return [OP MOV $ MR ind dir, OP op $ RM src (spillMem orig dir mem)]
+  | src == orig = do
+    dir <- newTemp
+    return [OP MOV $ MR ind dir, OP op $ RM dir mem]
+spillInstr orig ind (UN op (R dst)) | dst == orig = return [UN op (M ind)]
+spillInstr orig ind (UN op (M mem)) | shouldSpillMem orig mem = do
+  dir <- newTemp
+  return [OP MOV $ MR ind dir, UN op (M (spillMem orig dir mem))]
+spillInstr orig ind (MOVBRM src mem)
+  | shouldSpillMem orig mem = do
+    dir <- newTemp
+    return [OP MOV $ MR ind dir, MOVBRM src (spillMem orig dir mem)]
+  | src == orig = do
+    dir <- newTemp
+    return [OP MOV $ MR ind dir, MOVBRM dir (spillMem orig dir mem)]
+spillInstr orig ind (MOVBMR mem dst)
+  | shouldSpillMem orig mem && dst == orig = do
+    dir <- newTemp
+    return
+      [ OP MOV $ MR ind dir
+      , MOVBMR (spillMem orig dir mem) dir
+      , OP MOV $ RM dir ind
+      ]
+  | shouldSpillMem orig mem = do
+    dir <- newTemp
+    return [OP MOV $ MR ind dir, MOVBMR (spillMem orig dir mem) dst]
+  | dst == orig = do
+    dir <- newTemp
+    return [OP MOV $ MR (spillMem orig dir mem) dir, MOVBRM dir ind]
+spillInstr orig ind (MOV64 imm dst) | dst == orig = do
+  dir <- newTemp
+  return [MOV64 imm dir, OP MOV $ RM dir ind]
+spillInstr orig ind (SHIFT amt op dst) | dst == orig = do
+  dir <- newTemp
+  return [OP MOV $ MR ind dir, SHIFT amt op dir, OP MOV $ RM dir ind]
+spillInstr orig ind (LEA mem dst) | shouldSpillMem orig mem && dst == orig = do
+  dir <- newTemp
+  return
+    [OP MOV $ MR ind dir, LEA (spillMem orig dir mem) dst, OP MOV $ RM dir ind]
+spillInstr orig ind (LEA mem dst) | shouldSpillMem orig mem = do
+  dir <- newTemp
+  return [OP MOV $ MR ind dir, LEA (spillMem orig dir mem) dst]
+spillInstr orig ind (LEA mem dst) | dst == orig = do
+  dir <- newTemp
+  return [LEA (spillMem orig dir mem) dir, OP MOV $ RM dir ind]
+spillInstr orig ind (IDIV src) | src == orig = do
+  dir <- newTemp
+  return [OP MOV $ MR ind dir, IDIV dir]
+spillInstr _ _ instr = return [instr]
+
+spillFunction
+  :: VirtualRegister
+  -> Mem VirtualRegister
+  -> VirtualFunction
+  -> Stateful VirtualFunction
 spillFunction dir ind (Function name stackSpace instrs) =
-  Function name stackSpace . concatMap (spillInstr dir ind) $ instrs
+  Function name stackSpace . concat <$> mapM (spillInstr dir ind) instrs
 
-spillTemporary :: Int -> Temporary -> VirtualFunction -> VirtualFunction
+spillTemporary
+  :: Int -> Temporary -> VirtualFunction -> Stateful VirtualFunction
 spillTemporary spillIdx temp = spillFunction
   (Virtual temp)
   (Mem (Right . fromIntegral $ -(spillIdx + 1) * 8) rbp Nothing)
@@ -160,10 +218,10 @@ allocateFunctionRegs
   :: Set.Set Temporary
   -> Liveness VirtualRegister
   -> VirtualFunction
-  -> (PhysicalFunction, Allocation, Set.Set Temporary)
+  -> Stateful (PhysicalFunction, Allocation, Set.Set Temporary)
 allocateFunctionRegs allSpilled liveness fn@(Function stackSpace name instrs) =
-  case tryAllocateFunctionRegs liveness (Set.map Virtual allSpilled) of
-    Right allocation ->
+  case tryAllocateFunctionRegs liveness of
+    Right allocation -> return
       ( Function
         (stackSpace + length allSpilled * 8)
         name
@@ -179,29 +237,28 @@ allocateFunctionRegs allSpilled liveness fn@(Function stackSpace name instrs) =
       , allocation
       , allSpilled
       )
-    Left spilled ->
-      let fn'@(Function _ fnName instrs') = foldr
-            (uncurry spillTemporary)
-            fn
-            (zip (iterate (+ 1) (Set.size allSpilled)) spilled)
-          liveness' = assertNoFreeVariables fnName . computeLiveness $ instrs'
-      in  allocateFunctionRegs (allSpilled `Set.union` Set.fromList spilled)
-                               liveness'
-                               fn'
+    Left spilled -> do
+      fn'@(Function _ fnName instrs') <- foldM
+        (flip $ uncurry spillTemporary)
+        fn
+        (zip (iterate (+ 1) (Set.size allSpilled)) spilled)
+      let liveness' = assertNoFreeVariables fnName . computeLiveness $ instrs'
+      allocateFunctionRegs (allSpilled `Set.union` Set.fromList spilled)
+                           liveness'
+                           fn'
 
 allocateProgramRegs
   :: Program VirtualRegister
   -> ProgramLiveness VirtualRegister
-  -> (Program Register, Allocation, Set.Set Temporary)
-allocateProgramRegs (Program main fns datums) liveness =
+  -> Stateful (Program Register, Allocation, Set.Set Temporary)
+allocateProgramRegs (Program main fns datums) liveness = do
   let allocate = allocateFunctionRegs Set.empty
-      (main', mainAllocation, mainSpilled) =
-          allocate (snd . head $ liveness) main
-      (fns', restAllocation, restSpilled) =
-          unzip3 (zipWith allocate (map snd . tail $ liveness) fns)
-      allocation = Map.unions (mainAllocation : restAllocation)
-      spilled    = Set.unions (mainSpilled : restSpilled)
-  in  (Program main' fns' datums, allocation, spilled)
+  (main', mainAllocation, mainSpilled) <- allocate (snd . head $ liveness) main
+  (fns' , restAllocation, restSpilled) <-
+    unzip3 <$> zipWithM allocate (map snd . tail $ liveness) fns
+  let allocation = Map.unions (mainAllocation : restAllocation)
+  let spilled    = Set.unions (mainSpilled : restSpilled)
+  return (Program main' fns' datums, allocation, spilled)
 
 showAllocation :: Allocation -> Set.Set Temporary -> String
 showAllocation allocation spilled = concatMap

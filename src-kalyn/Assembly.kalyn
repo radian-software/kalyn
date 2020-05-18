@@ -78,6 +78,8 @@
 (public data Shift
   SHL SAL SHR SAR)
 
+;; reg is either Register or VirtualRegister. We use AT&T syntax.
+;; !!! when adding new instr, update spillInstr in RegisterAllocator !!!
 (public data (Instruction reg)
   (OP BinOp (Args reg))
   (UN UnOp (Arg reg))
@@ -261,3 +263,24 @@
 
 (public alias VProgram (Program VR))
 (public alias PProgram (Program Register))
+
+(public alias Stateful (State Int))
+
+(public def newTemp (Stateful VR)
+  (do State
+    (with count get)
+    (put (+ count 1))
+    (returnState (Virtual (Temporary count)))))
+
+(public def newLabel (Stateful Label)
+  (do State
+    (with count get)
+    (put (+ count 1))
+    (returnState (Cons 'l' (showInt count)))))
+
+(public defn newLambda (Func String (Stateful Label))
+  (fnName)
+  (do State
+    (with count get)
+    (put (+ count 1))
+    (returnState (concat [fnName "__lambda" (showInt count)]))))

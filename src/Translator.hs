@@ -5,7 +5,6 @@ where
 
 import           Control.Applicative     hiding ( Const )
 import           Control.Monad
-import           Control.Monad.State
 import           Data.List
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe
@@ -416,8 +415,8 @@ translateDecl _ (Derive _ _) = return []
 translateDecl _ (Import _ _) = error "translator shouldn't be handling imports"
 translateDecl _ (Instance _ _ _ _) = return []
 
-translateBundle' :: Resolver -> Bundle -> Stateful (Program VirtualRegister)
-translateBundle' (Resolver resolver) (Bundle mmod mmap) = do
+translateBundle :: Resolver -> Bundle -> Stateful (Program VirtualRegister)
+translateBundle (Resolver resolver) (Bundle mmod mmap) = do
   let mainName = symName $ fst (resolver Map.! mmod) Map.! "main"
   fns <- concat <$> mapM
     (\(mod, (decls, _)) ->
@@ -437,7 +436,3 @@ translateBundle' (Resolver resolver) (Bundle mmod mmap) = do
     return $ function "main" $ setupCode ++ callCode ++ teardownCode
   stdlib <- stdlibFns fns
   return $ Program mainFn (fns ++ stdlib) stdlibData
-
-translateBundle :: Resolver -> Bundle -> Program VirtualRegister
-translateBundle resolver bundle =
-  evalState (translateBundle' resolver bundle) 0

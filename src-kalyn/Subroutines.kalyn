@@ -3,27 +3,6 @@
 (import "Stdlib.kalyn")
 (import "Util.kalyn")
 
-(public alias Stateful (State Int))
-
-(public def newTemp (Stateful VR)
-  (do State
-    (with count get)
-    (put (+ count 1))
-    (returnState (Virtual (Temporary count)))))
-
-(public def newLabel (Stateful Label)
-  (do State
-    (with count get)
-    (put (+ count 1))
-    (returnState (Cons 'l' (showInt count)))))
-
-(public defn newLambda (Func String (Stateful Label))
-  (fnName)
-  (do State
-    (with count get)
-    (put (+ count 1))
-    (returnState (concat [fnName "__lambda" (showInt count)]))))
-
 (public defn getOffset (Func Int reg (Mem reg))
   (n reg)
   (Mem (Right n) reg Nothing))

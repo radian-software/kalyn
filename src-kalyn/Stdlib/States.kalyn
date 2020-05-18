@@ -24,8 +24,12 @@
   (s)
   (State (const (Pair s Empty))))
 
-(public defn evalState (Func (State s a) s a)
-  ((State go) s)
+(public defn runState (Func s (State s a) (Pair s a))
+  (s (State go))
+  (go s))
+
+(public defn evalState (Func s (State s a) a)
+  (s (State go))
   (snd (go s)))
 
 (public defn sequenceState (Func (List (State s a)) (State s (List a)))
@@ -53,3 +57,12 @@
 (public defn replicateMState (Func Int (State s a) (State s (List a)))
   (n m)
   (sequenceState (replicate n m)))
+
+(public defn foldMState (Func (Func b a (State s b)) b (List a) (State s b))
+  (func init elts)
+  (case elts
+    (Null (returnState init))
+    ((Cons elt elts)
+     (do State
+       (with val (func init elt))
+       (foldMState func val elts)))))

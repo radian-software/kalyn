@@ -1,31 +1,10 @@
 module Subroutines where
 
-import           Control.Monad.State
 import qualified Data.ByteString.Lazy          as B
 import           Data.ByteString.Lazy.Builder
 
 import           Assembly
 import           OS
-
-type Stateful = State Int
-
-newTemp :: Stateful VirtualRegister
-newTemp = do
-  count <- get
-  put $ count + 1
-  return $ Virtual $ Temporary count
-
-newLabel :: Stateful Label
-newLabel = do
-  count <- get
-  put $ count + 1
-  return $ "l" ++ show count
-
-newLambda :: String -> Stateful Label
-newLambda fnName = do
-  count <- get
-  put $ count + 1
-  return $ fnName ++ "__lambda" ++ show count
 
 getField :: Int -> VirtualRegister -> Mem VirtualRegister
 getField n reg = Mem (Right $ fromIntegral $ 8 * n) reg Nothing

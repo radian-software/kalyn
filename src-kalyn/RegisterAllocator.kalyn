@@ -36,9 +36,8 @@
 ;; VirtualRegister. fix later!
 (defn tryAllocateFunctionRegs (Func
                                 FnLiveness
-                                (Set VR)
                                 (Either (List Temporary) Allocation))
-  (liveness spillBlacklist)
+  (liveness)
   (let ((intervalMap (computeLivenessIntervals liveness))
         (disallowed (mapMapWithKey
                       (lambda (reg _)
@@ -90,20 +89,20 @@
              (map (lambda (reg)
                     (Pair (Physical reg) reg))
                   specialRegisters))
+           ;; allocate to smaller live intervals first, hopefully
+           ;; meaning we spill less.
            (sortOn
              (lambda (reg)
                (let (((Pair start end) (map! reg intervalMap)))
-                 ;; use triplet because sortOn deletes duplicates
-                 (Triplet (setNotMember reg spillBlacklist)
-                          (- end start)
-                          reg)))
-             (compareTriplet compareBool compareInt compareVR)
+                 ;; use pair because sortOn deletes duplicates
+                 (Pair (- end start) reg)))
+             (comparePair compareInt compareVR)
              (mapKeys intervalMap)))))
     (case spilled
       (Null (Right allocation))
       (_ (Left spilled)))))
 
-(defn spillMem (Func VR (Mem VR) Bool)
+(defn shouldSpillMem (Func VR (Mem VR) Bool)
   (reg (Mem _ base msi))
   (or
     (==VR base reg)
@@ -111,93 +110,187 @@
       (Nothing False)
       ((Just (Pair _ idx)) (==VR idx reg)))))
 
-(defn spillInstr (Func VR (Mem VR) VInstruction (List VInstruction))
-  (dir ind instr)
+(defn spillMem (Func VR VR (Mem VR) (Mem VR))
+  (old new (Mem disp base msi))
+  (Mem
+    disp
+    (if (==VR base old)
+      new base)
+    (case msi
+      (Nothing Nothing)
+      ((Just (Pair scale index))
+       (Just
+         (Pair
+           scale
+           (if (==VR index old)
+             new index)))))))
+
+(defn spillInstr (Func VR (Mem VR) VInstruction (Stateful (List VInstruction)))
+  (orig ind instr)
   (case instr
     ((OP op (IR imm reg))
-     (if (==VR reg dir)
-       [(OP op (IM imm ind))]
-       [instr]))
+     (if (==VR reg orig)
+       (returnState [(OP op (IM imm ind))])
+       (returnState [instr])))
     ((OP op (IM imm mem))
-     (if (spillMem dir mem)
-       [(OP MOV (MR ind dir))
-        (OP op (IM imm mem))]
-       [instr]))
+     (if (shouldSpillMem orig mem)
+       (do State
+         (with dir newTemp)
+         (returnState
+           [(OP MOV (MR ind dir))
+            (OP op (IM imm (spillMem orig dir mem)))]))
+       (returnState [instr])))
     ((OP op (RR src dst))
-     (if (==VR src dir)
-       (if (==VR dst dir)
-         [(OP MOV (MR ind dir))
-          (OP op (RM dir ind))]
-         [(OP MOV (MR ind dst))])
-       (if (==VR dst dir)
-         [(OP MOV (RM src ind))]
-         [instr])))
+     (if (==VR src orig)
+       (if (==VR dst orig)
+         (do State
+           (with dir newTemp)
+           (returnState
+             [(OP MOV (MR ind dir))
+              (OP op (RM dir ind))]))
+         (returnState [(OP MOV (MR ind dst))]))
+       (if (==VR dst orig)
+         (returnState [(OP MOV (RM src ind))])
+         (returnState [instr]))))
     ((OP op (MR mem dst))
-     (if (spillMem dir mem)
-       (if (==VR dst dir)
-         [(OP MOV (MR ind dir))
-          (OP op (MR mem dir))
-          (OP MOV (RM dir ind))]
-         [(OP MOV (MR ind dir))
-          (OP op (MR mem dst))])
-       (if (==VR dst dir)
-         [(OP MOV (MR mem dir))
-          (OP op (RM dir ind))]
-         [instr])))
+     (if (shouldSpillMem orig mem)
+       (if (==VR dst orig)
+         (do State
+           (with dir newTemp)
+           (returnState
+             [(OP MOV (MR ind dir))
+              (OP op (MR (spillMem orig dir mem) dir))
+              (OP MOV (RM dir ind))]))
+         (do State
+           (with dir newTemp)
+           (returnState
+             [(OP MOV (MR ind dir))
+              (OP op (MR (spillMem orig dir mem) dst))])))
+       (if (==VR dst orig)
+         (do State
+           (with dir newTemp)
+           (returnState
+             [(OP MOV (MR (spillMem orig dir mem) dir))
+              (OP op (RM dir ind))]))
+         (returnState [instr]))))
     ((OP op (RM src mem))
-     (if (spillMem dir mem)
-       [(OP MOV (MR ind dir))
-        (OP op (RM src mem))]
-       (if (==VR src dir)
-         [(OP MOV (MR ind dir))
-          (OP op (RM dir mem))]
-         [instr])))
+     (if (shouldSpillMem orig mem)
+       (do State
+         (with dir newTemp)
+         (returnState
+           [(OP MOV (MR ind dir))
+            (OP op (RM src (spillMem orig dir mem)))]))
+       (if (==VR src orig)
+         (do State
+           (with dir newTemp)
+           (returnState
+             [(OP MOV (MR ind dir))
+              (OP op (RM dir (spillMem orig dir mem)))]))
+         (returnState [instr]))))
     ((UN op (R dst))
-     (if (==VR dst dir)
-       [(UN op (M ind))]
-       [instr]))
+     (if (==VR dst orig)
+       (returnState [(UN op (M ind))])
+       (returnState [instr])))
     ((UN op (M mem))
-     (if (spillMem dir mem)
-       [(OP MOV (MR ind dir))
-        (UN op (M mem))]
-       [instr]))
+     (if (shouldSpillMem orig mem)
+       (do State
+         (with dir newTemp)
+         (returnState
+           [(OP MOV (MR ind dir))
+            (UN op (M (spillMem orig dir mem)))]))
+       (returnState [instr])))
+    ((MOVBRM src mem)
+     (if (shouldSpillMem orig mem)
+       (do State
+         (with dir newTemp)
+         (returnState
+           [(OP MOV (MR ind dir))
+            (MOVBRM src (spillMem orig dir mem))]))
+       (if (==VR src orig)
+         (do State
+           (with dir newTemp)
+           (returnState
+             [(OP MOV (MR ind dir))
+              (MOVBRM dir (spillMem orig dir mem))]))
+         (returnState [instr]))))
+    ((MOVBMR mem dst)
+     (if (shouldSpillMem orig mem)
+       (if (==VR dst orig)
+         (do State
+           (with dir newTemp)
+           (returnState
+             [(OP MOV (MR ind dir))
+              (MOVBMR (spillMem orig dir mem) dir)
+              (OP MOV (RM dir ind))]))
+         (do State
+           (with dir newTemp)
+           (returnState
+             [(OP MOV (MR ind dir))
+              (MOVBMR (spillMem orig dir mem) dst)])))
+       (if (==VR dst orig)
+         (do State
+           (with dir newTemp)
+           (returnState
+             [(OP MOV (MR (spillMem orig dir mem) dir))
+              (MOVBRM dir ind)]))
+         (returnState [instr]))))
     ((MOV64 imm dst)
-     (if (==VR dst dir)
-       [(MOV64 imm dir)
-        (OP MOV (RM dir ind))]
-       [instr]))
+     (if (==VR dst orig)
+       (do State
+         (with dir newTemp)
+         (returnState
+           [(MOV64 imm dir)
+            (OP MOV (RM dir ind))]))
+       (returnState [instr])))
     ((SHIFT amt op dst)
-     (if (==VR dst dir)
-       [(OP MOV (MR ind dir))
-        (SHIFT amt op dir)
-        (OP MOV (RM dir ind))]
-       [instr]))
+     (if (==VR dst orig)
+       (do State
+         (with dir newTemp)
+         (returnState
+           [(OP MOV (MR ind dir))
+            (SHIFT amt op dir)
+            (OP MOV (RM dir ind))]))
+       (returnState [instr])))
     ((LEA mem dst)
-     (if (spillMem dir mem)
-       (if (==VR dst dir)
-         [(OP MOV (MR ind dir))
-          (LEA mem dst)
-          (OP MOV (RM dir ind))]
-         [(OP MOV (MR ind dir))
-          (LEA mem dst)])
-       (if (==VR dst dir)
-         [(LEA mem dir)
-          (OP MOV (RM dir ind))]
-         [instr])))
+     (if (shouldSpillMem orig mem)
+       (if (==VR dst orig)
+         (do State
+           (with dir newTemp)
+           (returnState
+             [(OP MOV (MR ind dir))
+              (LEA (spillMem orig dir mem) dst)
+              (OP MOV (RM dir ind))]))
+         (do State
+           (with dir newTemp)
+           (returnState
+             [(OP MOV (MR ind dir))
+              (LEA (spillMem orig dir mem) dst)])))
+       (if (==VR dst orig)
+         (do State
+           (with dir newTemp)
+           (returnState
+             [(LEA (spillMem orig dir mem) dir)
+              (OP MOV (RM dir ind))]))
+         (returnState [instr]))))
     ((IDIV src)
-     (if (==VR src dir)
-       [(OP MOV (MR ind dir))
-        (IDIV dir)]
-       [instr]))
-    (_ [instr])))
+     (if (==VR src orig)
+       (do State
+         (with dir newTemp)
+         (returnState
+           [(OP MOV (MR ind dir))
+            (IDIV dir)]))
+       (returnState [instr])))
+    (_ (returnState [instr]))))
 
-(defn spillFunction (Func VR (Mem VR) VFunction VFunction)
+(defn spillFunction (Func VR (Mem VR) VFunction (Stateful VFunction))
   (dir ind (Function name stackSpace instrs))
-  (Function
-    name stackSpace
-    (concatMap (spillInstr dir ind) instrs)))
+  (fmapState
+    (comp
+      (Function name stackSpace)
+      concat)
+    (mapMState (spillInstr dir ind) instrs)))
 
-(defn spillTemporary (Func Int Temporary VFunction VFunction)
+(defn spillTemporary (Func Int Temporary VFunction (Stateful VFunction))
   (spillIdx temp)
   (spillFunction
     (Virtual temp)
@@ -207,42 +300,49 @@
                              (Set Temporary)
                              FnLiveness
                              VFunction
-                             PFunction)
+                             (Stateful PFunction))
   (allSpilled liveness fn@(Function stackSpace name instrs))
-  (case (tryAllocateFunctionRegs liveness (setMap compareVR Virtual allSpilled))
+  (case (tryAllocateFunctionRegs liveness)
     ((Right allocation)
-     (Function
-       (+ stackSpace (* 8 (setSize allSpilled)))
-       name
-       (map
-         (mapInstr
-           (lambda (reg)
-             (case (mapLookup reg allocation)
-               (Nothing (error (concat
-                                 ["in function "
-                                  name
-                                  ", liveness analysis found dead register "
-                                  (showVR reg)
-                                  "\n"])))
-               ((Just reg) reg))))
-         instrs)))
+     (returnState
+       (Function
+         (+ stackSpace (* 8 (setSize allSpilled)))
+         name
+         (map
+           (mapInstr
+             (lambda (reg)
+               (case (mapLookup reg allocation)
+                 (Nothing (error (concat
+                                   ["in function "
+                                    name
+                                    ", liveness analysis found dead register "
+                                    (showVR reg)
+                                    "\n"])))
+                 ((Just reg) reg))))
+           instrs))))
     ((Left spilled)
-     (let ((fn*@(Function _ fnName instrs)
-            (foldr
-              (uncurry spillTemporary)
-              fn
-              (zip
-                (iterate (+ 1) (setSize allSpilled) (length spilled))
-                spilled)))
-           (liveness
-            (assertNoFreeVariablesF fnName (computeLiveness instrs))))
+     (do State
+       (with fn*@(Function _ fnName instrs)
+         (foldMState
+           (flip (uncurry spillTemporary))
+           fn
+           (zip
+             (iterate (+ 1) (setSize allSpilled) (length spilled))
+             spilled)))
+       (let liveness
+         (assertNoFreeVariablesF fnName (computeLiveness instrs)))
        (allocateFunctionRegs
          (setUnion allSpilled (setFromList compareTemporary spilled))
          liveness fn*)))))
 
-(public defn allocateProgramRegs (Func VProgram ProgLiveness PProgram)
+(public defn allocateProgramRegs
+  (Func VProgram ProgLiveness (Stateful PProgram))
   ((Program main fns datums) liveness)
-  (let ((allocate (allocateFunctionRegs (setEmpty compareTemporary)))
-        (main* (allocate (snd (head liveness)) main))
-        (fns* (zipWith allocate (map snd (tail liveness)) fns)))
-    (Program main* fns* datums)))
+  (do State
+    (let allocate
+      (allocateFunctionRegs (setEmpty compareTemporary)))
+    (with main*
+      (allocate (snd (head liveness)) main))
+    (with fns*
+      (zipWithMState allocate (map snd (tail liveness)) fns))
+    (returnState (Program main* fns* datums))))

@@ -3,6 +3,7 @@
 module Assembly where
 
 import           Control.DeepSeq
+import           Control.Monad.State
 import qualified Data.ByteString.Lazy          as B
 import           Data.Int
 import qualified Data.Set                      as Set
@@ -127,7 +128,8 @@ data Jump = JMP | JE | JNE | JL | JLE | JG | JGE | JB | JBE | JA | JAE | CALL
 data Shift = SHL | SAL | SHR | SAR
   deriving (Generic, NFData)
 
--- reg is either Register or VisualRegister. We use AT&T syntax.
+-- reg is either Register or VirtualRegister. We use AT&T syntax.
+-- !!! when adding new instr, update spillInstr in RegisterAllocator !!!
 data Instruction reg = OP BinOp (Args reg)
                      | UN UnOp (Arg reg)
                      | JUMP Jump Label
@@ -390,3 +392,23 @@ instance Show reg => Show (Program reg) where
         $ \byte -> "\t.byte 0x" ++ showHex byte "" ++ "\n"
         )
       )
+
+type Stateful = State Int
+
+newTemp :: Stateful VirtualRegister
+newTemp = do
+  count <- get
+  put $ count + 1
+  return $ Virtual $ Temporary count
+
+newLabel :: Stateful Label
+newLabel = do
+  count <- get
+  put $ count + 1
+  return $ "l" ++ show count
+
+newLambda :: String -> Stateful Label
+newLambda fnName = do
+  count <- get
+  put $ count + 1
+  return $ fnName ++ "__lambda" ++ show count

@@ -3,6 +3,7 @@ module Main where
 import           Control.DeepSeq
 import           Control.Exception
 import           Control.Monad
+import           Control.Monad.State
 import qualified Data.ByteString.Lazy          as B
 import           Data.List
 import           Data.Maybe
@@ -99,14 +100,16 @@ compileIncrementally verbose inputFilename = do
   resolver `deepseq` putStrLn "TypeChecker"
   let typeChecked = typeCheckBundle resolver bundle
   typeChecked `deepseq` putStrLn "Translator"
-  let virtualProgram = translateBundle resolver bundle
+  let (virtualProgram, translatorState) =
+        flip runState 0 $ translateBundle resolver bundle
   when verbose $ overwriteFile (prefix ++ "Virtual.S") $ show virtualProgram
   virtualProgram `deepseq` putStrLn "Liveness"
   let liveness = computeProgramLiveness virtualProgram
   when verbose $ overwriteFile (prefix ++ "Liveness.S") $ showLiveness liveness
   liveness `deepseq` putStrLn "RegisterAllocator"
   let info@(physicalProgram, allocation, spilled) =
-        allocateProgramRegs virtualProgram (assertNoFreeVariablesP liveness)
+        flip evalState translatorState
+          $ allocateProgramRegs virtualProgram (assertNoFreeVariablesP liveness)
   when verbose $ do
     overwriteFile (prefix ++ "Raw.S") $ show physicalProgram
     overwriteFile (prefix ++ "Allocation") $ showAllocation allocation spilled

@@ -602,7 +602,7 @@
     ((Instance _ _ _ _)
      (returnState []))))
 
-(defn translateBundle* (Func Resolver Bundle (Stateful (Program VR)))
+(public defn translateBundle (Func Resolver Bundle (Stateful (Program VR)))
   ((Resolver resolver) (Bundle mmod mmap))
   (do State
     (let mainName (symName (map! "main" (fst (map! mmod resolver)))))
@@ -637,7 +637,3 @@
                teardownCode])))))
     (with stdlib (stdlibFns fns))
     (returnState (Program mainFn (append fns stdlib) stdlibData))))
-
-(public defn translateBundle (Func Resolver Bundle (Program VR))
-  (resolver bundle)
-  (evalState (translateBundle* resolver bundle) 0))
