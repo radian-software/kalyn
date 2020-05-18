@@ -200,8 +200,8 @@
                      args))
                  (returnState
                    (Pair (concat
-                           [extractCode
-                            mainCheck
+                           [mainCheck
+                            extractCode
                             (concatMap fst fieldChecks)])
                          (foldr
                            (comp (mapUnionWithKey

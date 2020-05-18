@@ -146,7 +146,7 @@ translatePattern ctx nextBranch obj expr@(Call _ _) =
                                       fieldTemps
                                       args
               return
-                ( extractCode ++ mainCheck ++ concatMap fst fieldChecks
+                ( mainCheck ++ extractCode ++ concatMap fst fieldChecks
                 , foldr
                   ( Map.unionWithKey
                       (\var k1 _ -> if var == "_"
