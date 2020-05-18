@@ -143,8 +143,11 @@
   (comp setToList (setFromList cmp)))
 
 (public defn foldr1 (Func (Func a a a) (List a) a)
-  (func (Cons init elts))
-  (foldr func init elts))
+  (func elts)
+  (case elts
+    ([init] init)
+    ((Cons elt elts)
+     (func elt (foldr1 func elts)))))
 
 (public defn foldl1 (Func (Func a a a) (List a) a)
   (func (Cons init elts))
