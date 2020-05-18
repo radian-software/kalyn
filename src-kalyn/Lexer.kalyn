@@ -75,7 +75,7 @@
                    (getSymbolToken full)))
                 (_ (getSymbolToken full))))
          (_ (if (isDigit c)
-              (let (((Pair d s*) (span isAlphaNum s)))
+              (let (((Pair d s*) (span isAlphaNum full)))
                 (Pair (Just (INTEGER (readInt d))) s*))
               (getSymbolToken full))))))))
 

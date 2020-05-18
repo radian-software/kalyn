@@ -29,6 +29,7 @@
 (public defn readInt (Read Int)
   (str)
   (case str
+    (Null (error "readInt got empty string\n"))
     ((Cons '-' str)
      (- 0 (readInt str)))
     ((Cons '0' (Cons 'x' rest))

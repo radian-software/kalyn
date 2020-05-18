@@ -1,6 +1,7 @@
 (import "../Stdlib.kalyn")
 
 (import "../Assembly.kalyn")
+(import "../Tokens.kalyn")
 
 (public defn showRegister (Show Register)
   (reg)
@@ -177,3 +178,21 @@
                      "\n"]))
                 datum)]))
          datums))]))
+
+(public defn showForm (Show Form)
+  (form)
+  (case form
+    ((RoundList args)
+     (concat ["(" (intercalate " " (map showForm args)) ")"]))
+    ((SquareList args)
+     (concat ["[" (intercalate " " (map showForm args)) "]"]))
+    ((At name arg)
+     (concat [name "@" (showForm arg)]))
+    ((Symbol name)
+     name)
+    ((IntAtom val)
+     (showInt val))
+    ((CharAtom c)
+     ['\'' c '\''])
+    ((StrAtom str)
+     (concat ["|" str "|"]))))

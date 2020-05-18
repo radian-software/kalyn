@@ -1,4 +1,5 @@
 (import "AST.kalyn")
+(import "Instances.kalyn")
 (import "Stdlib.kalyn")
 (import "Tokens.kalyn")
 
