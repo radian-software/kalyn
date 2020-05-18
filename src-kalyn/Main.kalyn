@@ -14,58 +14,6 @@
 (import "Assembler.kalyn")
 (import "Linker.kalyn")
 
-(def helloWorld Decl
-  (Def
-    True "main" (Type [] "IO" [(Type [] "Empty" [])])
-    (Call
-      (Variable "returnIO")
-      (Variable "Empty"))))
-
-(def empty Decl
-  (Data
-    False (TypeSpec "Empty" []) [(Pair "Empty" [])]))
-
-(def helloWorldBundle Bundle
-  (Bundle
-    "Main.kalyn"
-    (mapFromList
-      compareString
-      [(Pair
-         "Main.kalyn"
-         (Pair
-           [helloWorld empty] []))])))
-
-(def helloWorldResolver Resolver
-  (Resolver
-    (mapFromList
-      compareString
-      [(Pair
-         "Main.kalyn"
-         (Pair
-           (mapFromList
-             compareString
-             [(Pair
-                "main"
-                (SymDef
-                  "__main"
-                  (Type [] "IO" [(Type [] "__Empty" [])])
-                  0))
-              (Pair
-                "returnIO"
-                (SymDef
-                  "return"
-                  (Type [] "Func" [(Type [] "a" [])
-                                   (Type [] "IO" [(Type [] "a" [])])])
-                  1))
-              (Pair
-                "Empty"
-                (SymData
-                  "__Empty"
-                  0 0 1 False
-                  (TypeSpec "Empty" [])
-                  []))])
-           (mapEmpty compareString)))])))
-
 (defn bundlerRead (Func String (IO (List Decl)))
   (inputFilename)
   (do IO
@@ -88,7 +36,7 @@
     (print "Translator\n")
     (let (Pair state prog)
       ((runState 0)
-       (translateBundle helloWorldResolver helloWorldBundle)))
+       (translateBundle resolver bundle)))
     ;; (writeFile "out-kalyn-rec/MainVirtual.S" (showProgram showVR prog))
     (print "Liveness\n")
     (let liveness (computeProgramLiveness prog))
