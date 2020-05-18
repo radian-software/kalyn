@@ -154,6 +154,7 @@
          (OP CMP (RR lstEnd lstPtr))
          (JUMP JGE copyDone)
          (OP MOV (IM 1 (getField 0 lstPtr)))
+         (OP MOV (IR 0 char))
          (MOVBMR (deref bufPtr) char)
          (OP MOV (RM char (getField 1 lstPtr)))
          (LEA (getField 3 lstPtr) next)

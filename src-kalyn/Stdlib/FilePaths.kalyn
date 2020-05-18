@@ -10,6 +10,15 @@
         (comp not (==Char '/'))
         (reverse path)))))
 
+(public defn takeFileName (Func FilePath FilePath)
+  "Given a path, return only the last component. This will be empty if
+   the given path ends in a slash."
+  (path)
+  (reverse
+    (takeWhile
+      (comp not (==Char '/'))
+      (reverse path))))
+
 (public defn expandPath (Func (Maybe FilePath) FilePath (IO FilePath))
   "Expand a relative or absolute path to be absolute, relative to
    either the current working directory or a provided working
@@ -27,12 +36,13 @@
          (let relpathParts
            (filter notNull (split ==Char '/' relpath)))
          (let workdirParts*
-           (foldr
-             (lambda (relpathPart workdirParts)
+           (foldl
+             (lambda (workdirParts relpathPart)
                (case relpathPart
                  ("." workdirParts)
                  (".." (tail workdirParts))
                  (_ (Cons relpathPart workdirParts))))
              workdirParts
              relpathParts))
-         (returnIO (Cons '/' (intercalate "/" (reverse workdirParts*))))))))
+         (returnIO
+           (Cons '/' (intercalate "/" (reverse workdirParts*))))))))

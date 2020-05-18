@@ -69,12 +69,13 @@
 (defn bundlerRead (Func String (IO (List Decl)))
   (inputFilename)
   (do IO
+    (let inputBasename (takeFileName inputFilename))
     (with str (readFile inputFilename))
-    (print (concat ["Lexer (" inputFilename ")"]))
+    (print (concat ["Lexer (" inputBasename ")\n"]))
     (let tokens (tokenize str))
-    (print (concat ["Reader (" inputFilename ")"]))
+    (print (concat ["Reader (" inputBasename ")\n"]))
     (let forms (readModule tokens))
-    (print (concat ["Parser (" inputFilename ")"]))
+    (print (concat ["Parser (" inputBasename ")\n"]))
     (let decls (parseModule forms))
     (returnIO decls)))
 

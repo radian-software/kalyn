@@ -228,17 +228,20 @@
 
 (public def monadGetWorkingDirectory (Stateful VFunction)
   (do State
+    (with buf newTemp)
     (with msg newTemp)
     (with crash newLabel)
     (returnState
       (function
         "getWorkingDirectory__unmonadified"
         [(OP MOV (IR 79 rax))
-         (LEA (memLabelV "syscallBuffer") rdi)
+         (LEA (memLabelV "syscallBuffer") buf)
+         (OP MOV (RR buf rdi))
          (OP MOV (IR syscallBufferSize rsi))
          (SYSCALL 2)  ; getcwd
+         (UN PUSH (R buf))
+         (UN DEC (R rax))
          (UN PUSH (R rax))
-         (PUSHI -1)
          (JUMP CALL "memoryUnpackString")
          (unpush 2)
          RET

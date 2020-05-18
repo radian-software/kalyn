@@ -215,16 +215,19 @@ setFileMode = do
 
 monadGetWorkingDirectory :: Stateful VirtualFunction
 monadGetWorkingDirectory = do
+  buf   <- newTemp
   msg   <- newTemp
   crash <- newLabel
   return $ function
     "getWorkingDirectory__unmonadified"
     [ OP MOV $ IR 79 rax
-    , LEA (memLabel "syscallBuffer") rdi
+    , LEA (memLabel "syscallBuffer") buf
+    , OP MOV $ RR buf rdi
     , OP MOV $ IR (fromIntegral syscallBufferSize) rsi
     , SYSCALL 2  -- getcwd
+    , UN PUSH $ R buf
+    , UN DEC $ R rax
     , UN PUSH $ R rax
-    , PUSHI (-1)
     , JUMP CALL "memoryUnpackString"
     , unpush 2
     , RET
