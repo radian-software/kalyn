@@ -92,7 +92,7 @@
    the top."
   (cmp k v t)
   (case t
-    (Leaf (Branch k v 0 Leaf Leaf))
+    (Leaf (Branch k v 1 Leaf Leaf))
     ((Branch k1 v1 d l r)
      (case (cmp k1 k)
        (LT (Branch k v (+ d 1) (Branch k1 v1 (+ (- d (size r)) 1) l Leaf) r))
@@ -194,7 +194,7 @@
        (case (func Nothing)
          (Nothing Leaf)
          ((Just v)
-          (Branch k v 0 Leaf Leaf))))
+          (Branch k v 1 Leaf Leaf))))
       (br@(Branch k* v* d l r)
        (case (cmp k k*)
          (EQ (case (func (Just v*))
