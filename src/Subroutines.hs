@@ -2,6 +2,7 @@ module Subroutines where
 
 import qualified Data.ByteString.Lazy          as B
 import           Data.ByteString.Lazy.Builder
+import           Data.Maybe
 
 import           Assembly
 import           OS
@@ -46,11 +47,13 @@ translateCall lhsTemp rhsTemp = do
     ++ [ UN ICALL $ M (getField 0 lhsTemp)
        , OP MOV $ MR (getField 1 lhsTemp) popAmt
        ]
-    ++ (case rhsTemp of
-         Nothing -> []
-         Just _  -> [UN INC $ R popAmt]
-       )
-    ++ [OP IMUL $ IR 8 popAmt, OP ADD $ RR popAmt rsp]
+    ++ [ LEA
+           (Mem (Right (if isJust rhsTemp then 8 else 0))
+                rsp
+                (Just (Scale8, popAmt))
+           )
+           rsp
+       ]
 
 curryify :: Int -> String -> Stateful [VirtualFunction]
 curryify numArgs fnName = do

@@ -50,12 +50,15 @@
            (Nothing [])
            ((Just temp) [(UN PUSH (R temp))]))
          [(UN ICALL (M (getField 0 lhsTemp)))
-          (OP MOV (MR (getField 1 lhsTemp) popAmt))]
-         (case rhsTemp
-           (Nothing [])
-           ((Just _) [(UN INC (R popAmt))]))
-         [(OP IMUL (IR 8 popAmt))
-          (OP ADD (RR popAmt rsp))]]))))
+          (OP MOV (MR (getField 1 lhsTemp) popAmt))
+          (LEA
+            (Mem
+              (Right (case rhsTemp
+                       (Nothing 0)
+                       ((Just _) 8)))
+              rsp
+              (Just (Pair Scale8 popAmt)))
+            rsp)]]))))
 
 (public defn curryify (Func Int String (Stateful (List VFunction)))
   (numArgs fnName)
