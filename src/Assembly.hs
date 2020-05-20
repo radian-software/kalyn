@@ -13,8 +13,9 @@ import           GHC.Generics
 {-# ANN module "HLint: ignore Use lambda-case" #-}
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 
-class RegisterLike reg where
+class Show reg => RegisterLike reg where
   fromRegister :: Register -> reg
+  showByte :: reg -> String
 
 data Register = RAX | RCX | RDX | RBX
               | RSP | RBP | RSI | RDI
@@ -93,9 +94,28 @@ instance Show VirtualRegister where
 
 instance RegisterLike Register where
   fromRegister = id
+  showByte RAX = "%al"
+  showByte RCX = "%cl"
+  showByte RDX = "%dl"
+  showByte RBX = "%bl"
+  showByte RSP = "%spl"
+  showByte RBP = "%bpl"
+  showByte RSI = "%sil"
+  showByte RDI = "%dil"
+  showByte R8  = "%r8b"
+  showByte R9  = "%r9b"
+  showByte R10 = "%r10b"
+  showByte R11 = "%r11b"
+  showByte R12 = "%r12b"
+  showByte R13 = "%r13b"
+  showByte R14 = "%r14b"
+  showByte R15 = "%r15b"
+  showByte RIP = error "can't use %rip here"
 
 instance RegisterLike VirtualRegister where
   fromRegister = Physical
+  showByte (Physical reg ) = showByte reg
+  showByte (Virtual  temp) = show temp ++ "b"
 
 type Label = String
 
@@ -158,7 +178,7 @@ instance Show Scale where
   show Scale4 = "4"
   show Scale8 = "8"
 
-instance Show reg => Show (Mem reg) where
+instance RegisterLike reg => Show (Mem reg) where
   show (Mem disp base msi) =
     (case disp of
         Left  label -> label
@@ -174,14 +194,14 @@ instance Show reg => Show (Mem reg) where
          )
       ++ ")"
 
-instance Show reg => Show (Args reg) where
+instance RegisterLike reg => Show (Args reg) where
   show (IR imm reg) = "$" ++ show imm ++ ", " ++ show reg
   show (IM imm mem) = "$" ++ show imm ++ ", " ++ show mem
   show (RR src dst) = show src ++ ", " ++ show dst
   show (MR mem reg) = show mem ++ ", " ++ show reg
   show (RM reg mem) = show reg ++ ", " ++ show mem
 
-instance Show reg => Show (Arg reg) where
+instance RegisterLike reg => Show (Arg reg) where
   show (R reg) = show reg
   show (M mem) = show mem
 
@@ -219,23 +239,23 @@ instance Show Jump where
   show CALL = "callq"
 
 instance Show Shift where
-  show SHL = "shl"
-  show SAL = "sal"
-  show SHR = "shr"
-  show SAR = "sar"
+  show SHL = "shlq"
+  show SAL = "salq"
+  show SHR = "shrq"
+  show SAR = "sarq"
 
-instance Show reg => Show (Instruction reg) where
+instance RegisterLike reg => Show (Instruction reg) where
   show (OP     op    args ) = show op ++ " " ++ show args
   show (UN     ICALL arg  ) = show ICALL ++ " *" ++ show arg
   show (UN     op    arg  ) = show op ++ " " ++ show arg
   show (JUMP   op    label) = show op ++ " " ++ label
-  show (MOVBRM src   mem  ) = "movb " ++ show src ++ ", " ++ show mem
-  show (MOVBMR mem   dst  ) = "movb " ++ show mem ++ ", " ++ show dst
+  show (MOVBRM src   mem  ) = "movb " ++ showByte src ++ ", " ++ show mem
+  show (MOVBMR mem   dst  ) = "movb " ++ show mem ++ ", " ++ showByte dst
   show (MOV64  imm   dst  ) = "movq $" ++ show imm ++ ", " ++ show dst
   show (SHIFT amt shift dst) =
     show shift
       ++ " "
-      ++ maybe "%cx" (\val -> "$" ++ show val) amt
+      ++ maybe "%rcx" (\val -> "$" ++ show val) amt
       ++ ", "
       ++ show dst
   show (LEA src dst)  = "leaq " ++ show src ++ ", " ++ show dst
@@ -366,7 +386,7 @@ type PhysicalFunction = Function Register
 fnInstrs :: Function reg -> [Instruction reg]
 fnInstrs (Function _ name instrs) = SYMBOL name : instrs
 
-instance Show reg => Show (Function reg) where
+instance RegisterLike reg => Show (Function reg) where
   show fn = concatMap
     (\instr ->
       (case instr of
@@ -383,7 +403,7 @@ type Datum = (Label, B.ByteString)
 data Program reg = Program (Function reg) [Function reg] [Datum]
   deriving (Generic, NFData)
 
-instance Show reg => Show (Program reg) where
+instance RegisterLike reg => Show (Program reg) where
   show (Program mainFn fns datums) =
     ".text\n" ++ show mainFn ++ concatMap show fns ++ ".data\n" ++ concat
       (flip map datums $ \(label, datum) ->
