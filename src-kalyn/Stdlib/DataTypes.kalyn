@@ -1,7 +1,5 @@
 (import "../Stdlib.kalyn")
 
-(public data Never)
-
 (public data Empty
   Empty)
 
