@@ -94,7 +94,7 @@ def plot(series, title, png):
     plt.legend()
     plt.title(title)
     plt.grid(True, "both")
-    plt.savefig(png)
+    plt.savefig(png, transparent=True)
 
 
 plot(
