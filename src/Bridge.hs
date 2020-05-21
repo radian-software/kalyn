@@ -141,12 +141,7 @@ stdlibPublic = Map.fromList
 
 stdlibPrivate :: [Stateful VirtualFunction]
 stdlibPrivate =
-  [ memoryInit
-  , memoryAlloc
-  , memoryPackString
-  , memoryUnpackString
-  , primitiveCrash
-  ]
+  [memoryInit, memoryAlloc, packString, unpackString, primitiveCrash]
 
 getCalls :: VirtualFunction -> Set.Set String
 getCalls (Function _ _ instrs) = Set.fromList $ concatMap

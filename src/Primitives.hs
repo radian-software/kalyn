@@ -104,7 +104,7 @@ monadPrint = do
     "print__uncurried__unmonadified"
     [ OP MOV $ MR (getArg 1) temp
     , UN PUSH $ R temp
-    , JUMP CALL "memoryPackString"
+    , JUMP CALL "packString"
     , OP MOV $ RR rax str
     , unpush 1
     , OP MOV $ IR 1 rax
@@ -133,12 +133,12 @@ monadWriteFile = do
     "writeFile__uncurried__unmonadified"
     [ OP MOV $ MR (getArg 2) temp
     , UN PUSH $ R temp
-    , JUMP CALL "memoryPackString"
+    , JUMP CALL "packString"
     , unpush 1
     , OP MOV $ RR rax filename
     , OP MOV $ MR (getArg 1) temp
     , UN PUSH $ R temp
-    , JUMP CALL "memoryPackString"
+    , JUMP CALL "packString"
     , unpush 1
     , OP MOV $ RR rax contents
     , OP MOV $ IR 87 rax
@@ -196,7 +196,7 @@ setFileMode = do
     "setFileMode__uncurried__unmonadified"
     [ OP MOV $ MR (getArg 2) temp
     , UN PUSH $ R temp
-    , JUMP CALL "memoryPackString"
+    , JUMP CALL "packString"
     , unpush 1
     , OP MOV $ RR rax filename
     , OP MOV $ IR 90 rax
@@ -228,7 +228,7 @@ monadGetWorkingDirectory = do
     , UN PUSH $ R buf
     , UN DEC $ R rax
     , UN PUSH $ R rax
-    , JUMP CALL "memoryUnpackString"
+    , JUMP CALL "unpackString"
     , unpush 2
     , RET
     , LABEL crash
@@ -257,7 +257,7 @@ monadReadFile = do
     "readFile__uncurried__unmonadified"
     [ LEA (memLabel "syscallBuffer") buffer
     , UN PUSH $ M (getArg 1)
-    , JUMP CALL "memoryPackString"
+    , JUMP CALL "packString"
     , unpush 1
     , OP MOV $ RR rax filename
     , OP MOV $ IR 2 rax
@@ -279,7 +279,7 @@ monadReadFile = do
     , JUMP JL crash
     , UN PUSH $ R buffer
     , UN PUSH $ R bytesRead
-    , JUMP CALL "memoryUnpackString"
+    , JUMP CALL "unpackString"
     , unpush 2
     , OP MOV $ RR rax newString
     , OP CMP $ IR 0 strStart
@@ -311,7 +311,7 @@ primitiveError :: Stateful VirtualFunction
 primitiveError = return $ function
   "error__uncurried"
   [ UN PUSH $ M (getArg 1)
-  , JUMP CALL "memoryPackString"
+  , JUMP CALL "packString"
   , unpush 1
   , UN PUSH $ R rax
   , JUMP CALL "crash"

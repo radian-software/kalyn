@@ -62,7 +62,7 @@
          (UN PUSH (R msg))
          (JUMP CALL "crash")]))))
 
-(public def memoryPackString (Stateful VFunction)
+(public def packString (Stateful VFunction)
   (do State
     (with arg         newTemp)
     (with ptr         newTemp)
@@ -78,7 +78,7 @@
     (with copyDone    newLabel)
     (returnState
       (function
-        "memoryPackString"
+        "packString"
         [(OP MOV (MR (getArg 1) arg))
          (OP MOV (IR 0 strLength))
          (OP MOV (RR arg ptr))
@@ -111,7 +111,7 @@
          (OP MOV (RR result rax))
          RET]))))
 
-(public def memoryUnpackString (Stateful VFunction)
+(public def unpackString (Stateful VFunction)
   (do State
     (with str newTemp)
     (with strptr newTemp)
@@ -128,7 +128,7 @@
     (with copyDone newLabel)
     (returnState
       (function
-        "memoryUnpackString"
+        "unpackString"
         [(OP MOV (MR (getArg 2) str))
          (OP MOV (MR (getArg 1) allocSize))
          (OP CMP (IR 0 allocSize))

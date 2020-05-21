@@ -169,8 +169,8 @@
 (def stdlibPrivate (List (Stateful VFunction))
   [memoryInit
    memoryAlloc
-   memoryPackString
-   memoryUnpackString
+   packString
+   unpackString
    primitiveCrash])
 
 (defn getCalls (Func VFunction (Set String))

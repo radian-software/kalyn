@@ -112,6 +112,111 @@ curryify numArgs fnName = do
     [0 .. numArgs - 2]
   return . reverse $ topFn : subFns
 
+packString :: Stateful VirtualFunction
+packString = do
+  arg         <- newTemp
+  ptr         <- newTemp
+  strLength   <- newTemp
+  allocLength <- newTemp
+  result      <- newTemp
+  mptr        <- newTemp
+  temp        <- newTemp
+  zero        <- newTemp
+  lengthStart <- newLabel
+  lengthDone  <- newLabel
+  copyStart   <- newLabel
+  copyDone    <- newLabel
+  return $ function
+    "packString"
+    [ OP MOV $ MR (getArg 1) arg
+    , OP MOV $ IR 0 strLength
+    , OP MOV $ RR arg ptr
+    , LABEL lengthStart
+    , OP CMP $ IM 0 (getField 0 ptr)
+    , JUMP JE lengthDone
+    , UN INC $ R strLength
+    , OP MOV $ MR (getField 2 ptr) ptr
+    , JUMP JMP lengthStart
+    , LABEL lengthDone
+    , LEA (Mem (Right 9) strLength Nothing) allocLength
+    , UN PUSH $ R allocLength
+    , JUMP CALL "memoryAlloc"
+    , unpush 1
+    , OP MOV $ RR rax result
+    , OP MOV $ RM strLength (deref rax)
+    , LEA (getField 1 rax) mptr
+    , OP MOV $ RR arg ptr
+    , LABEL copyStart
+    , OP CMP $ IM 0 (getField 0 ptr)
+    , JUMP JE copyDone
+    , OP MOV $ MR (getField 1 ptr) temp
+    , MOVBRM temp (deref mptr)
+    , OP MOV $ MR (getField 2 ptr) ptr
+    , UN INC $ R mptr
+    , JUMP JMP copyStart
+    , LABEL copyDone
+    , OP MOV $ IR 0 zero
+    , MOVBRM zero (deref mptr)
+    , OP MOV $ RR result rax
+    , RET
+    ]
+
+unpackString :: Stateful VirtualFunction
+unpackString = do
+  str       <- newTemp
+  strptr    <- newTemp
+  allocSize <- newTemp
+  retval    <- newTemp
+  bufPtr    <- newTemp
+  lstPtr    <- newTemp
+  lstEnd    <- newTemp
+  char      <- newTemp
+  next      <- newTemp
+  lenStart  <- newLabel
+  lenDone   <- newLabel
+  copyStart <- newLabel
+  copyDone  <- newLabel
+  return $ function
+    "unpackString"
+    [ OP MOV $ MR (getArg 2) str
+    , OP MOV $ MR (getArg 1) allocSize
+    , OP CMP $ IR 0 allocSize
+    , JUMP JGE lenDone
+    , OP MOV $ RR str strptr
+    , OP MOV $ IR 0 allocSize
+    , LABEL lenStart
+    , OP CMP $ IM 0 (deref strptr)
+    , JUMP JE lenDone
+    , UN INC $ R allocSize
+    , UN INC $ R strptr
+    , LABEL lenDone
+    , OP IMUL $ IR 24 allocSize
+    , OP ADD $ IR 8 allocSize
+    , UN PUSH (R allocSize)
+    , JUMP CALL "memoryAlloc"
+    , unpush 1
+    , OP MOV $ RR rax retval
+    , OP MOV $ RR str bufPtr
+    , OP MOV $ RR rax lstPtr
+    , LEA (Mem (Right $ -8) lstPtr (Just (Scale1, allocSize))) lstEnd
+    , LABEL copyStart
+    , OP CMP $ RR lstEnd lstPtr
+    , JUMP JGE copyDone
+    , OP MOV $ IM 1 (getField 0 lstPtr)
+    , OP MOV $ IR 0 char
+    , MOVBMR (deref bufPtr) char
+    , OP MOV $ RM char (getField 1 lstPtr)
+    , LEA (getField 3 lstPtr) next
+    , OP MOV $ RM next (getField 2 lstPtr)
+    , UN INC (R bufPtr)
+    , OP ADD $ IR 24 lstPtr
+    , JUMP JMP copyStart
+    , LABEL copyDone
+    , OP MOV $ IM 0 (deref lstPtr)
+    , OP MOV $ RR retval rax
+    , RET
+    ]
+
 packMsg :: String -> B.ByteString
 packMsg str =
   toLazyByteString $ int64LE (fromIntegral $ length str) <> stringUtf8 str

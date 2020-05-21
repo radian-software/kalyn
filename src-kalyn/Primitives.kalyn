@@ -118,7 +118,7 @@
         "print__uncurried__unmonadified"
         [(OP MOV (MR (getArg 1) temp))
          (UN PUSH (R temp))
-         (JUMP CALL "memoryPackString")
+         (JUMP CALL "packString")
          (OP MOV (RR rax str))
          (unpush 1)
          (OP MOV (IR 1 rax))
@@ -147,12 +147,12 @@
         "writeFile__uncurried__unmonadified"
         [(OP MOV (MR (getArg 2) temp))
          (UN PUSH (R temp))
-         (JUMP CALL "memoryPackString")
+         (JUMP CALL "packString")
          (unpush 1)
          (OP MOV (RR rax filename))
          (OP MOV (MR (getArg 1) temp))
          (UN PUSH (R temp))
-         (JUMP CALL "memoryPackString")
+         (JUMP CALL "packString")
          (unpush 1)
          (OP MOV (RR rax contents))
          (OP MOV (IR 87 rax))
@@ -210,7 +210,7 @@
         "setFileMode__uncurried__unmonadified"
         [(OP MOV (MR (getArg 2) temp))
          (UN PUSH (R temp))
-         (JUMP CALL "memoryPackString")
+         (JUMP CALL "packString")
          (unpush 1)
          (OP MOV (RR rax filename))
          (OP MOV (IR 90 rax))
@@ -242,7 +242,7 @@
          (UN PUSH (R buf))
          (UN DEC (R rax))
          (UN PUSH (R rax))
-         (JUMP CALL "memoryUnpackString")
+         (JUMP CALL "unpackString")
          (unpush 2)
          RET
          (LABEL crash)
@@ -271,7 +271,7 @@
         "readFile__uncurried__unmonadified"
         [(LEA (memLabelV "syscallBuffer") buffer)
          (UN PUSH (M (getArg 1)))
-         (JUMP CALL "memoryPackString")
+         (JUMP CALL "packString")
          (unpush 1)
          (OP MOV (RR rax filename))
          (OP MOV (IR 2 rax))
@@ -293,7 +293,7 @@
          (JUMP JL crash)
          (UN PUSH (R buffer))
          (UN PUSH (R bytesRead))
-         (JUMP CALL "memoryUnpackString")
+         (JUMP CALL "unpackString")
          (unpush 2)
          (OP MOV (RR rax newString))
          (OP CMP (IR 0 strStart))
@@ -325,7 +325,7 @@
     (function
       "error__uncurried"
       [(UN PUSH (M (getArg 1)))
-       (JUMP CALL "memoryPackString")
+       (JUMP CALL "packString")
        (unpush 1)
        (UN PUSH (R rax))
        (JUMP CALL "crash")])))
