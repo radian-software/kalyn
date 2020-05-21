@@ -391,29 +391,6 @@ primitiveCrash = do
     , SYSCALL 1 -- exit
     ]
 
-monadify :: Int -> String -> Stateful VirtualFunction
-monadify numArgs fnName = do
-  fnPtr <- newTemp
-  arg   <- newTemp
-  return $ function
-    fnName
-    (  [ PUSHI (fromIntegral $ (numArgs + 2) * 8)
-       , JUMP CALL "memoryAlloc"
-       , unpush 1
-       , LEA (memLabel $ fnName ++ "__unmonadified") fnPtr
-       , OP MOV $ RM fnPtr (getField 0 rax)
-       , OP MOV $ IM (fromIntegral numArgs) (getField 1 rax)
-       ]
-    ++ concatMap
-         (\i ->
-           [ OP MOV $ MR (getArg $ numArgs + 1 - i) arg
-           , OP MOV $ RM arg (getField (i + 1) rax)
-           ]
-         )
-         [1 .. numArgs]
-    ++ [RET]
-    )
-
 primitiveTrace :: Stateful VirtualFunction
 primitiveTrace = return $ function
   "trace__uncurried"

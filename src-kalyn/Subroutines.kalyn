@@ -122,6 +122,28 @@
         (iterate (+ 1) 0 (- numArgs 1))))
     (returnState (reverse (Cons topFn subFns)))))
 
+(public defn monadify (Func Int String (Stateful VFunction))
+  (numArgs fnName)
+  (do State
+    (with fnPtr newTemp)
+    (with arg   newTemp)
+    (returnState
+      (function
+        fnName
+        (concat
+          [[(PUSHI (* 8 (+ 2 numArgs)))
+            (JUMP CALL "memoryAlloc")
+            (unpush 1)
+            (LEA (memLabelV (append fnName "__unmonadified")) fnPtr)
+            (OP MOV (RM fnPtr (getField 0 rax)))
+            (OP MOV (IM numArgs (getField 1 rax)))]
+           (concatMap
+             (lambda (i)
+               [(OP MOV (MR (getArg (- (+ numArgs 1) i)) arg))
+                (OP MOV (RM arg (getField (+ i 1) rax)))])
+             (iterate (+ 1) 1 numArgs))
+           [RET]])))))
+
 (defn packMsg (Func String Bytes)
   (str)
   (append (word64 (length str)) str))

@@ -112,6 +112,29 @@ curryify numArgs fnName = do
     [0 .. numArgs - 2]
   return . reverse $ topFn : subFns
 
+monadify :: Int -> String -> Stateful VirtualFunction
+monadify numArgs fnName = do
+  fnPtr <- newTemp
+  arg   <- newTemp
+  return $ function
+    fnName
+    (  [ PUSHI (fromIntegral $ (numArgs + 2) * 8)
+       , JUMP CALL "memoryAlloc"
+       , unpush 1
+       , LEA (memLabel $ fnName ++ "__unmonadified") fnPtr
+       , OP MOV $ RM fnPtr (getField 0 rax)
+       , OP MOV $ IM (fromIntegral numArgs) (getField 1 rax)
+       ]
+    ++ concatMap
+         (\i ->
+           [ OP MOV $ MR (getArg $ numArgs + 1 - i) arg
+           , OP MOV $ RM arg (getField (i + 1) rax)
+           ]
+         )
+         [1 .. numArgs]
+    ++ [RET]
+    )
+
 packString :: Stateful VirtualFunction
 packString = do
   arg         <- newTemp
