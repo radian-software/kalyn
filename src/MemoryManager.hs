@@ -51,6 +51,8 @@ memoryAlloc = do
     -- round up to next page boundary
     , OP ADD $ IR (fromIntegral $ pageSize - 1) firstFree
     , OP AND $ IR (fromIntegral $ -pageSize) firstFree
+    -- reserve 1000 more pages while we're at it
+    , OP ADD $ IR (fromIntegral $ pageSize * 1000) firstFree
     , OP MOV $ IR 12 rax
     , OP MOV $ RR firstFree rdi
     , SYSCALL 1 -- brk

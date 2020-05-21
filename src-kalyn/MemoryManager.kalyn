@@ -50,6 +50,8 @@
          ;; round up to next page boundary
          (OP ADD (IR (- pageSize 1) firstFree))
          (OP AND (IR (- 0 pageSize) firstFree))
+         ;; reserve 1000 more pages while we're at it
+         (OP ADD (IR (* pageSize 1000) firstFree))
          (OP MOV (IR 12 rax))
          (OP MOV (RR firstFree rdi))
          (SYSCALL 1)  ; brk
