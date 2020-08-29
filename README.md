@@ -13,7 +13,7 @@ blog](https://intuitiveexplanations.com/tech/kalyn)!
 
 Install [Stack](https://docs.haskellstack.org/en/stable/README/). Keep
 in mind on Arch-based Linux distributions that all the Haskell
-packages in the official repos are totally unusable for devellopment,
+packages in the official repos are totally unusable for development,
 so you need to install Stack using the upstream binaries. (See [this
 HIE
 issue](https://github.com/haskell/haskell-ide-engine/issues/1721#issuecomment-609847125).)
