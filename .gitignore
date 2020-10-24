@@ -1,4 +1,5 @@
 /.stack-work
+/dist-newstyle
 /kalyn.cabal
 /out-kalyn
 /out-kalyn-rec
