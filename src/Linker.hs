@@ -1,7 +1,6 @@
 module Linker
   ( link
-  )
-where
+  ) where
 
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy          as B
@@ -21,19 +20,20 @@ import           Util
 -- instead of 32-bit in the headers.
 
 data HeaderInfo = HeaderInfo
-  { elfHeaderLen :: Int
-  , phEntryLen :: Int
-  , phNumEntries :: Int
-  , shEntryLen :: Int
-  , shNumEntries :: Int
-  , shstrtabIndices :: Map.Map String Int
-  , shstrtabLen :: Int
-  , symtabEntryLen :: Int
+  { elfHeaderLen     :: Int
+  , phEntryLen       :: Int
+  , phNumEntries     :: Int
+  , shEntryLen       :: Int
+  , shNumEntries     :: Int
+  , shstrtabIndices  :: Map.Map String Int
+  , shstrtabLen      :: Int
+  , symtabEntryLen   :: Int
   , symtabNumEntries :: Int
-  , symstrtabLen :: Int
-  , codeLen :: Int
-  , dataLen :: Int
-  } deriving (Show)
+  , symstrtabLen     :: Int
+  , codeLen          :: Int
+  , dataLen          :: Int
+  }
+  deriving Show
 
 phOffset :: HeaderInfo -> Int
 phOffset = elfHeaderLen
@@ -69,12 +69,12 @@ dataOffset info = codeOffset info + roundUp pageSize (codeLen info)
 elfIdent :: B.ByteString
 elfIdent =
   let hdr =
-          toLazyByteString
-            $  word8 0x7f -- magic bytes
-            <> stringUtf8 "ELF"
-            <> word8 2 -- address size, 64-bit
-            <> word8 1 -- endianness, little-endian
-            <> word8 1 -- version of ELF specification
+        toLazyByteString
+          $  word8 0x7f -- magic bytes
+          <> stringUtf8 "ELF"
+          <> word8 2 -- address size, 64-bit
+          <> word8 1 -- endianness, little-endian
+          <> word8 1 -- version of ELF specification
   in  hdr <> B.pack (replicate (16 - fromIntegral (B.length hdr)) 0)
 
 -- see page 18; for architecture codes see
@@ -124,7 +124,7 @@ programHeader info =
 sectionHeader :: HeaderInfo -> Int -> [(B.ByteString, Maybe String)]
 sectionHeader info numSymbols =
   let getIdx name =
-          fromIntegral $ Map.findWithDefault 0 name (shstrtabIndices info)
+        fromIntegral $ Map.findWithDefault 0 name (shstrtabIndices info)
   in  [ ( toLazyByteString -- index 0 (see page 27)
           $  word32LE 0
           <> word32LE 0

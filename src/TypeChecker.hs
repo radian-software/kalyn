@@ -1,7 +1,6 @@
 module TypeChecker
   ( typeCheckBundle
-  )
-where
+  ) where
 
 import           Control.Monad.State
 import           Data.Char
@@ -118,8 +117,9 @@ analyzePattern fnName ctx var expr@(Call _ _) =
               let TypeSpec origName origParams = sdTypeSpec sd
               paramVars <- replicateM (length origParams) newVar
               let paramMap = Map.fromList $ zip origParams paramVars
-              let fieldConsTypes =
-                    map (numberType fnName (`Map.lookup` paramMap)) (sdTypes sd)
+              let fieldConsTypes = map
+                    (numberType fnName (`Map.lookup` paramMap))
+                    (sdTypes sd)
               (fieldConses, fieldCtxs) <- mapAndUnzipM
                 (uncurry $ analyzePattern fnName ctx)
                 (zip fieldVars args)
@@ -333,7 +333,8 @@ solveConstraints name fixed =
     . foldM (uncurry . unify name fixed Set.empty) Map.empty
     . reverse
 
-collectTypes :: Map.Map Int ConsE -> Set.Set Int -> Bool -> ConsE -> Set.Set Int
+collectTypes
+  :: Map.Map Int ConsE -> Set.Set Int -> Bool -> ConsE -> Set.Set Int
 collectTypes mappings seen topLevel (ConsV var) = if Set.member var seen
   then Set.empty
   else

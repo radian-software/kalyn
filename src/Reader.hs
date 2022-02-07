@@ -1,7 +1,6 @@
 module Reader
   ( readModule
-  )
-where
+  ) where
 
 import           Tokens
 

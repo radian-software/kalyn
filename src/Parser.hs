@@ -1,7 +1,6 @@
 module Parser
   ( parseModule
-  )
-where
+  ) where
 
 import           Codec.Binary.UTF8.String
 import           Data.List
@@ -81,10 +80,10 @@ parseExpr form@(RoundList [Symbol "lambda", RoundList _, _]) =
   -- can call through in code generation
   let (args, body) = uncurryLambdas form
       gensyms =
-          take (length args)
-            . map (("gensym" ++) . show)
-            . iterate (+ 1)
-            $ (0 :: Int)
+        take (length args)
+          . map (("gensym" ++) . show)
+          . iterate (+ 1)
+          $ (0 :: Int)
   in  foldr
         (\(arg, gensym) lbody -> case arg of
           Symbol name -> Lambda (scrubGensym name) lbody

@@ -1,7 +1,6 @@
 module Translator
   ( translateBundle
-  )
-where
+  ) where
 
 import           Control.Applicative     hiding ( Const )
 import           Control.Monad
@@ -24,10 +23,10 @@ type Bindings = Map.Map String (Either Symbol VirtualRegister)
 type TopLevelBindings = Map.Map String Symbol
 
 data Context = Context
-  { bindings :: Bindings
-  , fnName :: String
+  { bindings       :: Bindings
+  , fnName         :: String
   , sublambdaCount :: Int
-  , sublambdaArgs :: [String]
+  , sublambdaArgs  :: [String]
   }
 
 withBinding :: String -> VirtualRegister -> Context -> Context

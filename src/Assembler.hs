@@ -1,7 +1,6 @@
 module Assembler
   ( assemble
-  )
-where
+  ) where
 
 import           Control.Applicative
 import           Data.Bits               hiding ( shift )
@@ -63,39 +62,39 @@ rex reg rm index =
 modRM :: Mod -> Reg -> RM -> Word8
 modRM modOpt reg rm =
   let modBits =
-          (case modOpt of
-            ModReg -> 0x3
-            ModMem -> 0x2
-            ModPC  -> 0x0
-          )
+        (case modOpt of
+          ModReg -> 0x3
+          ModMem -> 0x2
+          ModPC  -> 0x0
+        )
       regBits =
-          (case reg of
-            Reg    r -> snd . regCode $ r
-            RegExt b -> b
-          )
+        (case reg of
+          Reg    r -> snd . regCode $ r
+          RegExt b -> b
+        )
       rmBits =
-          (case rm of
-            RMReg r -> snd . regCode $ r
-            RMSIB   -> 0x4
-            RMPC    -> 0x5
-          )
+        (case rm of
+          RMReg r -> snd . regCode $ r
+          RMSIB   -> 0x4
+          RMPC    -> 0x5
+        )
   in  (modBits `shiftL` 6) .|. (regBits `shiftL` 3) .|. rmBits
 
 sib :: Register -> Maybe (Scale, Register) -> Word8
 sib base msi =
   let scaleBits =
-          (case fst <$> msi of
-            Just Scale1 -> 0x0
-            Just Scale2 -> 0x1
-            Just Scale4 -> 0x2
-            Just Scale8 -> 0x3
-            Nothing     -> 0x0
-          )
+        (case fst <$> msi of
+          Just Scale1 -> 0x0
+          Just Scale2 -> 0x1
+          Just Scale4 -> 0x2
+          Just Scale8 -> 0x3
+          Nothing     -> 0x0
+        )
       indexBits =
-          (case snd <$> msi of
-            Just r  -> snd . regCode $ r
-            Nothing -> snd . regCode $ RSP
-          )
+        (case snd <$> msi of
+          Just r  -> snd . regCode $ r
+          Nothing -> snd . regCode $ RSP
+        )
       baseBits = snd . regCode $ base
   in  (scaleBits `shiftL` 6) .|. (indexBits `shiftL` 3) .|. baseBits
 
@@ -136,10 +135,10 @@ memInstr opcode base msi disp other imm =
           _   -> RMSIB
         )
       maybeSIB =
-          (case base of
-            RIP -> mempty
-            _   -> word8 $ sib base msi
-          )
+        (case base of
+          RIP -> mempty
+          _   -> word8 $ sib base msi
+        )
   in  toLazyByteString
         $  word8 rexBits
         <> mconcat (map word8 opcode)
@@ -217,7 +216,7 @@ compileInstr labels pc instr =
   in  case instr of
         OP op args ->
           let errorMemDisallowed =
-                  error $ "cannot " ++ show op ++ " into memory address"
+                error $ "cannot " ++ show op ++ " into memory address"
               (immOp, immExt, stdOp, memOp) = case op of
                 MOV  -> ([0xc7], Just 0, [0x8b], [0x89])
                 ADD  -> ([0x81], Just 0, [0x03], [0x01])

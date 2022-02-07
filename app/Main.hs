@@ -20,19 +20,18 @@ import           AST
 import           OS
 import           Util
 
--- import in stack order
-import           Lexer
-import           Reader
-import           Parser
-import           Bundler
-import           Resolver
-import           TypeChecker
-import           Translator
-import           Liveness
-import           RegisterAllocator
-import           Boilerplate
 import           Assembler
+import           Boilerplate
+import           Bundler
+import           Lexer
 import           Linker
+import           Liveness
+import           Parser
+import           Reader
+import           RegisterAllocator
+import           Resolver
+import           Translator
+import           TypeChecker
 
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 

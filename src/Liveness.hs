@@ -13,8 +13,7 @@ module Liveness
   , instrLiveOut
   , instrUsed
   , showLiveness
-  )
-where
+  ) where
 
 import           Control.DeepSeq
 import           Data.List
@@ -28,9 +27,9 @@ import           Util
 {-# ANN module "HLint: ignore Use tuple-section" #-}
 
 data InstrLiveness reg = InstrLiveness
-  { instrLiveIn :: Set.Set reg
+  { instrLiveIn  :: Set.Set reg
   , instrLiveOut :: Set.Set reg
-  , instrUsed :: Set.Set reg
+  , instrUsed    :: Set.Set reg
   , instrDefined :: Set.Set reg
   }
   deriving (Eq, Generic, NFData)
@@ -49,7 +48,8 @@ assertNoFreeVariables name analysis =
       ++ ", free variables: "
       ++ (show . Set.toList . instrLiveIn . head $ analysis)
 
-assertNoFreeVariablesP :: Show reg => ProgramLiveness reg -> ProgramLiveness reg
+assertNoFreeVariablesP
+  :: Show reg => ProgramLiveness reg -> ProgramLiveness reg
 assertNoFreeVariablesP = map
   (\(fn@(Function _ name _), liveness) ->
     (fn, assertNoFreeVariables name liveness)

@@ -1,7 +1,6 @@
 module Boilerplate
   ( addProgramBoilerplate
-  )
-where
+  ) where
 
 import           Data.List
 import qualified Data.Set                      as Set
@@ -11,9 +10,9 @@ import           Assembly
 addFnBoilerplate :: PhysicalFunction -> PhysicalFunction
 addFnBoilerplate (Function stackSpace name instrs) =
   let clobberedRegs =
-          nub
-            $ filter (\reg -> reg `Set.member` dataRegisters && reg /= RAX)
-            $ concatMap (snd . getRegisters) instrs
+        nub
+          $ filter (\reg -> reg `Set.member` dataRegisters && reg /= RAX)
+          $ concatMap (snd . getRegisters) instrs
   in  function name
         $  [UN PUSH $ R RBP, OP MOV $ RR RSP RBP]
         ++ [ OP SUB $ IR (fromIntegral stackSpace) RSP | stackSpace /= 0 ]

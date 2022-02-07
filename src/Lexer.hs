@@ -1,7 +1,6 @@
 module Lexer
   ( tokenize
-  )
-where
+  ) where
 
 import           Data.Char
 import           Data.Maybe
@@ -63,7 +62,7 @@ getToken ('-' : s@(c : _)) | isDigit c =
   let (d, s') = span isAlphaNum s in (Just . INTEGER . read $ '-' : d, s')
 getToken s =
   let (v, s') =
-          span (\c -> (not . isSpace $ c) && c `notElem` disallowedChars) s
+        span (\c -> (not . isSpace $ c) && c `notElem` disallowedChars) s
   in  (Just . SYMBOL $ v, s')
 
 tokenize :: String -> [Token]

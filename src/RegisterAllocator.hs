@@ -2,8 +2,7 @@ module RegisterAllocator
   ( Allocation
   , allocateProgramRegs
   , showAllocation
-  )
-where
+  ) where
 
 import           Control.Monad
 import           Data.List

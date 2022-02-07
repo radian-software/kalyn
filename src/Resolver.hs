@@ -1,7 +1,6 @@
 module Resolver
   ( resolveBundle
-  )
-where
+  ) where
 
 import           Data.Char
 import           Data.Int
@@ -66,8 +65,8 @@ sanitizeModuleNames :: [String] -> Map.Map String String
 sanitizeModuleNames fullNames =
   let maxComponents = maximum $ (map $ length . getComponents) fullNames
       xforms =
-          map (\n names -> map (sanitizeModuleName n) names) [1 .. maxComponents]
-            ++ [uniquify . map (sanitizeModuleName maxComponents)]
+        map (\n names -> map (sanitizeModuleName n) names) [1 .. maxComponents]
+          ++ [uniquify . map (sanitizeModuleName maxComponents)]
       bestXForm = head $ filter (\xform -> listUnique $ xform fullNames) xforms
   in  Map.fromList $ zip fullNames (bestXForm fullNames)
 
