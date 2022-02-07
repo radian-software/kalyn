@@ -7,7 +7,6 @@ import           Control.Monad.State
 import qualified Data.ByteString.Lazy          as B
 import           Data.List
 import           Data.Maybe
-import           Data.String.Utils
 import qualified Data.Text.Lazy                as T
 import           System.Directory
 import           System.Environment
@@ -56,7 +55,9 @@ overwriteBinary filename bin = do
 
 getPrefix :: String -> String
 getPrefix inputFilename = if "/src-kalyn/" `isInfixOf` inputFilename
-  then dropExtension . replace "/src-kalyn/" "/out-kalyn/" $ inputFilename
+  then dropExtension . T.unpack $ T.replace (T.pack "/src-kalyn/")
+                                            (T.pack "/out-kalyn/")
+                                            (T.pack inputFilename)
   else error $ "Kalyn source file outside src-kalyn: " ++ inputFilename
 
 readIncrementally :: Bool -> String -> IO [Decl]

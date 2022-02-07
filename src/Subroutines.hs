@@ -1,7 +1,7 @@
 module Subroutines where
 
+import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy          as B
-import           Data.ByteString.Lazy.Builder
 import           Data.Maybe
 
 import           Assembly

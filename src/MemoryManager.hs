@@ -1,6 +1,6 @@
 module MemoryManager where
 
-import           Data.ByteString.Lazy.Builder
+import           Data.ByteString.Builder
 
 import           Assembly
 import           OS

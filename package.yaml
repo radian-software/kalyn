@@ -10,7 +10,6 @@ dependencies:
   - deepseq
   - directory
   - filepath
-  - MissingH
   - mtl
   - pretty-simple
   - text
