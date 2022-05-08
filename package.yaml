@@ -1,7 +1,7 @@
 name: kalyn
 version: 0
-author: "Radon Rosborough"
-maintainer: "radon.neon@gmail.com"
+author: "Radian LLC"
+maintainer: "contact+kalyn@radian.codes"
 
 dependencies:
   - base

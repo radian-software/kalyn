@@ -1,8 +1,8 @@
 ;;; kalyn-mode.el --- Major mode for Kalyn -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020 Radon Rosborough
+;; Copyright (C) 2020-2022 Radian LLC and contributors
 
-;; Author: Radon Rosborough <radon.neon@gmail.com>
+;; Author: Radian LLC <contact+kalyn@radian.codes>
 ;; Created: 25 Feb 2020
 ;; Keywords: languages
 ;; Package-Requires: ((emacs "27"))
