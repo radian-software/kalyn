@@ -3,12 +3,11 @@ name = "scripts"
 version = "0.1.0"
 description = ""
 authors = ["Radian LLC <contact+kalyn@radian.codes>"]
+package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.8"
-matplotlib = "^3.2.1"
-
-[tool.poetry.dev-dependencies]
+python = "^3.11"
+matplotlib = "^3.11.1"
 
 [build-system]
 requires = ["poetry>=0.12"]
